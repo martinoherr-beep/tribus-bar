@@ -22,10 +22,13 @@ function App() {
   const [catSeleccionada, setCatSeleccionada] = useState("Todos");
   const [pedidosBarra, setPedidosBarra] = useState([]);
   const [historialEntregados, setHistorialEntregados] = useState([]); 
+  
+  // PERSISTENCIA MEJORADA
   const [historialCerrado, setHistorialCerrado] = useState(() => {
     const saved = localStorage.getItem('tribus_tickets_v1');
     return saved ? JSON.parse(saved) : [];
   });
+  
   const [cantidadAnterior, setCantidadAnterior] = useState(0);
   const [filtroMesa, setFiltroMesa] = useState(""); 
   const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
@@ -36,8 +39,11 @@ function App() {
 
   const obtenerPrecioItem = (item) => mesa ? item.precioMesa : item.precioDomicilio;
   const totalCarrito = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
-  const hoy = new Date().toLocaleDateString();
-  const totalCajaHoy = historialCerrado.filter(hc => !hc.archivado).reduce((acc, curr) => acc + parseFloat(curr.total), 0);
+  
+  // Total del turno actual (solo no archivados)
+  const totalCajaHoy = historialCerrado
+    .filter(hc => !hc.archivado)
+    .reduce((acc, curr) => acc + parseFloat(curr.total), 0);
 
   const agruparPorMesa = (lista) => {
     const agrupados = {};
@@ -116,8 +122,9 @@ function App() {
     } catch (e) { setView('success'); }
   };
 
+  // CIERRE DE TURNO SEGURO: Archiva pero no borra
   const realizarCierreTurno = () => {
-    if (window.confirm(`¿Cerrar turno con $${totalCajaHoy}?`)) {
+    if (window.confirm(`¿Cerrar turno con $${totalCajaHoy}? Los tickets se guardarán en el historial pero la caja volverá a $0.`)) {
       setHistorialCerrado(historialCerrado.map(t => ({ ...t, archivado: true })));
     }
   };
@@ -135,9 +142,13 @@ function App() {
   if (view === 'barra') {
     const listaAgrupada = agruparPorMesa(historialEntregados);
     const busqueda = filtroMesa.toLowerCase();
+
+    // Filtros flexibles para la vista principal
     const filtradosMesas = listaAgrupada.filter(h => !h.mesa.startsWith("TEL:") && (String(h.mesa).toLowerCase().includes(busqueda)));
     const mostrarExternos = filtroMesa.length >= 3;
     const pedidosExternos = listaAgrupada.filter(h => h.mesa.startsWith("TEL:") && h.mesa.toLowerCase().includes(busqueda));
+    
+    // Historial: Muestra actuales si no hay búsqueda, o busca en TODO si escribes
     const historialParaMostrar = filtroMesa 
       ? historialCerrado.filter(hc => hc.mesa.toLowerCase().includes(busqueda) || hc.detalle.toLowerCase().includes(busqueda)).slice(0, 20)
       : historialCerrado.filter(hc => !hc.archivado);
@@ -145,19 +156,20 @@ function App() {
     return (
       <div className="min-h-screen bg-[#05070a] p-4 md:p-6 text-white flex flex-col lg:flex-row gap-6 font-sans print:bg-white print:p-0">
         
+        {/* MODAL TICKET */}
         {ticketParaReimprimir && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:bg-white print:static">
             <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print:shadow-none print:w-full">
               <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white print:hidden"><X size={32}/></button>
               <div className="text-center border-b-2 border-dashed border-black pb-4 mb-4">
                 <h2 className="font-black text-2xl italic tracking-tighter">TRIBUS BAR</h2>
-                <p className="text-[10px] uppercase font-bold mt-1 tracking-widest">Ticket de Venta</p>
+                <p className="text-[10px] uppercase font-bold mt-1 tracking-widest">Nota de Venta</p>
               </div>
               <div className="flex justify-between text-[11px] mb-4 font-bold uppercase">
                 <span>{ticketParaReimprimir.mesa.startsWith("TEL:") ? "CLIENTE:" : "MESA:"}</span>
                 <span>{ticketParaReimprimir.mesa}</span>
               </div>
-              <div className="text-[10px] whitespace-pre-line mb-6 border-b border-gray-100 pb-4">{ticketParaReimprimir.detalle}</div>
+              <div className="text-[10px] whitespace-pre-line leading-tight mb-6 border-b border-gray-100 pb-4">{ticketParaReimprimir.detalle}</div>
               <div className="flex justify-between font-black text-2xl border-t-2 border-dashed border-black pt-4">
                 <span>TOTAL:</span><span>${ticketParaReimprimir.total}</span>
               </div>
@@ -183,12 +195,12 @@ function App() {
                       {p.mesa.startsWith("TEL:") ? "📦 DOMICILIO" : `MESA ${p.mesa}`}
                     </h3>
                     {p.mesa.startsWith("TEL:") && (
-                      <span className="bg-blue-900/30 text-blue-400 text-[9px] px-2 py-1 rounded-lg border border-blue-800 font-black animate-pulse flex items-center gap-1">
-                        <CreditCard size={10}/> PAGO PENDIENTE
+                      <span className="bg-blue-900/30 text-blue-400 text-[9px] px-2 py-1 rounded-lg border border-blue-800 font-black animate-pulse flex items-center gap-1 uppercase tracking-tighter">
+                        <CreditCard size={10}/> Pago Pendiente
                       </span>
                     )}
                   </div>
-                  {p.mesa.startsWith("TEL:") && <p className="text-blue-500 font-black text-xs mb-3">{p.mesa}</p>}
+                  {p.mesa.startsWith("TEL:") && <p className="text-blue-500 font-black text-xs mb-3 tracking-widest">{p.mesa}</p>}
                   <p className="text-lg text-slate-300 whitespace-pre-line leading-tight">{p.detalle}</p>
                 </div>
                 <button onClick={async () => {
@@ -218,7 +230,7 @@ function App() {
                       <div className="flex justify-between font-black text-blue-400 text-xs mb-1 uppercase italic">
                         <span>{h.mesa}</span><span className="text-white text-lg">${h.total}</span>
                       </div>
-                      <p className="text-[10px] text-slate-400 whitespace-pre-line bg-black/30 p-2 rounded-lg mb-3">{h.detalle}</p>
+                      <p className="text-[10px] text-slate-400 whitespace-pre-line bg-black/30 p-2 rounded-lg mb-3 leading-tight">{h.detalle}</p>
                       <button onClick={() => {
                           const ticket = { ...h, fecha: new Date(), archivado: false };
                           setHistorialCerrado([ticket, ...historialCerrado]);
@@ -239,7 +251,7 @@ function App() {
                   <div className="flex justify-between font-black text-orange-500 text-base mb-1 italic">
                     <span>Mesa {h.mesa}</span><span className="text-white">${h.total}</span>
                   </div>
-                  <p className="text-[10px] text-slate-400 whitespace-pre-line bg-black/30 p-2 rounded-lg mb-3">{h.detalle}</p>
+                  <p className="text-[10px] text-slate-400 whitespace-pre-line bg-black/30 p-2 rounded-lg mb-3 leading-tight">{h.detalle}</p>
                   <button onClick={() => {
                      const ticket = { ...h, fecha: new Date(), archivado: false };
                      setHistorialCerrado([ticket, ...historialCerrado]);
@@ -258,19 +270,23 @@ function App() {
             </div>
             <div className="space-y-3 max-h-[350px] overflow-y-auto no-scrollbar mb-4 pr-1">
               {historialParaMostrar.map((hc, idx) => (
-                <div key={idx} onClick={() => setTicketParaReimprimir(hc)} className={`p-3 bg-[#05070a] rounded-xl border flex flex-col gap-1.5 shadow-inner cursor-pointer hover:border-orange-500 transition-all ${hc.archivado ? 'opacity-50 border-slate-800' : 'border-slate-700'}`}>
+                <div key={idx} onClick={() => setTicketParaReimprimir(hc)} className={`p-3 bg-[#05070a] rounded-xl border flex flex-col gap-1.5 shadow-inner cursor-pointer hover:border-orange-500 transition-all ${hc.archivado ? 'opacity-40 border-slate-800' : 'border-slate-700'}`}>
                   <div className="flex justify-between font-black text-[11px] uppercase tracking-tighter">
                     <span className={hc.mesa.startsWith("TEL:") ? "text-blue-400 italic" : "text-slate-400"}>{hc.mesa.startsWith("TEL:") ? "📦 EXTERNO" : `MESA ${hc.mesa}`}</span>
                     <span className="text-green-500">${hc.total}</span>
                   </div>
                   <p className="text-[9px] text-slate-500 whitespace-pre-line bg-[#0c111a] rounded-lg line-clamp-1 italic px-1">{hc.detalle}</p>
+                  <div className="text-[8px] text-slate-700 text-right uppercase font-bold flex justify-between tracking-tighter">
+                    <span>{new Date(hc.fecha).toLocaleDateString()}</span>
+                    <span>{new Date(hc.fecha).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                  </div>
                 </div>
               ))}
             </div>
             {!filtroMesa && (
                 <div className="pt-3 border-t border-slate-800 flex justify-between items-baseline font-black">
-                    <span className="text-slate-500 text-[10px] uppercase italic">Total Turno:</span>
-                    <span className="text-2xl text-green-500">${totalCajaHoy}</span>
+                    <span className="text-slate-500 text-[10px] uppercase italic tracking-tighter">Total Caja Turno:</span>
+                    <span className="text-2xl text-green-500 tracking-tighter">${totalCajaHoy}</span>
                 </div>
             )}
           </div>
@@ -280,57 +296,32 @@ function App() {
   }
 
   // --- VISTAS CLIENTE ---
-  if (view === 'welcome') {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden font-sans">
-        <div className="absolute inset-0 opacity-40">
-          <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="fondo" />
-          <div className="absolute inset-0 bg-slate-950/80"></div>
-        </div>
-        <div className="relative z-10 space-y-12 w-full max-w-lg">
-          <div className="space-y-4">
-            <div className="flex justify-center items-center gap-2 text-orange-500 mb-2 animate-pulse"><Zap size={48} /><h1 className="text-7xl font-black italic tracking-tighter uppercase leading-none">TRIBUS</h1></div>
-            <div className="space-y-2 uppercase tracking-tight">
-              <h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2>
-              <p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{mesa ? "Tu pedido va directo a la barra" : "Pide a domicilio por WhatsApp"}</p>
-            </div>
-          </div>
-          <div className="grid gap-4">
-            <button onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} className="flex items-center gap-5 bg-slate-800/60 p-5 rounded-3xl border border-slate-700/30 backdrop-blur-sm"><Wifi className="text-sky-400" size={28} />
-              <div className="text-left font-bold uppercase text-[10px] text-slate-400"><p>Wi-Fi Gratis</p><p className="text-lg text-white font-black">tribus2026</p></div></button>
-            <button onClick={() => setView('menu')} className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 transition-all"><UtensilsCrossed size={28} />
-              <div className="text-left font-bold uppercase text-[10px] text-orange-200"><p>Menú Digital</p><p className="text-lg text-white font-black uppercase tracking-tight">Ver la carta</p></div></button>
-          </div>
-          <button onClick={() => setView('barra')} className="opacity-10 text-[10px] uppercase font-bold tracking-widest hover:opacity-100 transition-opacity">Acceso Barra</button>
-        </div>
-      </div>
-    );
-  }
-
   const filtered = catSeleccionada === "Todos" ? MENU_LOCAL : MENU_LOCAL.filter(p => p.categoria === catSeleccionada);
 
   return (
     <div className="min-h-screen bg-slate-900 pb-32 text-slate-100 flex flex-col items-center font-sans">
-      <header className="bg-slate-950/95 backdrop-blur-md p-4 sticky top-0 z-40 w-full flex justify-center border-b border-slate-800">
-        <div className="max-w-6xl w-full flex justify-between items-center gap-4">
-          <div onClick={() => setView('welcome')} className="cursor-pointer font-black text-2xl text-orange-500 italic uppercase tracking-tighter">TRIBUS</div>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar">
+      <header className="bg-slate-950/95 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-800">
+        <div className="max-w-6xl mx-auto px-4 py-3">
+          <div className="flex justify-between items-center mb-3">
+            <div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter">TRIBUS</div>
+            <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative active:scale-90 transition-all shadow-xl"><ShoppingCart size={20} />{carrito.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{carrito.reduce((a,b)=>a+b.cantidad,0)}</span>}</button>
+          </div>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
             {CATEGORIAS.map(c => (
-              <button key={c} onClick={() => setCatSeleccionada(c)} className={`px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap ${catSeleccionada === c ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400'}`}>{c}</button>
+              <button key={c} onClick={() => setCatSeleccionada(c)} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${catSeleccionada === c ? 'bg-orange-600 text-white border-orange-500' : 'bg-slate-900 text-slate-400 border-slate-800'}`}>{c}</button>
             ))}
           </div>
-          <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-3 rounded-full relative active:scale-90 transition-all shadow-xl"><ShoppingCart size={20} />{carrito.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-600 text-[10px] px-1.5 rounded-full font-bold">{carrito.reduce((a,b)=>a+b.cantidad,0)}</span>}</button>
         </div>
       </header>
 
       <main className="p-4 w-full max-w-6xl">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(item => (
             <div key={item.id} className="bg-slate-800/60 rounded-3xl p-4 flex flex-row md:flex-col gap-4 border border-slate-700/30 group shadow-lg">
               <div className="w-24 h-24 md:w-full md:h-48 flex-shrink-0 rounded-2xl overflow-hidden"><img src={item.imagen} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" alt="p" /></div>
               <div className="flex-1 flex flex-col justify-between">
                 <div><h3 className="font-bold text-white leading-tight text-base md:text-lg uppercase tracking-tight">{item.nombre}</h3><p className="text-slate-500 text-xs mt-1 line-clamp-2 italic">{item.descripcion}</p></div>
-                <div className="flex justify-between items-center mt-3"><span className="font-black text-xl md:text-2xl text-orange-500 italic tracking-tighter">${obtenerPrecioItem(item)}</span><button onClick={() => agregarAlCarrito(item)} className="bg-orange-600 text-white w-10 h-10 md:w-12 md:h-12 rounded-xl font-bold shadow-lg shadow-orange-950/20 active:scale-90 transition-all">+</button></div>
+                <div className="flex justify-between items-center mt-3"><span className="font-black text-xl md:text-2xl text-orange-500 italic tracking-tighter">${obtenerPrecioItem(item)}</span><button onClick={() => agregarAlCarrito(item)} className="bg-orange-600 text-white w-10 h-10 md:w-12 md:h-12 rounded-xl font-bold shadow-lg active:scale-90 transition-all">+</button></div>
               </div>
             </div>
           ))}
@@ -356,7 +347,6 @@ function App() {
         </div>
       </div>
 
-      {/* BOTÓN FLOTANTE RESTAURADO */}
       {carrito.length > 0 && !verCarrito && (
         <div className="fixed bottom-6 left-0 right-0 px-6 z-50 flex justify-center">
           <button onClick={() => setVerCarrito(true)} className="w-full max-w-lg bg-orange-600 text-white py-4 rounded-2xl font-black flex justify-between px-8 border border-orange-500 shadow-2xl active:scale-95 transition-all">
@@ -365,7 +355,6 @@ function App() {
           </button>
         </div>
       )}
-
     </div>
   );
 }
