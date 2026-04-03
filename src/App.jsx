@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, MessageCircle, Trash2, X, Plus, Minus, Wifi, UtensilsCrossed, Zap, CheckCircle, ReceiptText, Printer, Search, CreditCard } from 'lucide-react';
 
-// DETECTA LA IP DEL SERVIDOR AUTOMÁTICAMENTE (Local o Bar)
-const API_URL = `http://${window.location.hostname}:3001`;
+// 1. DEFINIR PRIMERO LA URL DE NGROK (Sin espacios al inicio)
+const NGROK_URL = "https://lanell-unbreaking-leigh.ngrok-free.dev"; 
+
+// 2. AHORA YA PODEMOS USARLA EN API_URL
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname.includes('192.168')
+  ? `http://${window.location.hostname}:3001` // Si estoy en el bar (Wi-Fi)
+  : NGROK_URL;                                // Si estoy fuera (Vercel)
 
 const DATOS_PAGO = "💳 *DATOS DE PAGO*:\nBanco: Tu Banco\nCuenta: 0000 0000 0000 0000\nCLABE: 000000000000000000\nA nombre de: Tribus Bar";
 
@@ -29,6 +34,7 @@ function App() {
   const [filtroMesa, setFiltroMesa] = useState(""); 
   const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
 
+  // Helper para obtener el precio según el contexto (Mesa o Domicilio)
   const obtenerPrecioItem = (item) => mesa ? item.precioMesa : item.precioDomicilio;
   const totalCarrito = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
   
@@ -89,7 +95,6 @@ function App() {
     else setCarrito(carrito.map(x => x.id === id ? { ...ex, cantidad: ex.cantidad - 1 } : x));
   };
 
-  // LOGICA HIBRIDA: QR (Mesa) o Externo (WhatsApp + Registro en DB)
   const enviarPedido = async () => {
     const detalleTexto = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
     let m = mesa || null;
@@ -100,7 +105,6 @@ function App() {
       if (!t) return;
       identificadorFinal = `TEL: ${t}`;
       
-      // Enviamos a WhatsApp
       const msg = `*TRIBUS BAR (RESERVA)*\n\n${detalleTexto}\n\n*Total: $${totalCarrito}*\n\n${DATOS_PAGO}`;
       window.open(`https://wa.me/526278897648?text=${encodeURIComponent(msg)}`, '_blank');
     } else {
@@ -145,6 +149,7 @@ function App() {
     }
   };
 
+  // Vistas de Pantalla
   if (view === 'success') {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center text-white font-sans">
@@ -191,7 +196,6 @@ function App() {
     const listaAgrupada = agruparPorMesa(historialEntregados);
     const busqueda = filtroMesa.toLowerCase();
     const filtradosMesas = listaAgrupada.filter(h => !h.mesa.startsWith("TEL:") && (String(h.mesa).toLowerCase().includes(busqueda)));
-    const mostrarExternos = filtroMesa.length >= 2 || true; // Siempre mostramos externos si existen
     const pedidosExternos = listaAgrupada.filter(h => h.mesa.startsWith("TEL:") && h.mesa.toLowerCase().includes(busqueda));
     const historialParaMostrar = filtroMesa 
       ? historialCerrado.filter(hc => hc.mesa.toLowerCase().includes(busqueda) || hc.detalle.toLowerCase().includes(busqueda)).slice(0, 20)
@@ -294,8 +298,6 @@ function App() {
     );
   }
 
-  const filtered = catSeleccionada === "Todos" ? MENU_LOCAL : MENU_LOCAL.filter(p => p.categoria === catSeleccionada);
-
   return (
     <div className="min-h-screen bg-slate-900 pb-32 text-slate-100 flex flex-col items-center font-sans">
       <header className="bg-slate-950/95 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-800 px-4 py-3">
@@ -313,7 +315,7 @@ function App() {
       </header>
 
       <main className="p-4 w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(item => (
+          {MENU_LOCAL.filter(p => catSeleccionada === "Todos" || p.categoria === catSeleccionada).map(item => (
             <div key={item.id} className="bg-slate-800/60 rounded-3xl p-4 flex flex-row md:flex-col gap-4 border border-slate-700/30 group shadow-lg">
               <div className="w-24 h-24 md:w-full md:h-48 flex-shrink-0 rounded-2xl overflow-hidden"><img src={item.imagen} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" alt="p" /></div>
               <div className="flex-1 flex flex-col justify-between">
@@ -324,6 +326,7 @@ function App() {
           ))}
       </main>
 
+      {/* MODAL CARRITO */}
       <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible' : 'invisible'}`}>
         <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} />
         <div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}>
