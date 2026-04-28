@@ -15,7 +15,7 @@ const PIN_CORRECTO = "2370";
 const MENU_LOCAL = [
   { id: 1, nombre: "Corona Extra", precioMesa: 45, precioDomicilio: 50, categoria: "Cerveza", subcategoria: "Media", descripcion: "Cerveza clara 355ml.", imagen: "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?q=80&w=500" },
   { id: 2, nombre: "Victoria Caguama", precioMesa: 95, precioDomicilio: 110, categoria: "Cerveza", subcategoria: "Caguama", descripcion: "Cerveza de 940ml ideal para compartir.", imagen: "https://images.unsplash.com/photo-1618885472179-5e474019f2a9?q=80&w=500" },
-  { id: 3, nombre: "Margarita Clásica", precioMesa: 120, precioDomicilio: 140, categoria: "Bebidas Preparadas", descripcion: "Tequila, controy y limón fresco.", imagen: "https://images.unsplash.com/photo-1592318963241-d796d5245cba?q=80&w=500" },
+  { id: 3, nombre: "Margarita Clásica", precioMesa: 120, precioDomicilio: 140, categoria: "Bebidas Preparadas", descripcion: "Tequila, controy y limón fresco.", imagen: "https://images.unsplash.com/photo-1618885472179-5e474019f2a9?q=80&w=500" },
   { id: 4, nombre: "Alitas BBQ (10 pz)", precioMesa: 180, precioDomicilio: 200, categoria: "Snacks", descripcion: "Bañadas en salsa artesanal con aderezo ranch.", imagen: "https://images.unsplash.com/photo-1527477396000-e27163b481c2?q=80&w=500" },
   { id: 5, nombre: "Tequila 7 Leguas Blanco", precioMesa: 1200, precioDomicilio: 1400, categoria: "Botellas", descripcion: "Botella 750ml incluye 4 refrescos o jugos.", imagen: "https://images.unsplash.com/photo-1516997121675-4c2d1684aa3e?q=80&w=500" }
 ];
@@ -224,21 +224,82 @@ function App() {
           ))}
         </div>
       </div>
-      <div className="w-full lg:w-[350px] space-y-4 no-print">
-        <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800"><div className="relative"><Search className="absolute left-3 top-2.5 text-slate-600" size={16}/><input type="text" placeholder="Buscar..." value={filtroMesa} onChange={(e) => setFiltroMesa(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl pl-10 py-2 text-sm text-white focus:border-orange-500" /></div></div>
-        <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-orange-900/10 shadow-2xl">
-          <div className="flex justify-between items-center mb-4"><h2 className="text-lg font-black text-orange-600 uppercase italic flex items-center gap-2"><ReceiptText size={20}/> Caja Hoy</h2><button onClick={realizarCierreTurno} className="text-[9px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-lg uppercase hover:bg-red-950 transition-all">Cierre</button></div>
-          <div className="space-y-3 max-h-[450px] overflow-y-auto no-scrollbar mb-4">
-            {historialCerrado.filter(hc => !hc.archivado && hc.mesa.toLowerCase().includes(filtroMesa.toLowerCase())).map((hc) => (
-              <div key={hc.id} className="group p-3 bg-[#05070a] rounded-xl border border-slate-700 flex items-center justify-between">
-                <div onClick={() => setTicketParaReimprimir(hc)} className="flex-1 cursor-pointer"><div className="flex justify-between font-black text-[11px] uppercase tracking-tighter"><span>{hc.mesa}</span><span className="text-green-500">${hc.total}</span></div></div>
-                <button onClick={async (e) => { e.stopPropagation(); if(window.confirm("¿Borrar?")) await deleteDoc(doc(db, "historial_tickets", hc.id)); }} className="ml-2 p-1.5 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={14}/></button>
+   <div className="w-full lg:w-[350px] space-y-4 no-print">
+  {/* BUSCADOR */}
+  <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800">
+    <div className="relative">
+      <Search className="absolute left-3 top-2.5 text-slate-600" size={16}/>
+      <input 
+        type="text" 
+        placeholder="Buscar mesa o ticket..." 
+        value={filtroMesa} 
+        onChange={(e) => setFiltroMesa(e.target.value)} 
+        className="w-full bg-[#05070a] border border-slate-800 rounded-xl pl-10 py-2 text-sm text-white focus:border-orange-500" 
+      />
+    </div>
+  </div>
+
+  {/* CAJA / HISTORIAL */}
+  <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-orange-900/10 shadow-2xl">
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="text-lg font-black text-orange-600 uppercase italic flex items-center gap-2">
+        <ReceiptText size={20}/> Caja Hoy
+      </h2>
+      <button onClick={realizarCierreTurno} className="text-[9px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-lg uppercase hover:bg-red-950 transition-all">
+        Cierre
+      </button>
+    </div>
+
+    <div className="space-y-3 max-h-[450px] overflow-y-auto no-scrollbar mb-4">
+      {historialCerrado
+        .filter(hc => {
+          // Si el buscador está vacío, mostramos solo lo que NO está archivado (el turno actual)
+          if (!filtroMesa) return !hc.archivado;
+          // Si hay texto, buscamos en TODO el historial cargado (archivado o no)
+          return hc.mesa?.toLowerCase().includes(filtroMesa.toLowerCase());
+        })
+        .map((hc) => (
+          <div key={hc.id} className="group p-3 bg-[#05070a] rounded-xl border border-slate-700 flex items-center justify-between hover:border-orange-500 transition-all">
+            <div onClick={() => setTicketParaReimprimir(hc)} className="flex-1 cursor-pointer">
+              <div className="flex justify-between font-black text-[11px] uppercase tracking-tighter">
+                <span className={hc.mesa?.startsWith("TEL:") ? "text-blue-400" : "text-slate-400"}>
+                  {hc.mesa}
+                </span>
+                <span className="text-green-500">${hc.total}</span>
               </div>
-            ))}
+              {/* Añadimos la hora pequeña para identificarlo mejor */}
+              <p className="text-[8px] text-slate-600 mt-1 uppercase font-bold">
+                {hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) : 'Reciente'}
+              </p>
+            </div>
+            
+            <button 
+              onClick={async (e) => { 
+                e.stopPropagation(); 
+                if(window.confirm("¿Borrar este ticket permanentemente?")) {
+                  await deleteDoc(doc(db, "historial_tickets", hc.id));
+                }
+              }} 
+              className="ml-2 p-1.5 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+            >
+              <Trash2 size={14}/>
+            </button>
           </div>
-          <div className="pt-3 border-t border-slate-800 flex justify-between font-black"><span className="text-slate-500 text-[10px] uppercase italic">Total:</span><span className="text-2xl text-green-500">${totalCajaHoy}</span></div>
-        </div>
-      </div>
+        ))
+      }
+      
+      {/* Mensaje si no hay resultados */}
+      {historialCerrado.length === 0 && (
+        <p className="text-center text-slate-600 text-[10px] uppercase font-bold py-4">No hay ventas registradas</p>
+      )}
+    </div>
+
+    <div className="pt-3 border-t border-slate-800 flex justify-between font-black">
+      <span className="text-slate-500 text-[10px] uppercase italic">Total:</span>
+      <span className="text-2xl text-green-500">${totalCajaHoy}</span>
+    </div>
+  </div>
+</div>
     </div>
   );
 
