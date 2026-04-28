@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, MessageCircle, Trash2, X, Plus, Minus, Wifi, UtensilsCrossed, Zap, CheckCircle, ReceiptText, Printer, Search, CreditCard } from 'lucide-react';
-
-// 1. DEFINIR PRIMERO LA URL DE NGROK (Sin espacios al inicio)
-const NGROK_URL = "https://lanell-unbreaking-leigh.ngrok-free.dev"; 
-
-// 2. AHORA YA PODEMOS USARLA EN API_URL
-const API_URL = window.location.hostname === 'localhost' || window.location.hostname.includes('192.168')
-  ? `http://${window.location.hostname}:3001` // Si estoy en el bar (Wi-Fi)
-  : NGROK_URL;                                // Si estoy fuera (Vercel)
+// --- IMPORTACIONES DE FIREBASE ---
+import { db } from './firebase'; 
+import { 
+  collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, 
+  query, where, orderBy, serverTimestamp, writeBatch 
+} from "firebase/firestore";
+// ---------------------------------
+import { 
+  ShoppingCart, MessageCircle, Trash2, X, Plus, Minus, Wifi, 
+  UtensilsCrossed, Zap, CheckCircle, ReceiptText, Printer, Search, CreditCard 
+} from 'lucide-react';
 
 const DATOS_PAGO = "💳 *DATOS DE PAGO*:\nBanco: Tu Banco\nCuenta: 0000 0000 0000 0000\nCLABE: 000000000000000000\nA nombre de: Tribus Bar";
 
@@ -28,58 +30,35 @@ function App() {
   const [verCarrito, setVerCarrito] = useState(false);
   const [catSeleccionada, setCatSeleccionada] = useState("Todos");
   const [pedidosBarra, setPedidosBarra] = useState([]);
-  const [historialEntregados, setHistorialEntregados] = useState([]); 
   const [historialCerrado, setHistorialCerrado] = useState([]); 
-  const [cantidadAnterior, setCantidadAnterior] = useState(0);
   const [filtroMesa, setFiltroMesa] = useState(""); 
   const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
 
-  // Helper para obtener el precio según el contexto (Mesa o Domicilio)
   const obtenerPrecioItem = (item) => mesa ? item.precioMesa : item.precioDomicilio;
   const totalCarrito = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
   
   const totalCajaHoy = historialCerrado
     .filter(hc => !hc.archivado)
-    .reduce((acc, curr) => acc + parseFloat(curr.total), 0);
-
-  const agruparPorMesa = (lista) => {
-    const agrupados = {};
-    lista.forEach(p => {
-      const key = p.mesa;
-      if (!agrupados[key]) agrupados[key] = { ...p, total: parseFloat(p.total) };
-      else { agrupados[key].detalle += "\n" + p.detalle; agrupados[key].total += parseFloat(p.total); }
-    });
-    return Object.values(agrupados);
-  };
+    .reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("mesa")) setMesa(params.get("mesa"));
     if (params.get("view") === 'barra') setView('barra');
+
+    const qPedidos = query(collection(db, "pedidos"), where("estado", "==", "pendiente"));
+    const unsubPedidos = onSnapshot(qPedidos, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPedidosBarra(docs.sort((a, b) => (a.fecha?.seconds || 0) - (b.fecha?.seconds || 0)));
+    });
+
+    const qHistorial = query(collection(db, "historial_tickets"), orderBy("fecha", "desc"));
+    const unsubHistorial = onSnapshot(qHistorial, (snapshot) => {
+      setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    return () => { unsubPedidos(); unsubHistorial(); };
   }, []);
-
-  const cargarDatosBarra = async () => {
-    if (view !== 'barra') return;
-    try {
-      const resP = await fetch(`${API_URL}/api/pedidos/pendientes`);
-      const dataP = await resP.json();
-      if (dataP.length > cantidadAnterior && cantidadAnterior !== 0) {
-        new Audio('https://assets.mixkit.co/active_storage/sfx/2216/2216-preview.mp3').play().catch(() => {});
-      }
-      setPedidosBarra(dataP);
-      setCantidadAnterior(dataP.length);
-
-      const resH = await fetch(`${API_URL}/api/historial`);
-      const dataH = await resH.json();
-      setHistorialCerrado(dataH);
-    } catch (err) { console.error("Error de conexión:", err); }
-  };
-
-  useEffect(() => {
-    cargarDatosBarra();
-    const interval = setInterval(cargarDatosBarra, 10000);
-    return () => clearInterval(interval);
-  }, [view, cantidadAnterior]);
 
   const agregarAlCarrito = (item) => {
     const p = obtenerPrecioItem(item);
@@ -96,67 +75,79 @@ function App() {
   };
 
   const enviarPedido = async () => {
+    if (carrito.length === 0) return;
+    
     const detalleTexto = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
-    let m = mesa || null;
-    let identificadorFinal = "";
+    let idFinal = mesa || null;
+    let esExterno = !mesa;
 
-    if (!m) {
-      const t = window.prompt("Ingresa tu teléfono para confirmar tu pedido/reserva:");
+    if (esExterno) {
+      const t = window.prompt("Ingresa tu teléfono:");
       if (!t) return;
-      identificadorFinal = `TEL: ${t}`;
-      
-      const msg = `*TRIBUS BAR (RESERVA)*\n\n${detalleTexto}\n\n*Total: $${totalCarrito}*\n\n${DATOS_PAGO}`;
-      window.open(`https://wa.me/526278897648?text=${encodeURIComponent(msg)}`, '_blank');
-    } else {
-      identificadorFinal = m;
+      idFinal = `TEL: ${t}`;
     }
 
+    // Preparamos el link de WhatsApp antes para evitar bloqueos del navegador
+    const mensajeWA = `¡Hola! Mi pedido es:\n\n${detalleTexto}\n\n*Total: $${totalCarrito}*\n\n${DATOS_PAGO}`;
+    const urlWA = `https://wa.me/526278897648?text=${encodeURIComponent(mensajeWA)}`;
+
     try {
-      await fetch(`${API_URL}/api/pedidos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          mesa: identificadorFinal, 
-          detalle: detalleTexto, 
-          total: totalCarrito, 
-          pagado: 0 
-        })
+      await addDoc(collection(db, "pedidos"), {
+        mesa: String(idFinal),
+        detalle: detalleTexto,
+        total: Number(totalCarrito),
+        estado: "pendiente",
+        fecha: serverTimestamp(),
+        archivado: false
       });
+
+      if (esExterno) {
+        window.open(urlWA, '_blank');
+      }
+
       setView('success');
-      setCarrito([]); setVerCarrito(false);
-    } catch (e) { setView('success'); }
+      setCarrito([]); 
+      setVerCarrito(false);
+    } catch (e) { 
+      console.error(e);
+    }
   };
 
-  const cobrarCuenta = async (cuenta) => {
+  const cobrarCuenta = async (p) => {
     try {
-      await fetch(`${API_URL}/api/historial/guardar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mesa: cuenta.mesa, detalle: cuenta.detalle, total: cuenta.total })
+      await addDoc(collection(db, "historial_tickets"), {
+        mesa: p.mesa,
+        detalle: p.detalle,
+        total: p.total,
+        fecha: serverTimestamp(),
+        archivado: false
       });
-      setHistorialEntregados(historialEntregados.filter(item => String(item.mesa) !== String(cuenta.mesa)));
-      setTicketParaReimprimir(cuenta);
-      cargarDatosBarra();
-    } catch (e) { alert("Error al cobrar"); }
+      await deleteDoc(doc(db, "pedidos", p.id));
+      setTicketParaReimprimir(p);
+    } catch (e) { console.error(e); }
   };
 
   const realizarCierreTurno = async () => {
     if (window.confirm(`¿Cerrar turno con $${totalCajaHoy}?`)) {
       try {
-        await fetch(`${API_URL}/api/historial/cierre`, { method: 'PUT' });
-        cargarDatosBarra();
-      } catch (e) { alert("Error en el cierre"); }
+        const batch = writeBatch(db);
+        historialCerrado.forEach((t) => {
+          if (!t.archivado) {
+            batch.update(doc(db, "historial_tickets", t.id), { archivado: true });
+          }
+        });
+        await batch.commit();
+      } catch (e) { console.error(e); }
     }
   };
 
-  // Vistas de Pantalla
   if (view === 'success') {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center text-white font-sans">
         <CheckCircle size={80} className="text-green-500 mb-6 animate-bounce" />
-        <h1 className="text-4xl font-black italic mb-4 uppercase">¡RECIBIDO!</h1>
-        <p className="text-slate-400 mb-8 uppercase tracking-widest text-sm">Estamos preparando tu pedido</p>
-        <button onClick={() => setView('welcome')} className="mt-10 text-orange-500 font-bold border-b border-orange-500 tracking-widest uppercase">Volver al inicio</button>
+        <h1 className="text-4xl font-black italic mb-4 uppercase tracking-tighter leading-none">¡RECIBIDO!</h1>
+        <p className="text-slate-400 mb-8 uppercase text-sm tracking-widest">Estamos preparando tu pedido</p>
+        <button onClick={() => setView('welcome')} className="text-orange-500 font-bold border-b border-orange-500 uppercase tracking-widest">Volver al inicio</button>
       </div>
     );
   }
@@ -170,7 +161,10 @@ function App() {
         </div>
         <div className="relative z-10 space-y-12 w-full max-w-lg">
           <div className="space-y-4">
-            <div className="flex justify-center items-center gap-2 text-orange-500 mb-2 animate-pulse"><Zap size={48} /><h1 className="text-7xl font-black italic tracking-tighter uppercase leading-none">TRIBUS</h1></div>
+            <div className="flex justify-center items-center gap-2 text-orange-500 mb-2 animate-pulse">
+              <Zap size={48} />
+              <h1 className="text-7xl font-black italic tracking-tighter uppercase leading-none">TRIBUS</h1>
+            </div>
             <div className="space-y-2 uppercase tracking-tight">
               <h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2>
               <p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{mesa ? "Tu pedido va directo a la barra" : "Pide para llevar o reserva"}</p>
@@ -193,110 +187,120 @@ function App() {
   }
 
   if (view === 'barra') {
-    const listaAgrupada = agruparPorMesa(historialEntregados);
-    const busqueda = filtroMesa.toLowerCase();
-    const filtradosMesas = listaAgrupada.filter(h => !h.mesa.startsWith("TEL:") && (String(h.mesa).toLowerCase().includes(busqueda)));
-    const pedidosExternos = listaAgrupada.filter(h => h.mesa.startsWith("TEL:") && h.mesa.toLowerCase().includes(busqueda));
+    const filtradosPendientes = pedidosBarra.filter(p => p.mesa.toLowerCase().includes(filtroMesa.toLowerCase()));
     const historialParaMostrar = filtroMesa 
-      ? historialCerrado.filter(hc => hc.mesa.toLowerCase().includes(busqueda) || hc.detalle.toLowerCase().includes(busqueda)).slice(0, 20)
+      ? historialCerrado.filter(hc => hc.mesa.toLowerCase().includes(filtroMesa.toLowerCase())).slice(0, 20)
       : historialCerrado.filter(hc => !hc.archivado);
 
     return (
       <div className="min-h-screen bg-[#05070a] p-4 md:p-6 text-white flex flex-col lg:flex-row gap-6 font-sans">
-        <style dangerouslySetInnerHTML={{__html: `@media print { @page { margin: 0; } body { background: white !important; margin: 0 !important; } .print-container { width: 100% !important; padding: 5mm !important; } .no-print { display: none !important; } }`}} />
+        <style dangerouslySetInnerHTML={{__html: `@media print { .no-print { display: none !important; } body { background: white; color: black; } .print-container { width: 100% !important; padding: 5mm !important; } }`}} />
+        
+      {/* MODAL TICKET PARA IMPRESIÓN */}
+{ticketParaReimprimir && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
+    <div className="bg-white text-black w-full max-w-[280px] p-6 font-mono shadow-2xl relative print:shadow-none print:w-full print:max-w-none print-container">
+      <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
+      
+      <div className="text-center border-b-2 border-dashed border-black pb-4 mb-4">
+        <h2 className="font-black text-xl italic uppercase tracking-tighter">TRIBUS BAR</h2>
+        <p className="text-[10px] uppercase font-bold mt-1">Nota de Venta</p>
+      </div>
 
-        {ticketParaReimprimir && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
-            <div className="bg-white text-black w-full max-w-[280px] p-6 font-mono shadow-2xl relative print:shadow-none print:w-full print:max-w-none print-container">
-              <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
-              <div className="text-center border-b-2 border-dashed border-black pb-4 mb-4">
-                <h2 className="font-black text-xl italic uppercase tracking-tighter">TRIBUS BAR</h2>
-                <p className="text-[10px] uppercase font-bold mt-1">Nota de Venta</p>
-              </div>
-              <div className="flex justify-between text-[11px] mb-4 font-bold uppercase">
-                <span>{ticketParaReimprimir.mesa.startsWith("TEL:") ? "CLIENTE:" : "MESA:"}</span><span>{ticketParaReimprimir.mesa}</span>
-              </div>
-              <div className="text-[10px] whitespace-pre-line leading-tight mb-6 border-b border-gray-100 pb-4">{ticketParaReimprimir.detalle}</div>
-              <div className="flex justify-between font-black text-xl border-t-2 border-dashed border-black pt-4"><span>TOTAL:</span><span>${ticketParaReimprimir.total}</span></div>
-              <p className="text-[8px] text-center mt-8 text-gray-500 uppercase font-bold">{new Date(ticketParaReimprimir.fecha).toLocaleString()}</p>
-              <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print active:scale-95 transition-all"><Printer size={18}/> Imprimir</button>
-            </div>
-          </div>
-        )}
+      <div className="flex justify-between text-[11px] mb-2 font-bold uppercase">
+        <span>{ticketParaReimprimir.mesa?.startsWith("TEL:") ? "CLIENTE:" : "MESA:"}</span>
+        <span>{ticketParaReimprimir.mesa}</span>
+      </div>
+
+      {/* FECHA DE COBRO AÑADIDA AQUÍ */}
+      <div className="flex justify-between text-[9px] mb-4 text-gray-600 font-bold uppercase border-b border-gray-100 pb-2">
+        <span>FECHA COBRO:</span>
+        <span>
+          {ticketParaReimprimir.fecha?.seconds 
+            ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })
+            : new Date().toLocaleString('es-MX')}
+        </span>
+      </div>
+
+      <div className="text-[10px] whitespace-pre-line leading-tight mb-6 min-h-[50px]">
+        {ticketParaReimprimir.detalle}
+      </div>
+
+      <div className="flex justify-between font-black text-xl border-t-2 border-dashed border-black pt-4">
+        <span>TOTAL:</span>
+        <span>${ticketParaReimprimir.total}</span>
+      </div>
+
+      <div className="mt-8 text-center border-t border-gray-100 pt-4">
+        <p className="text-[9px] uppercase font-bold text-gray-400 italic">¡Gracias por tu visita!</p>
+      </div>
+
+      <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print active:scale-95 transition-all flex items-center justify-center gap-2">
+        <Printer size={18}/> Imprimir Ticket
+      </button>
+    </div>
+  </div>
+)}
 
         <div className="flex-1 no-print">
           <header className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
             <h1 className="text-4xl font-black text-orange-600 italic uppercase tracking-tighter">BARRA</h1>
-            <div className="bg-slate-900 px-3 py-1 rounded-xl text-green-500 text-[10px] font-bold border border-slate-800 uppercase animate-pulse">● Online</div>
+            <div className="bg-slate-900 px-3 py-1 rounded-xl text-green-500 text-[10px] font-bold animate-pulse uppercase">● En Vivo</div>
           </header>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {pedidosBarra.map(p => (
-              <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl relative flex flex-col justify-between shadow-xl">
+            {filtradosPendientes.map(p => (
+              <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl relative shadow-xl flex flex-col justify-between">
                 <div className={`absolute top-0 left-0 w-1.5 h-full ${p.mesa.startsWith("TEL:") ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
                 <div>
                   <div className="flex justify-between items-start">
-                    <h3 className="text-2xl font-black italic mb-1 text-white uppercase tracking-tighter">{p.mesa.startsWith("TEL:") ? "📦 EXTERNO" : `MESA ${p.mesa}`}</h3>
+                    <h3 className="text-2xl font-black italic mb-1 uppercase tracking-tighter">
+                      {p.mesa.startsWith("TEL:") ? "📦 EXTERNO" : `MESA ${p.mesa}`}
+                    </h3>
                     {p.mesa.startsWith("TEL:") && (
-                        <span className="bg-blue-900/30 text-blue-400 text-[9px] px-2 py-1 rounded-lg border border-blue-800 font-black animate-pulse flex items-center gap-1 uppercase tracking-tighter">
-                            <CreditCard size={10}/> Pago Pendiente
-                        </span>
+                      <span className="bg-blue-900/30 text-blue-400 text-[9px] px-2 py-1 rounded-lg border border-blue-800 font-black animate-pulse flex items-center gap-1 uppercase tracking-tighter">
+                        <CreditCard size={10}/> Pago Pendiente
+                      </span>
                     )}
                   </div>
                   {p.mesa.startsWith("TEL:") && <p className="text-blue-500 font-black text-xs mb-3 tracking-widest">{p.mesa}</p>}
                   <p className="text-lg text-slate-300 whitespace-pre-line leading-tight mt-2">{p.detalle}</p>
                 </div>
-                <button onClick={async () => {
-                  await fetch(`${API_URL}/api/pedidos/entregar/${p.id}`, { method: 'PUT' });
-                  setHistorialEntregados([p, ...historialEntregados]);
-                  cargarDatosBarra(); 
-                }} className="bg-orange-600 hover:bg-orange-500 w-full py-3 rounded-xl font-black text-lg mt-4 transition-all active:scale-95 uppercase">Listo</button>
+                <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-3 rounded-xl font-black text-lg mt-4 active:scale-95 uppercase tracking-tighter">Cobrar</button>
               </div>
             ))}
           </div>
         </div>
 
         <div className="w-full lg:w-[350px] space-y-4 no-print">
-          <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 shadow-xl">
-            <div className="relative"><Search className="absolute left-3 top-2.5 text-slate-600" size={16}/><input type="text" placeholder="Buscar mesa o ticket..." value={filtroMesa} onChange={(e) => setFiltroMesa(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:border-orange-500 font-bold" /></div>
-          </div>
-
-          {pedidosExternos.length > 0 && (
-            <div className="bg-[#0c111a] p-5 rounded-[2rem] border-2 border-blue-600 shadow-lg shadow-blue-900/10">
-                <h2 className="text-lg font-black text-blue-400 mb-4 flex items-center gap-2 uppercase italic tracking-tighter"><MessageCircle size={20}/> Externos</h2>
-                <div className="space-y-3">{pedidosExternos.map((h, i) => (
-                    <div key={i} className="bg-[#161d2b] p-3 rounded-2xl border border-blue-700/20">
-                      <div className="flex justify-between font-black text-blue-400 text-xs mb-1 uppercase italic"><span>{h.mesa}</span><span className="text-white text-lg">${h.total}</span></div>
-                      <p className="text-[10px] text-slate-400 whitespace-pre-line bg-black/30 p-2 rounded-lg mb-3 leading-tight italic">{h.detalle}</p>
-                      <button onClick={() => cobrarCuenta(h)} className="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all">Confirmar Pago</button>
-                    </div>
-                ))}</div>
+          <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 text-slate-600" size={16}/>
+              <input type="text" placeholder="Buscar mesa..." value={filtroMesa} onChange={(e) => setFiltroMesa(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl pl-10 py-2 text-sm text-white focus:border-orange-500" />
             </div>
-          )}
-
-          <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-slate-800 shadow-2xl">
-            <h2 className="text-lg font-black text-green-500 mb-4 flex items-center gap-2 uppercase italic tracking-tighter"><CheckCircle size={20}/> Mesas</h2>
-            <div className="space-y-3 max-h-[300px] overflow-y-auto no-scrollbar">{filtradosMesas.map((h, i) => (
-                <div key={i} className="bg-[#161d2b] p-3 rounded-2xl border border-slate-700/30">
-                  <div className="flex justify-between font-black text-orange-500 text-base mb-1 italic"><span>Mesa {h.mesa}</span><span className="text-white">${h.total}</span></div>
-                  <p className="text-[10px] text-slate-400 whitespace-pre-line bg-black/30 p-2 rounded-lg mb-3 leading-tight">{h.detalle}</p>
-                  <button onClick={() => cobrarCuenta(h)} className="w-full bg-green-600 hover:bg-green-500 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg">Cobrar Mesa</button>
-                </div>
-              ))}</div>
           </div>
           <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-orange-900/10 shadow-2xl">
-            <div className="flex justify-between items-center mb-4"><h2 className="text-lg font-black text-orange-600 uppercase italic tracking-tighter flex items-center gap-2"><ReceiptText size={20}/> Caja</h2>{!filtroMesa && <button onClick={realizarCierreTurno} className="text-[9px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-lg uppercase hover:bg-red-950 transition-all">Cierre Turno</button>}</div>
-            <div className="space-y-3 max-h-[350px] overflow-y-auto no-scrollbar mb-4">{historialParaMostrar.map((hc, idx) => (
-                <div key={idx} onClick={() => setTicketParaReimprimir(hc)} className={`p-3 bg-[#05070a] rounded-xl border flex flex-col gap-1.5 shadow-inner cursor-pointer hover:border-orange-500 transition-all ${hc.archivado ? 'opacity-40 border-slate-800' : 'border-slate-700'}`}>
-                  <div className="flex justify-between font-black text-[11px] uppercase tracking-tighter"><span className={hc.mesa.startsWith("TEL:") ? "text-blue-400 italic" : "text-slate-400"}>{hc.mesa}</span><span className="text-green-500">${hc.total}</span></div>
-                  <p className="text-[9px] text-slate-500 whitespace-pre-line bg-[#0c111a] rounded-lg line-clamp-1 italic px-1 italic">{hc.detalle}</p>
+            <div className="flex justify-between items-center mb-4"><h2 className="text-lg font-black text-orange-600 uppercase italic flex items-center gap-2"><ReceiptText size={20}/> Caja Hoy</h2><button onClick={realizarCierreTurno} className="text-[9px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-lg uppercase hover:bg-red-950 transition-all">Cierre</button></div>
+            <div className="space-y-3 max-h-[450px] overflow-y-auto no-scrollbar mb-4">
+              {historialParaMostrar.map((hc) => (
+                <div key={hc.id} onClick={() => setTicketParaReimprimir(hc)} className={`p-3 bg-[#05070a] rounded-xl border flex flex-col gap-1.5 cursor-pointer hover:border-orange-500 transition-all ${hc.archivado ? 'opacity-40 border-slate-800' : 'border-slate-700'}`}>
+                  <div className="flex justify-between font-black text-[11px] uppercase tracking-tighter"><span className={hc.mesa.startsWith("TEL:") ? "text-blue-400" : "text-slate-400"}>{hc.mesa}</span><span className="text-green-500">${hc.total}</span></div>
                 </div>
-              ))}</div>
-            {!filtroMesa && <div className="pt-3 border-t border-slate-800 flex justify-between items-baseline font-black"><span className="text-slate-500 text-[10px] uppercase italic tracking-tighter">Total Caja:</span><span className="text-2xl text-green-500 tracking-tighter">${totalCajaHoy}</span></div>}
+              ))}
+            </div>
+            <div className="pt-3 border-t border-slate-800 flex justify-between font-black"><span className="text-slate-500 text-[10px] uppercase italic">Total:</span><span className="text-2xl text-green-500">${totalCajaHoy}</span></div>
           </div>
         </div>
       </div>
     );
   }
+
+  const menuFiltrado = catSeleccionada === "Todos" ? MENU_LOCAL : MENU_LOCAL.filter(p => p.categoria === catSeleccionada);
 
   return (
     <div className="min-h-screen bg-slate-900 pb-32 text-slate-100 flex flex-col items-center font-sans">
@@ -304,38 +308,40 @@ function App() {
         <div className="max-w-6xl mx-auto flex flex-col gap-3">
           <div className="flex justify-between items-center">
             <div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter">TRIBUS</div>
-            <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative active:scale-90 transition-all shadow-xl border border-slate-700"><ShoppingCart size={20} />{carrito.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-600 text-[10px] px-1.5 rounded-full font-bold shadow-sm">{carrito.reduce((a,b)=>a+b.cantidad,0)}</span>}</button>
+            <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative active:scale-90 border border-slate-700">
+              <ShoppingCart size={20} />
+              {carrito.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-600 text-[10px] px-1.5 rounded-full font-bold">{carrito.reduce((a,b)=>a+b.cantidad,0)}</span>}
+            </button>
           </div>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar">
             {CATEGORIAS.map(c => (
-              <button key={c} onClick={() => setCatSeleccionada(c)} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all border ${catSeleccionada === c ? 'bg-orange-600 text-white border-orange-500 shadow-lg shadow-orange-900/20' : 'bg-slate-900 text-slate-400 border-slate-800'}`}>{c}</button>
+              <button key={c} onClick={() => setCatSeleccionada(c)} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap border ${catSeleccionada === c ? 'bg-orange-600 text-white border-orange-500' : 'bg-slate-900 text-slate-400 border-slate-800'}`}>{c}</button>
             ))}
           </div>
         </div>
       </header>
 
       <main className="p-4 w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {MENU_LOCAL.filter(p => catSeleccionada === "Todos" || p.categoria === catSeleccionada).map(item => (
-            <div key={item.id} className="bg-slate-800/60 rounded-3xl p-4 flex flex-row md:flex-col gap-4 border border-slate-700/30 group shadow-lg">
-              <div className="w-24 h-24 md:w-full md:h-48 flex-shrink-0 rounded-2xl overflow-hidden"><img src={item.imagen} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" alt="p" /></div>
-              <div className="flex-1 flex flex-col justify-between">
-                <div><h3 className="font-bold text-white leading-tight uppercase tracking-tight">{item.nombre}</h3><p className="text-slate-500 text-xs mt-1 line-clamp-2 italic leading-tight">{item.descripcion}</p></div>
-                <div className="flex justify-between items-center mt-3"><span className="font-black text-xl md:text-2xl text-orange-500 italic tracking-tighter">${obtenerPrecioItem(item)}</span><button onClick={() => agregarAlCarrito(item)} className="bg-orange-600 text-white w-10 h-10 md:w-12 md:h-12 rounded-xl font-bold shadow-lg shadow-orange-950/20 active:scale-90 transition-all">+</button></div>
-              </div>
+        {menuFiltrado.map(item => (
+          <div key={item.id} className="bg-slate-800/60 rounded-3xl p-4 flex flex-row md:flex-col gap-4 border border-slate-700/30 group shadow-lg">
+            <div className="w-24 h-24 md:w-full md:h-48 flex-shrink-0 rounded-2xl overflow-hidden"><img src={item.imagen} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" alt="p" /></div>
+            <div className="flex-1 flex flex-col justify-between">
+              <div><h3 className="font-bold text-white uppercase tracking-tight leading-tight">{item.nombre}</h3><p className="text-slate-500 text-xs mt-1 italic leading-tight">{item.descripcion}</p></div>
+              <div className="flex justify-between items-center mt-3"><span className="font-black text-xl text-orange-500 italic tracking-tighter">${obtenerPrecioItem(item)}</span><button onClick={() => agregarAlCarrito(item)} className="bg-orange-600 text-white w-10 h-10 md:w-12 md:h-12 rounded-xl font-bold active:scale-90 shadow-lg shadow-orange-950/20">+</button></div>
             </div>
-          ))}
+          </div>
+        ))}
       </main>
 
-      {/* MODAL CARRITO */}
       <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible' : 'invisible'}`}>
         <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} />
-        <div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}>
+        <div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800`}>
           <div className="flex justify-between items-center border-b border-slate-800 pb-4 font-black text-white italic uppercase text-xl tracking-tighter"><h2>Mi Pedido</h2><X onClick={() => setVerCarrito(false)} className="text-slate-500 cursor-pointer" /></div>
           <div className="flex-1 overflow-y-auto py-4 space-y-4 no-scrollbar">
             {carrito.map(item => (
-              <div key={item.id} className="bg-slate-900/50 p-3 rounded-2xl flex flex-col gap-2 border border-slate-800 shadow-sm">
+              <div key={item.id} className="bg-slate-900/50 p-3 rounded-2xl flex flex-col gap-2 border border-slate-800">
                 <div className="flex justify-between font-bold text-xs text-white uppercase tracking-tight"><span>{item.nombre}</span><button onClick={() => setCarrito(carrito.filter(x => x.id !== item.id))}><Trash2 size={14} className="text-slate-600"/></button></div>
-                <div className="flex justify-between items-center"><span className="text-orange-500 font-bold italic">${item.precio * item.cantidad}</span><div className="flex items-center gap-3 bg-slate-800 rounded-full px-3 py-1 shadow-inner"><Minus onClick={() => restarDelCarrito(item.id)} size={12} className="cursor-pointer"/><span className="text-xs font-bold text-white">{item.cantidad}</span><Plus onClick={() => agregarAlCarrito(item)} size={12} className="cursor-pointer"/></div></div>
+                <div className="flex justify-between items-center"><span className="text-orange-500 font-bold italic">${item.precio * item.cantidad}</span><div className="flex items-center gap-3 bg-slate-800 rounded-full px-3 py-1"><Minus onClick={() => restarDelCarrito(item.id)} size={12} className="cursor-pointer"/><span className="text-xs font-bold text-white">{item.cantidad}</span><Plus onClick={() => agregarAlCarrito(item)} size={12} className="cursor-pointer"/></div></div>
               </div>
             ))}
           </div>
@@ -348,8 +354,8 @@ function App() {
 
       {carrito.length > 0 && !verCarrito && (
         <div className="fixed bottom-6 left-0 right-0 px-6 z-50 flex justify-center no-print">
-          <button onClick={() => setVerCarrito(true)} className="w-full max-w-lg bg-orange-600 text-white py-4 rounded-2xl font-black flex justify-between px-8 border border-orange-500 shadow-2xl active:scale-95 transition-all">
-            <span className="text-xs uppercase font-bold tracking-widest text-[10px]">🛒 MI PEDIDO ({carrito.reduce((a,b)=>a+b.cantidad,0)})</span>
+          <button onClick={() => setVerCarrito(true)} className="w-full max-w-lg bg-orange-600 text-white py-4 rounded-2xl font-black flex justify-between px-8 shadow-2xl active:scale-95">
+            <span className="text-[10px] uppercase font-bold tracking-widest">🛒 MI PEDIDO ({carrito.reduce((a,b)=>a+b.cantidad,0)})</span>
             <span className="font-black text-xl italic">${totalCarrito}</span>
           </button>
         </div>
