@@ -6,7 +6,7 @@ import {
 } from "firebase/firestore";
 import { 
   ShoppingCart, Trash2, X, Plus, Minus, Wifi, 
-  UtensilsCrossed, Zap, CheckCircle, ReceiptText, Printer, Search, CreditCard, Phone, Package, LayoutDashboard, Boxes
+  UtensilsCrossed, Zap, CheckCircle, ReceiptText, Printer, Search, CreditCard, Phone, Package, LayoutDashboard, Boxes, PlusCircle, Tag
 } from 'lucide-react';
 
 const DATOS_PAGO = "💳 *DATOS DE PAGO*:\nBanco: Tu Banco\nCuenta: 0000 0000 0000 0000\nCLABE: 000000000000000000\nA nombre de: Tribus Bar";
@@ -17,7 +17,7 @@ function App() {
   const [view, setView] = useState('welcome');
   const [isAdmin, setIsAdmin] = useState(false);
   const [pinInput, setPinInput] = useState("");
-  const [tabBarra, setTabBarra] = useState('comandas'); // 'comandas' o 'inventario'
+  const [tabBarra, setTabBarra] = useState('comandas');
   
   const [carrito, setCarrito] = useState([]);
   const [mesa, setMesa] = useState(null);
@@ -25,6 +25,11 @@ function App() {
   const [verModalTelefono, setVerModalTelefono] = useState(false);
   const [telefonoInput, setTelefonoInput] = useState("");
   
+  const [verModalNuevoProd, setVerModalNuevoProd] = useState(false);
+  const [nuevoProd, setNuevoProd] = useState({
+    nombre: "", precioMesa: "", precioDomicilio: "", stock: "", categoria: "Cerveza", subcategoria: "Todas", descripcion: "", imagen: ""
+  });
+
   const [productosMenu, setProductosMenu] = useState([]);
   const [catSeleccionada, setCatSeleccionada] = useState("Todos");
   const [subCatSeleccionada, setSubCatSeleccionada] = useState("Todas");
@@ -46,12 +51,12 @@ function App() {
       setProductosMenu(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    const unsubPedidos = onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snap) => {
-      setPedidosBarra(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.fecha?.seconds || 0) - (b.fecha?.seconds || 0)));
+    const unsubPedidos = onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
+      setPedidosBarra(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => (a.fecha?.seconds || 0) - (b.fecha?.seconds || 0)));
     });
 
-    const unsubHistorial = onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snap) => {
-      setHistorialCerrado(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    const unsubHistorial = onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => {
+      setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
     return () => { unsubProd(); unsubPedidos(); unsubHistorial(); };
@@ -81,6 +86,28 @@ function App() {
     }
     if (ex) setCarrito(carrito.map(x => x.id === item.id ? { ...ex, cantidad: ex.cantidad + 1 } : x));
     else setCarrito([...carrito, { ...item, precio: p, cantidad: 1 }]);
+  };
+
+  const restarDelCarrito = (id) => {
+    const ex = carrito.find(x => x.id === id);
+    if (!ex) return;
+    if (ex.cantidad === 1) setCarrito(carrito.filter(x => x.id !== id));
+    else setCarrito(carrito.map(x => x.id === id ? { ...ex, cantidad: ex.cantidad - 1 } : x));
+  };
+
+  const crearNuevoProducto = async (e) => {
+    e.preventDefault();
+    try {
+      await addDoc(collection(db, "productos"), {
+        ...nuevoProd,
+        precioMesa: Number(nuevoProd.precioMesa),
+        precioDomicilio: Number(nuevoProd.precioDomicilio),
+        stock: Number(nuevoProd.stock),
+        subcategoria: nuevoProd.subcategoria || "Todas"
+      });
+      setVerModalNuevoProd(false);
+      setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stock: "", categoria: "Cerveza", subcategoria: "Todas", descripcion: "", imagen: "" });
+    } catch (err) { console.error(err); }
   };
 
   const procesarEnvio = async (idDestino) => {
@@ -143,12 +170,6 @@ function App() {
     });
   };
 
-  const actualizarStockManual = async (id, cantidad) => {
-    await updateDoc(doc(db, "productos", id), {
-      stock: increment(cantidad)
-    });
-  };
-
   const realizarCierreTurno = async () => {
     if (window.confirm(`¿Cerrar turno con $${totalCajaHoy}?`)) {
       const batch = writeBatch(db);
@@ -205,8 +226,8 @@ function App() {
           </div>
         </div>
         <div className="grid gap-4">
-          <button onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} className="flex items-center gap-5 bg-slate-800/60 p-5 rounded-3xl border border-slate-700/30 backdrop-blur-sm shadow-xl active:scale-95"><Wifi className="text-sky-400" size={28} /><div className="text-left font-bold uppercase text-[10px] text-slate-400"><p>Wi-Fi Gratis</p><p className="text-lg text-white font-black">tribus2026</p></div></button>
-          <button onClick={() => setView('menu')} className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95"><UtensilsCrossed size={28} /><div className="text-left font-bold uppercase text-[10px] text-orange-200"><p>Menú Digital</p><p className="text-lg text-white font-black uppercase tracking-tight">Ver la carta</p></div></button>
+          <button onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} className="flex items-center gap-5 bg-slate-800/60 p-5 rounded-3xl border border-slate-700/30 backdrop-blur-sm shadow-xl active:scale-95 transition-all"><Wifi className="text-sky-400" size={28} /><div className="text-left font-bold uppercase text-[10px] text-slate-400"><p>Wi-Fi Gratis</p><p className="text-lg text-white font-black">tribus2026</p></div></button>
+          <button onClick={() => setView('menu')} className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 transition-all"><UtensilsCrossed size={28} /><div className="text-left font-bold uppercase text-[10px] text-orange-200"><p>Menú Digital</p><p className="text-lg text-white font-black uppercase tracking-tight">Ver la carta</p></div></button>
         </div>
         <button onClick={() => setView('barra')} className="opacity-10 text-[10px] uppercase font-bold tracking-widest hover:opacity-100 transition-opacity">Acceso Barra</button>
       </div>
@@ -224,30 +245,21 @@ function App() {
     return (
       <div className="min-h-screen bg-[#05070a] p-4 md:p-6 text-white flex flex-col font-sans">
         <style dangerouslySetInnerHTML={{__html: `@media print { .no-print { display: none !important; } body { background: white; color: black; } .print-container { width: 100% !important; padding: 5mm !important; } }`}} />
-        
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-800 pb-6 gap-4 no-print">
-            <div>
+            <div className="w-full md:w-auto">
                 <h1 className="text-4xl font-black text-orange-600 italic uppercase tracking-tighter leading-none">TRIBU'S BARRA</h1>
                 <div className="flex gap-4 mt-4">
-                    <button 
-                        onClick={() => setTabBarra('comandas')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-xs transition-all ${tabBarra === 'comandas' ? 'bg-orange-600 text-white shadow-lg shadow-orange-900/20' : 'bg-slate-900 text-slate-500'}`}
-                    >
-                        <LayoutDashboard size={16}/> Comandas
-                    </button>
-                    <button 
-                        onClick={() => setTabBarra('inventario')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-xs transition-all ${tabBarra === 'inventario' ? 'bg-orange-600 text-white shadow-lg shadow-orange-900/20' : 'bg-slate-900 text-slate-500'}`}
-                    >
-                        <Boxes size={16}/> Inventario
-                    </button>
+                    <button onClick={() => setTabBarra('comandas')} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-xs transition-all ${tabBarra === 'comandas' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}><LayoutDashboard size={16}/> Comandas</button>
+                    <button onClick={() => setTabBarra('inventario')} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-xs transition-all ${tabBarra === 'inventario' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}><Boxes size={16}/> Inventario</button>
                 </div>
             </div>
-            <div className="bg-slate-900 px-3 py-1 rounded-xl text-green-500 text-[10px] font-bold animate-pulse uppercase tracking-widest">● En Vivo</div>
+            <div className="flex items-center gap-4">
+               {tabBarra === 'inventario' && <button onClick={() => setVerModalNuevoProd(true)} className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-xl font-black uppercase text-xs flex items-center gap-2 transition-all shadow-lg"><PlusCircle size={16}/> Nuevo Item</button>}
+               <div className="bg-slate-900 px-3 py-1 rounded-xl text-green-500 text-[10px] font-bold animate-pulse uppercase tracking-widest">● En Vivo</div>
+            </div>
         </header>
 
         <div className="flex flex-col lg:flex-row gap-6">
-            {/* VISTA COMANDAS (Pestaña Izquierda) */}
             {tabBarra === 'comandas' && (
                 <div className="flex-1 no-print">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -257,7 +269,7 @@ function App() {
                                 <div>
                                     <div className="flex justify-between items-start">
                                         <h3 className="text-2xl font-black italic uppercase tracking-tighter leading-none">{String(p.mesa).startsWith("TEL:") ? "📦 EXTERNO" : `MESA ${p.mesa}`}</h3>
-                                        <button onClick={async () => { if(window.confirm("¿Borrar cuenta?")) await deleteDoc(doc(db, "pedidos", p.id)); }} className="p-1 text-slate-700 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
+                                        <button onClick={async () => { if(window.confirm("¿Borrar cuenta completa?")) await deleteDoc(doc(db, "pedidos", p.id)); }} className="p-1 text-slate-700 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
                                     </div>
                                     <div className="mt-2 space-y-1">
                                         {p.detalle.split('\n').map((linea, idx) => (
@@ -268,35 +280,30 @@ function App() {
                                         ))}
                                     </div>
                                 </div>
-                                <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-4 rounded-xl font-black text-lg mt-6 active:scale-95 uppercase tracking-tighter shadow-lg shadow-orange-900/20">Cobrar ${p.total}</button>
+                                <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-4 rounded-xl font-black text-lg mt-6 active:scale-95 uppercase tracking-tighter shadow-lg">Cobrar ${p.total}</button>
                             </div>
                         ))}
                     </div>
                 </div>
             )}
 
-            {/* VISTA INVENTARIO (Pestaña Izquierda) */}
             {tabBarra === 'inventario' && (
                 <div className="flex-1 no-print">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {productosMenu.map(prod => (
-                            <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl">
+                            <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between">
                                 <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <h4 className="font-black text-white uppercase tracking-tighter">{prod.nombre}</h4>
-                                        <p className="text-[10px] text-slate-500 uppercase font-bold">{prod.categoria}</p>
+                                    <div className="flex gap-3">
+                                      <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-800 bg-slate-900"><img src={prod.imagen} className="w-full h-full object-cover opacity-50" alt="" /></div>
+                                      <div><h4 className="font-black text-white uppercase tracking-tighter text-sm">{prod.nombre}</h4><p className="text-[10px] text-orange-500 uppercase font-bold">{prod.categoria} - {prod.subcategoria || "Todas"}</p></div>
                                     </div>
-                                    <div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : prod.stock <= 10 ? 'bg-orange-900/20 text-orange-500 border border-orange-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>
-                                        {prod.stock}
-                                    </div>
+                                    <div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : prod.stock <= 10 ? 'bg-orange-900/20 text-orange-500 border border-orange-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button onClick={() => actualizarStockManual(prod.id, 12)} className="bg-slate-900 hover:bg-slate-800 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase transition-all">+12 Unid</button>
-                                    <button onClick={() => actualizarStockManual(prod.id, 24)} className="bg-slate-900 hover:bg-slate-800 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase transition-all">+24 Unid</button>
-                                    <button onClick={() => {
-                                        const extra = window.prompt(`¿Cuántas unidades de ${prod.nombre} llegaron?`);
-                                        if(extra && !isNaN(extra)) actualizarStockManual(prod.id, Number(extra));
-                                    }} className="col-span-2 bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase mt-2">Carga Manual</button>
+                                <div className="grid grid-cols-2 gap-2 mt-auto">
+                                    <button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase">+12</button>
+                                    <button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(24) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase">+24</button>
+                                    <button onClick={async () => { if(window.confirm(`¿Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center"><Trash2 size={14}/></button>
+                                    <button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex && !isNaN(ex)) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
                                 </div>
                             </div>
                         ))}
@@ -304,42 +311,68 @@ function App() {
                 </div>
             )}
 
-            {/* COLUMNA DERECHA: CAJA E HISTORIAL */}
             <div className="w-full lg:w-[350px] space-y-4 no-print">
                 <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800">
                     <div className="relative"><Search className="absolute left-3 top-2.5 text-slate-600" size={16}/><input type="text" placeholder="Buscar mesa..." value={filtroMesa} onChange={(e) => setFiltroMesa(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl pl-10 py-2 text-sm text-white focus:border-orange-500 font-bold" /></div>
                 </div>
                 <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-orange-900/10 shadow-2xl">
-                    <div className="flex justify-between items-center mb-4"><h2 className="text-lg font-black text-orange-600 uppercase italic flex items-center gap-2"><ReceiptText size={20}/> Caja Hoy</h2><button onClick={realizarCierreTurno} className="text-[9px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-lg uppercase transition-all hover:bg-red-500 hover:text-white">Cierre</button></div>
+                    <div className="flex justify-between items-center mb-4"><h2 className="text-lg font-black text-orange-600 uppercase italic flex items-center gap-2"><ReceiptText size={20}/> Caja Hoy</h2><button onClick={realizarCierreTurno} className="text-[9px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-lg uppercase">Cierre</button></div>
                     <div className="space-y-3 max-h-[450px] overflow-y-auto no-scrollbar mb-4">
-                    {historialParaMostrar.map((hc) => (
+                      {historialParaMostrar.map((hc) => (
                         <div key={hc.id} className="group p-3 bg-[#05070a] rounded-xl border border-slate-700 flex items-center justify-between hover:border-orange-500 transition-all shadow-sm">
-                        <div onClick={() => setTicketParaReimprimir(hc)} className="flex-1 cursor-pointer">
+                          <div onClick={() => setTicketParaReimprimir(hc)} className="flex-1 cursor-pointer">
                             <div className="flex justify-between font-black text-[11px] uppercase tracking-tighter"><span className={String(hc.mesa || "").startsWith("TEL:") ? "text-blue-400" : "text-slate-400"}>{hc.mesa}</span><span className="text-green-500">${hc.total}</span></div>
                             <p className="text-[8px] text-slate-600 mt-1 uppercase font-bold">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) : 'Reciente'}</p>
+                          </div>
+                          <button onClick={async (e) => { e.stopPropagation(); if(window.confirm("¿Borrar ticket?")) await deleteDoc(doc(db, "historial_tickets", hc.id)); }} className="ml-2 p-1.5 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={14}/></button>
                         </div>
-                        <button onClick={async (e) => { e.stopPropagation(); if(window.confirm("¿Borrar ticket?")) await deleteDoc(doc(db, "historial_tickets", hc.id)); }} className="ml-2 p-1.5 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={14}/></button>
-                        </div>
-                    ))}
+                      ))}
                     </div>
                     <div className="pt-3 border-t border-slate-800 flex justify-between font-black"><span className="text-slate-500 text-[10px] uppercase italic tracking-widest">Total acumulado:</span><span className="text-2xl text-green-500 tracking-tighter">${totalCajaHoy}</span></div>
                 </div>
             </div>
         </div>
 
-        {/* MODAL TICKET RE-IMPRESION */}
+        {verModalNuevoProd && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-[400px] rounded-[2.5rem] p-8 shadow-2xl relative">
+              <button onClick={() => setVerModalNuevoProd(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white"><X/></button>
+              <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><PlusCircle/> Nuevo Item</h2>
+              <form onSubmit={crearNuevoProducto} className="space-y-4">
+                <input required placeholder="Nombre del Producto" value={nuevoProd.nombre} onChange={e => setNuevoProd({...nuevoProd, nombre: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500" />
+                <div className="grid grid-cols-2 gap-4">
+                  <input required type="number" placeholder="Precio Mesa" value={nuevoProd.precioMesa} onChange={e => setNuevoProd({...nuevoProd, precioMesa: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm" />
+                  <input required type="number" placeholder="Precio Domicilio" value={nuevoProd.precioDomicilio} onChange={e => setNuevoProd({...nuevoProd, precioDomicilio: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <input required type="number" placeholder="Stock Inicial" value={nuevoProd.stock} onChange={e => setNuevoProd({...nuevoProd, stock: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm" />
+                  <select value={nuevoProd.categoria} onChange={e => setNuevoProd({...nuevoProd, categoria: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400">
+                    {CATEGORIAS.filter(c => c !== "Todos").map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="relative">
+                  <Tag className="absolute left-3 top-3 text-slate-600" size={16}/>
+                  <input placeholder="Subcategoría (Eje: Media, Caguama, Pasta)" value={nuevoProd.subcategoria} onChange={e => setNuevoProd({...nuevoProd, subcategoria: e.target.value})} className="w-full bg-slate-950 border border-slate-800 pl-10 p-3 rounded-xl text-sm focus:border-orange-500" />
+                </div>
+                <input placeholder="Link de Imagen" value={nuevoProd.imagen} onChange={e => setNuevoProd({...nuevoProd, imagen: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm" />
+                <textarea placeholder="Descripción" value={nuevoProd.descripcion} onChange={e => setNuevoProd({...nuevoProd, descripcion: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm h-20" />
+                <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95 transition-all">Guardar</button>
+              </form>
+            </div>
+          </div>
+        )}
+
         {ticketParaReimprimir && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
             <div className="bg-white text-black w-full max-w-[280px] p-6 font-mono shadow-2xl relative print-container">
               <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
-              <div className="text-center border-b-2 border-dashed border-black pb-4 mb-4"><h2 className="font-black text-xl italic uppercase leading-none">TRIBUS BAR</h2><p className="text-[10px] uppercase font-bold mt-1 text-gray-500">Nota de Venta</p></div>
+              <div className="text-center border-b-2 border-dashed border-black pb-4 mb-4"><h2 className="font-black text-xl italic uppercase">TRIBUS BAR</h2></div>
               <div className="space-y-1 mb-4">
                 <div className="flex justify-between text-[11px] font-black uppercase tracking-tighter"><span>{String(ticketParaReimprimir.mesa).startsWith("TEL:") ? "CLIENTE:" : "MESA:"}</span><span>{ticketParaReimprimir.mesa}</span></div>
                 <div className="flex justify-between text-[10px] text-gray-700 font-bold uppercase"><span>FECHA:</span><span>{ticketParaReimprimir.fecha?.seconds ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX') : new Date().toLocaleString('es-MX')}</span></div>
               </div>
               <div className="text-[11px] whitespace-pre-line leading-tight mb-6 border-t border-dashed border-gray-300 pt-4">{ticketParaReimprimir.detalle}</div>
               <div className="flex justify-between font-black text-2xl border-t-2 border-dashed border-black pt-4 mb-6"><span>TOTAL:</span><span>${ticketParaReimprimir.total}</span></div>
-              <p className="text-[10px] text-center uppercase font-black italic italic leading-none">"¡LA TRIBU TE ESPERA DE VUELTA!"</p>
               <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl"><Printer size={18}/> Imprimir</button>
             </div>
           </div>
@@ -348,23 +381,40 @@ function App() {
     );
   }
 
-  // --- VISTA MENÚ ---
   if (view === 'menu') {
     const menuFiltrado = productosMenu.filter(p => {
-      const matchCat = catSeleccionada === "Todos" || p.categoria === catSeleccionada;
-      const matchSub = subCatSeleccionada === "Todas" || p.subcategoria === subCatSeleccionada;
-      return matchCat && matchSub;
+        const matchCat = catSeleccionada === "Todos" || p.categoria === catSeleccionada;
+        const matchSub = subCatSeleccionada === "Todas" || p.subcategoria === subCatSeleccionada;
+        return matchCat && matchSub;
     });
+
+    const subcategoriasDisponibles = Array.from(new Set(
+        productosMenu
+          .filter(p => p.categoria === catSeleccionada && p.subcategoria && p.subcategoria !== "Todas")
+          .map(p => p.subcategoria)
+    ));
 
     return (
       <div className="min-h-screen bg-slate-900 pb-32 text-slate-100 flex flex-col items-center font-sans">
         <header className="bg-slate-950/95 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-800 px-4 py-3">
           <div className="max-w-6xl mx-auto flex flex-col gap-3">
             <div className="flex justify-between items-center">
-              <div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none">TRIBU'S BAR</div>
+              <div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter">TRIBU'S BAR</div>
               <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative active:scale-90 border border-slate-700 transition-all"><ShoppingCart size={20} />{carrito.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-600 text-[10px] px-1.5 rounded-full font-bold shadow-lg">{carrito.reduce((a,b)=>a+b.cantidad,0)}</span>}</button>
             </div>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">{CATEGORIAS.map(c => (<button key={c} onClick={() => { setCatSeleccionada(c); setSubCatSeleccionada("Todas"); }} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap border transition-all ${catSeleccionada === c ? 'bg-orange-600 text-white border-orange-500' : 'bg-slate-900 text-slate-400 border-slate-800'}`}>{c}</button>))}</div>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                {CATEGORIAS.map(c => (
+                    <button key={c} onClick={() => { setCatSeleccionada(c); setSubCatSeleccionada("Todas"); }} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${catSeleccionada === c ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-400 hover:bg-slate-800'}`}>{c}</button>
+                ))}
+            </div>
+            {subcategoriasDisponibles.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-800/50">
+                    <button onClick={() => setSubCatSeleccionada("Todas")} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase transition-all ${subCatSeleccionada === "Todas" ? 'text-sky-400 bg-sky-900/20' : 'text-slate-500'}`}>Todas</button>
+                    {subcategoriasDisponibles.map(sc => (
+                        <button key={sc} onClick={() => setSubCatSeleccionada(sc)} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase transition-all ${subCatSeleccionada === sc ? 'text-sky-400 bg-sky-900/20' : 'text-slate-500'}`}>{sc}</button>
+                    ))}
+                </div>
+            )}
           </div>
         </header>
         <main className="p-4 w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -382,7 +432,6 @@ function App() {
           ))}
         </main>
         
-        {/* MODAL CARRITO */}
         <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible' : 'invisible'}`}>
             <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} />
             <div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}>
@@ -402,7 +451,6 @@ function App() {
             </div>
         </div>
 
-        {/* MODAL TELÉFONO */}
         <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all ${verModalTelefono ? 'visible opacity-100' : 'invisible opacity-0'}`}>
           <div className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={() => setVerModalTelefono(false)} />
           <div className="relative bg-slate-900 border border-slate-800 w-full max-w-[320px] rounded-[2.5rem] p-8 shadow-2xl text-center flex flex-col items-center">
@@ -421,7 +469,6 @@ function App() {
           </div>
         </div>
 
-        {/* BOTON FLOTANTE MÓVIL */}
         {carrito.length > 0 && !verCarrito && !verModalTelefono && (
           <div className="fixed bottom-6 left-0 right-0 px-6 z-50 flex justify-center no-print"><button onClick={() => setVerCarrito(true)} className="w-full max-w-lg bg-orange-600 text-white py-4 rounded-2xl font-black flex justify-between px-8 shadow-2xl active:scale-95 transition-all shadow-orange-950/30"><span className="text-[10px] uppercase font-bold tracking-widest text-white leading-none flex items-center gap-2"><ShoppingCart size={14}/> MI PEDIDO ({carrito.reduce((a,b)=>a+b.cantidad,0)})</span><span className="font-black text-xl italic text-white tracking-tighter leading-none">${totalCarrito}</span></button></div>
         )}
