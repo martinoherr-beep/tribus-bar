@@ -1,0 +1,16 @@
+{
+  "projects": {
+    "default": "tribusbar-ebece"
+  },
+  "targets": {
+    "tribusbar-ebece": {
+      "hosting": {
+        "default": [
+          "nombre-de-tu-proyecto-en-firebase",
+          "tribusbar-ebece"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
