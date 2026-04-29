@@ -128,10 +128,13 @@ function App() {
     const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
     const pinAleatorio = Math.floor(1000 + Math.random() * 9000);
     try {
+      // 1. Descontar Stock
       carrito.forEach((item) => {
         const prodRef = doc(db, "productos", item.id);
         batch.update(prodRef, { stock: increment(-item.cantidad) });
       });
+
+      // 2. Actualizar o Crear Pedido en Firebase
       const existente = pedidosBarra.find(p => String(p.mesa) === String(idDestino));
       if (existente) {
         batch.update(doc(db, "pedidos", existente.id), {
@@ -142,13 +145,30 @@ function App() {
       } else {
         const nuevoPedRef = doc(collection(db, "pedidos"));
         batch.set(nuevoPedRef, {
-          mesa: String(idDestino), detalle: detalleNuevo, total: Number(totalCarrito),
-          estado: "pendiente", fecha: serverTimestamp(), archivado: false, pinMesa: mesa ? pinAleatorio : null
+          mesa: String(idDestino), 
+          detalle: detalleNuevo, 
+          total: Number(totalCarrito),
+          estado: "pendiente", 
+          fecha: serverTimestamp(), 
+          archivado: false, 
+          pinMesa: mesa ? pinAleatorio : null
         });
       }
+
       await batch.commit();
+
+      // --- RESTAURADO: MENSAJE DE WHATSAPP PARA PEDIDOS EXTERNOS ---
+      if (!mesa) {
+        const mensajeWhatsApp = `¡Hola! Mi pedido es:\n\n${detalleNuevo}\n\n*Total: $${totalCarrito}*\n\n${DATOS_PAGO}`;
+        window.open(`https://wa.me/526278897648?text=${encodeURIComponent(mensajeWhatsApp)}`, '_blank');
+      }
+      // -------------------------------------------------------------
+
       setView('success'); 
       setCarrito([]); 
+      setVerCarrito(false); 
+      setVerModalTelefono(false); 
+      setTelefonoInput("");
     } catch (e) { console.error(e); }
   };
 
