@@ -212,7 +212,43 @@ function App() {
         </header>
         <div className="flex flex-col lg:flex-row gap-6">
             {tabBarra === 'comandas' && (<div className="flex-1"><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{filtradosPendientes.map(p => (<div key={p.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl relative shadow-xl flex flex-col justify-between group transition-all">
-                <div className="flex justify-between items-start"><h3 className="text-2xl font-black italic uppercase tracking-tighter">{`MESA ${p.mesa}`}</h3><button onClick={async () => { if(window.confirm("¿Borrar cuenta completa?")) await deleteDoc(doc(db, "pedidos", p.id)); }} className="text-red-500"><Trash2 size={18}/></button></div>
+                <div className="flex justify-between items-start"><h3 className="text-2xl font-black italic uppercase tracking-tighter">{`MESA ${p.mesa}`}</h3><button 
+  onClick={async () => { 
+    if(window.confirm("¿Cancelar pedido y devolver productos al inventario?")) {
+      const batch = writeBatch(db);
+      
+      // 1. Extraemos los productos y cantidades del detalle del pedido
+      const lineas = p.detalle.split('\n');
+      
+      lineas.forEach(linea => {
+        // Buscamos el patrón "cantidadx Nombre"
+        const match = linea.match(/(\d+)x (.*) \(\$/);
+        if (match) {
+          const cantidad = parseInt(match[1]);
+          const nombreProducto = match[2].trim();
+          
+          // Buscamos el ID del producto por su nombre en tu lista de productosMenu
+          const productoEncontrado = productosMenu.find(prod => prod.nombre === nombreProducto);
+          
+          if (productoEncontrado) {
+            const prodRef = doc(db, "productos", productoEncontrado.id);
+            // DEVOLVEMOS el stock (sumamos la cantidad)
+            batch.update(prodRef, { stock: increment(cantidad) });
+          }
+        }
+      });
+
+      // 2. Borramos el pedido
+      batch.delete(doc(db, "pedidos", p.id));
+      
+      // 3. Ejecutamos todo
+      await batch.commit();
+    }
+  }} 
+  className="p-1 text-slate-700 hover:text-red-500 transition-colors"
+>
+  <Trash2 size={18}/>
+</button></div>
                 {p.pinMesa && (<div className="bg-orange-600/10 border border-orange-600/20 rounded-lg p-2 mt-3 flex justify-between items-center"><span className="text-[10px] font-black uppercase text-orange-500">PIN:</span><span className="text-xl font-black text-white">{p.pinMesa}</span></div>)}
                 <div className="mt-4 space-y-1">{p.detalle.split('\n').map((linea, idx) => (<div key={idx} className="flex justify-between items-center bg-black/20 p-2 rounded-lg"><span className="text-sm text-slate-300">{linea}</span></div>))}</div>
                 <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-4 rounded-xl font-black text-lg mt-6 active:scale-95 uppercase tracking-tighter shadow-lg shadow-orange-900/20">Cobrar ${p.total}</button></div>))}</div></div>)}
