@@ -47,10 +47,19 @@ function App() {
   const [filtroMesa, setFiltroMesa] = useState(""); 
   const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
 
-  const obtenerPlanta = (idMesa) => {
+const obtenerPlanta = (idMesa) => {
+    // Si no hay mesa (null, undefined o vacío), es externo
+    if (!idMesa) return "EXTERNO";
+    
     const n = parseInt(idMesa);
+    
+    // Si no es un número válido (por ejemplo, si dice "TEL:"), es externo
+    if (isNaN(n)) return "EXTERNO";
+    
     if (n >= 1 && n <= 10) return "PLANTA BAJA";
     if (n >= 11 && n <= 20) return "TERRAZA";
+    
+    // Cualquier otro número de mesa fuera de esos rangos
     return "EXTERNO";
   };
 
@@ -377,7 +386,15 @@ function App() {
   // --- VISTAS CLIENTE ---
   if (view === 'welcome') return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden font-sans"><div className="absolute inset-0 opacity-40"><img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="f" /><div className="absolute inset-0 bg-slate-950/80"></div></div>
-      <div className="relative z-10 space-y-12 w-full max-w-lg"><div className="space-y-4"><div className="flex justify-center items-center gap-2 text-orange-500 animate-pulse"><Zap size={48} /><h1 className="text-7xl font-black italic uppercase leading-none">{nombreBarDinamico}</h1></div><div className="space-y-2 uppercase tracking-tight"><h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2><p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{plantaActual}</p></div></div>
+      <div className="relative z-10 space-y-12 w-full max-w-lg"><div className="space-y-4"><div className="flex justify-center items-center gap-2 text-orange-500 animate-pulse"><Zap size={48} /><h1 className="text-7xl font-black italic uppercase leading-none">{nombreBarDinamico}</h1></div><div className="space-y-2 uppercase tracking-tight">
+  <h2 className="text-3xl font-bold">
+    {mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}
+  </h2>
+  {/* Cambia esta línea para que siempre use obtenerPlanta */}
+  <p className="text-orange-500 text-sm font-medium tracking-[0.2em]">
+    {obtenerPlanta(mesa)}
+  </p>
+</div></div>
         <div className="grid gap-4">
           <button onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} className="flex items-center gap-5 bg-slate-800/60 p-5 rounded-3xl border border-slate-700/30 backdrop-blur-sm shadow-xl active:scale-95 transition-all"><Wifi className="text-sky-400" size={28} /><div className="text-left font-bold uppercase text-[10px] text-slate-400"><p>Wi-Fi Gratis</p><p className="text-lg text-white font-black">tribus2026</p></div></button>
           <button onClick={() => setView('menu')} className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 transition-all"><UtensilsCrossed size={28} /><div className="text-left font-bold uppercase text-[10px] text-orange-200"><p>Menú Digital</p><p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p></div></button>
