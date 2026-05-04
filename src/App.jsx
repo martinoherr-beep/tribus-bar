@@ -56,42 +56,23 @@ function App() {
     return "EXTERNO";
   };
 
-  const plantaActual = mesa ? obtenerPlanta(mesa) : "PLANTA BAJA";
+  const plantaActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
   const nombreBarDinamico = plantaActual === "TERRAZA" ? "TRIBU'S BAR TERRAZA" : "TRIBU'S BAR";
 
   const obtenerPrecioItem = (item) => mesa ? item.precioMesa : item.precioDomicilio;
   const totalCarrito = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
   const totalAcumulado = consumoAcumulado.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
 
- // --- LÓGICA DE FILTRADO EXACTO ---
-const historialFiltradoParaCaja = historialCerrado.filter(hc => {
+  const historialFiltradoParaCaja = historialCerrado.filter(hc => {
     const busqueda = filtroMesa.toLowerCase().trim();
     const mesaOriginal = String(hc.mesa || "").toLowerCase().trim();
     const plantaMesa = obtenerPlanta(hc.mesa).toLowerCase();
-
-    // 1. Si no hay búsqueda: Solo pedidos de hoy no archivados (sin teléfonos)
-    if (busqueda === "") {
-      return !hc.archivado && !mesaOriginal.startsWith("tel:");
-    }
-
-    // 2. Si buscas por nombre de área (terraza, planta baja, externo)
-    if (["externo", "terraza", "planta baja", "baja"].some(zona => busqueda.includes(zona))) {
-      return plantaMesa.includes(busqueda);
-    }
-
-    // 3. LÓGICA DE NÚMEROS (Diferenciar Mesa de Teléfono)
+    if (busqueda === "") return !hc.archivado && !mesaOriginal.startsWith("tel:");
+    if (["externo", "terraza", "planta baja", "baja"].some(zona => busqueda.includes(zona))) return plantaMesa.includes(busqueda);
     if (!isNaN(busqueda)) {
-      // Si la búsqueda es de 1 o 2 dígitos, es una MESA (coincidencia exacta)
-      if (busqueda.length <= 2) {
-        return mesaOriginal === busqueda;
-      } 
-      // Si la búsqueda es de más de 2 dígitos, es un TELÉFONO (coincidencia parcial)
-      else {
-        return mesaOriginal.includes(busqueda);
-      }
+      if (busqueda.length <= 2) return mesaOriginal === busqueda;
+      else return mesaOriginal.includes(busqueda);
     }
-
-    // 4. Por si buscas por fecha (ej. 30/4/2026)
     const fechaTicket = hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleDateString('es-MX') : "";
     return fechaTicket.includes(busqueda);
   });
@@ -162,12 +143,19 @@ const historialFiltradoParaCaja = historialCerrado.filter(hc => {
     try {
       carrito.forEach((item) => { batch.update(doc(db, "productos", item.id), { stock: increment(-item.cantidad) }); });
       const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
-      if (existente) batch.update(doc(db, "pedidos", existente.id), { detalle: existente.detalle + "\n" + detalleNuevo, total: Number(existente.total) + Number(totalCarrito), fecha: serverTimestamp() });
-      else {
+      if (existente) {
+        batch.update(doc(db, "pedidos", existente.id), { detalle: existente.detalle + "\n" + detalleNuevo, total: Number(existente.total) + Number(totalCarrito), fecha: serverTimestamp() });
+      } else {
         const pinAleatorio = Math.floor(1000 + Math.random() * 9000);
         batch.set(doc(collection(db, "pedidos")), { mesa: String(idFinal), detalle: detalleNuevo, total: Number(totalCarrito), estado: "pendiente", fecha: serverTimestamp(), archivado: false, pinMesa: mesa ? pinAleatorio : null });
       }
       await batch.commit();
+
+      if (!mesa) {
+        const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está registrado.\n\n*Total a pagar: $${totalCarrito}*\n\n*Detalle del pedido:*\n${detalleNuevo}\n\n${DATOS_PAGO}`;
+        window.open(`https://wa.me/${telefonoInput}?text=${encodeURIComponent(mensajeWA)}`, '_blank');
+      }
+
       setView('success'); setCarrito([]); setVerCarrito(false); setVerModalTelefono(false); setTelefonoInput("");
     } catch (e) { console.error(e); }
   };
@@ -209,6 +197,8 @@ const historialFiltradoParaCaja = historialCerrado.filter(hc => {
     setNuevoEvento({ titulo: "", fecha: "", hora: "" });
   };
 
+  // --- RENDERIZADO ---
+
   if (view === 'success') return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center text-white font-sans">
       <CheckCircle size={80} className="text-green-500 mb-6 animate-bounce" />
@@ -217,11 +207,24 @@ const historialFiltradoParaCaja = historialCerrado.filter(hc => {
     </div>
   );
 
+  // --- PANTALLA DE SEGURIDAD (RESTAURADA) ---
   if (mesa && !mesaValidada && pinCorrectoMesa) return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
-      <Lock size={48} className="text-orange-600 mb-6 animate-pulse" /><h2 className="text-2xl font-black italic uppercase text-center tracking-tighter">Mesa con Cuenta Abierta</h2>
-      <div className="flex gap-4 mb-12">{[1, 2, 3, 4].map((dot) => (<div key={dot} className={`w-4 h-4 rounded-full border-2 border-orange-600 ${pinMesaInput.length >= dot ? 'bg-orange-600 shadow-lg' : 'bg-transparent'}`} />))}</div>
-      <div className="grid grid-cols-3 gap-4 max-w-[280px]">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => <button key={n} onClick={() => manejarPinMesa(n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">{n}</button>)}<div /><button onClick={() => manejarPinMesa(0)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">0</button></div>
+      <Lock size={48} className="text-orange-600 mb-6 animate-pulse" />
+      <h2 className="text-2xl font-black italic uppercase text-center tracking-tighter">Mesa con Cuenta Abierta</h2>
+      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-8">Ingresa el PIN de seguridad</p>
+      <div className="flex gap-4 mb-12">
+        {[1, 2, 3, 4].map((dot) => (
+          <div key={dot} className={`w-4 h-4 rounded-full border-2 border-orange-600 transition-all ${pinMesaInput.length >= dot ? 'bg-orange-600 shadow-lg shadow-orange-600/40' : 'bg-transparent'}`} />
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-4 max-w-[280px]">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+          <button key={n} onClick={() => manejarPinMesa(n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90 transition-all">{n}</button>
+        ))}
+        <div />
+        <button onClick={() => manejarPinMesa(0)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">0</button>
+      </div>
     </div>
   );
 
@@ -242,36 +245,71 @@ const historialFiltradoParaCaja = historialCerrado.filter(hc => {
                 <button onClick={() => setTabBarra('comandas')} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-xs transition-all ${tabBarra === 'comandas' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}><LayoutDashboard size={16}/> Comandas</button>
                 <button onClick={() => setTabBarra('inventario')} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-xs transition-all ${tabBarra === 'inventario' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}><Boxes size={16}/> Inventario</button>
                 <button onClick={() => setTabBarra('eventos')} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-xs transition-all ${tabBarra === 'eventos' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}><Calendar size={16}/> Eventos</button></div></div>
-            <div className="flex items-center gap-4">{tabBarra === 'inventario' && <button onClick={() => setVerModalNuevoProd(true)} className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-xl font-black uppercase text-xs flex items-center gap-2 transition-all shadow-lg"><PlusCircle size={16}/> Nuevo Item</button>}<button onClick={() => setVerModalNuevoEvento(true)} className="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-xl font-black uppercase text-xs flex items-center gap-2 transition-all shadow-lg"><PlusCircle size={16}/> Agendar</button><div className="bg-slate-900 px-3 py-1 rounded-xl text-green-500 text-[10px] font-bold animate-pulse uppercase tracking-widest">● En Vivo</div></div>
+            <div className="flex items-center gap-4">
+  {tabBarra === 'inventario' && (
+    <button 
+      onClick={() => setVerModalNuevoProd(true)} 
+      className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-xl font-black uppercase text-xs flex items-center gap-2 transition-all shadow-lg"
+    >
+      <PlusCircle size={16}/> Nuevo Item
+    </button>
+  )}
+  
+  {/* El botón de Agendar ahora solo aparece si tab === 'eventos' */}
+  {tabBarra === 'eventos' && (
+    <button 
+      onClick={() => setVerModalNuevoEvento(true)} 
+      className="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-xl font-black uppercase text-xs flex items-center gap-2 transition-all shadow-lg"
+    >
+      <PlusCircle size={16}/> Agendar
+    </button>
+  )}
+
+  <div className="bg-slate-900 px-3 py-1 rounded-xl text-green-500 text-[10px] font-bold animate-pulse uppercase tracking-widest">
+    ● En Vivo
+  </div>
+</div>
         </header>
 
         <div className="flex flex-col lg:flex-row gap-6">
           {tabBarra === 'comandas' && (
             <div className="flex-1 no-print">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).map(p => (
-                  <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl relative shadow-xl flex flex-col justify-between group transition-all">
-                    <div className={`absolute top-0 left-0 w-1.5 h-full ${String(p.mesa).startsWith("TEL:") ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
-                    <div><div className="flex justify-between items-start">
-                        <div className="flex flex-col"><h3 className="text-2xl font-black italic uppercase tracking-tighter leading-none">{String(p.mesa).startsWith("TEL:") ? "📦 EXTERNO" : `MESA ${p.mesa}`}</h3><span className={`text-[9px] font-black uppercase tracking-widest mt-1 ${obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}`}>{obtenerPlanta(p.mesa)}</span></div>
-                        <button onClick={async () => { 
-                          if(window.confirm("¿Cancelar venta? El stock regresará.")) { 
-                            const batch = writeBatch(db); 
-                            p.detalle.split('\n').forEach(linea => { 
-                              const m = linea.match(/(\d+)x (.*) \(\$/); 
-                              if (m) { 
-                                const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
-                                if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
-                              } 
-                            }); 
-                            batch.delete(doc(db, "pedidos", p.id)); 
-                            await batch.commit(); 
-                          } 
-                        }} className="p-1 text-slate-700 hover:text-red-500 transition-colors"><Trash2 size={18}/></button></div>
-                    {p.pinMesa && (<div className="bg-orange-600/10 border border-orange-600/20 rounded-lg p-2 mt-3 flex justify-between items-center"><span className="text-[10px] font-black uppercase text-orange-500">PIN CLIENTE:</span><span className="text-xl font-black text-white">{p.pinMesa}</span></div>)}
-                    <div className="mt-4 space-y-1">{p.detalle.split('\n').map((linea, idx) => (<div key={idx} className="group/item flex justify-between items-center bg-black/20 p-2 rounded-lg border border-white/5"><span className="text-lg text-slate-300 leading-tight">{linea}</span><button onClick={() => eliminarArticuloComanda(p, idx)} className="opacity-0 group-hover/item:opacity-100 p-1 text-red-500/50 hover:text-red-500 transition-all"><X size={16}/></button></div>))}</div></div>
-                    <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-4 rounded-xl font-black text-lg mt-6 active:scale-95 uppercase tracking-tighter shadow-lg">Cobrar ${p.total}</button></div>
-                ))}
+                {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).map(p => {
+                  const esExterno = String(p.mesa).startsWith("TEL:");
+                  const numTel = esExterno ? p.mesa.replace("TEL:", "") : "";
+                  return (
+                    <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl relative shadow-xl flex flex-col justify-between group transition-all">
+                      <div className={`absolute top-0 left-0 w-1.5 h-full ${esExterno ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
+                      <div><div className="flex justify-between items-start">
+                          <div className="flex flex-col"><h3 className="text-2xl font-black italic uppercase tracking-tighter leading-none">{esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}</h3><span className={`text-[9px] font-black uppercase tracking-widest mt-1 ${obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}`}>{obtenerPlanta(p.mesa)}</span></div>
+                          <button onClick={async () => { 
+                            if(window.confirm("¿Cancelar venta? El stock regresará.")) { 
+                              const batch = writeBatch(db); 
+                              p.detalle.split('\n').forEach(linea => { 
+                                const m = linea.match(/(\d+)x (.*) \(\$/); 
+                                if (m) { 
+                                  const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
+                                  if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
+                                } 
+                              }); 
+                              batch.delete(doc(db, "pedidos", p.id)); 
+                              await batch.commit(); 
+                            } 
+                          }} className="p-1 text-slate-700 hover:text-red-500 transition-colors"><Trash2 size={18}/></button></div>
+                      
+                      {/* PIN DE SEGURIDAD EN BARRA */}
+                      {p.pinMesa && (
+                        <div className="bg-orange-600/10 border border-orange-600/20 rounded-lg p-2 mt-3 flex justify-between items-center">
+                          <span className="text-[10px] font-black uppercase text-orange-500 tracking-widest">PIN SEGURIDAD:</span>
+                          <span className="text-xl font-black text-white">{p.pinMesa}</span>
+                        </div>
+                      )}
+
+                      <div className="mt-4 space-y-1">{p.detalle.split('\n').map((linea, idx) => (<div key={idx} className="group/item flex justify-between items-center bg-black/20 p-2 rounded-lg border border-white/5"><span className="text-lg text-slate-300 leading-tight">{linea}</span><button onClick={() => eliminarArticuloComanda(p, idx)} className="opacity-0 group-hover/item:opacity-100 p-1 text-red-500/50 hover:text-red-500 transition-all"><X size={16}/></button></div>))}</div></div>
+                      <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-4 rounded-xl font-black text-lg mt-6 active:scale-95 uppercase tracking-tighter shadow-lg">Cobrar ${p.total}</button></div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -339,7 +377,6 @@ const historialFiltradoParaCaja = historialCerrado.filter(hc => {
           </div>
         )}
 
-        {/* MODAL NUEVO EVENTO */}
         {verModalNuevoEvento && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
             <div className="bg-slate-900 border border-slate-800 w-full max-w-[350px] rounded-[2.5rem] p-8 shadow-2xl relative">
@@ -355,25 +392,15 @@ const historialFiltradoParaCaja = historialCerrado.filter(hc => {
           </div>
         )}
 
-        {/* MODAL TICKET */}
         {ticketParaReimprimir && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
             <div className="bg-white text-black w-full max-w-[280px] p-6 font-mono shadow-2xl relative print-container border-2 border-black">
               <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
-              <div className="text-center border-b-2 border-dashed border-black pb-4 mb-4">
-                <h2 className="font-black text-xl italic uppercase leading-none tracking-tighter">TRIBU'S BAR</h2>
-                <p className="text-[10px] font-bold mt-1 text-gray-600 uppercase tracking-widest">Nota de Venta</p>
-              </div>
-              <div className="space-y-1 mb-4 text-[10px] uppercase font-bold">
-                <div className="flex justify-between"><span>MESA: {ticketParaReimprimir.mesa}</span><span>{obtenerPlanta(ticketParaReimprimir.mesa)}</span></div>
-                <div className="flex justify-between"><span>FECHA:</span><span>{ticketParaReimprimir.fecha?.seconds ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX') : new Date().toLocaleString('es-MX')}</span></div>
-              </div>
+              <div className="text-center border-b-2 border-dashed border-black pb-4 mb-4"><h2 className="font-black text-xl italic uppercase leading-none tracking-tighter">TRIBU'S BAR</h2><p className="text-[10px] font-bold mt-1 text-gray-600 uppercase tracking-widest">Nota de Venta</p></div>
+              <div className="space-y-1 mb-4 text-[10px] uppercase font-bold"><div className="flex justify-between"><span>MESA: {ticketParaReimprimir.mesa}</span><span>{obtenerPlanta(ticketParaReimprimir.mesa)}</span></div><div className="flex justify-between"><span>FECHA:</span><span>{ticketParaReimprimir.fecha?.seconds ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX') : new Date().toLocaleString('es-MX')}</span></div></div>
               <div className="text-[11px] whitespace-pre-line leading-tight mb-6 border-t border-dashed border-gray-300 pt-4">{ticketParaReimprimir.detalle}</div>
               <div className="flex justify-between font-black text-2xl border-t-2 border-dashed border-black pt-4 mb-6"><span>TOTAL:</span><span>${ticketParaReimprimir.total}</span></div>
-              <div className="text-center border-t border-gray-200 pt-6 pb-2">
-                <p className="text-[10px] font-black italic uppercase tracking-tighter mb-1">"La vida es mejor compartida en la Tribu"</p>
-                <p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">¡Gracias por tu visita!</p>
-              </div>
+              <div className="text-center border-t border-gray-200 pt-6 pb-2"><p className="text-[10px] font-black italic uppercase tracking-tighter mb-1">"La vida es mejor compartida en la Tribu"</p><p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">¡Gracias por tu visita!</p></div>
               <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl">Imprimir</button>
             </div>
           </div>
@@ -432,7 +459,7 @@ const historialFiltradoParaCaja = historialCerrado.filter(hc => {
                 <button onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + "0")} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black">0</button>
                 <button onClick={() => setVerModalTelefono(false)} className="w-16 h-16 rounded-full flex items-center justify-center text-slate-500 border border-slate-800"><X size={24}/></button>
              </div>
-             {telefonoInput.length >= 10 && (<button onClick={() => procesarEnvio()} className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse">Confirmar Teléfono</button>)}
+             {telefonoInput.length >= 10 && (<button onClick={() => procesarEnvio()} className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse">Confirmar Pedido</button>)}
           </div>
         )}
       </div>
