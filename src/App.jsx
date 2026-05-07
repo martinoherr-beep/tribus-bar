@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from './firebase'; 
 import { 
   collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, 
@@ -14,6 +14,10 @@ const PIN_ADMIN = "2370";
 const CATEGORIAS = ["Todos", "Cerveza", "Bebidas Preparadas", "Snacks", "Botellas", "Comidas"];
 const LINK_PRINCIPAL = "http://192.168.5.5/youtube/search"; 
 const TEXTO_LINK = "Rockola";
+
+// --- CONFIGURACIÓN TELEGRAM ---
+const TELEGRAM_TOKEN = "8571689799:AAGl_SNWiQXUc1GHXrTjub-Ke0KoDrUt-k4";
+const TELEGRAM_CHAT_ID = "8712410394";
 
 // --- ESTILOS DE IMPRESIÓN ---
 const estilosImpresion = `
@@ -88,6 +92,53 @@ function App() {
   });
 
   const totalCajaHoy = historialFiltradoParaCaja.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
+
+ // 1. Candado de minuto: Guarda el último minuto en que se envió un mensaje exitoso
+  const ultimoMinutoEnviado = useRef("");
+
+  useEffect(() => {
+    const vigilante = setInterval(() => {
+      const ahora = new Date();
+      const f = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
+      const h = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+      
+      // Creamos una llave única: "ID_DEL_EVENTO + MINUTO_ACTUAL"
+      // Ejemplo: "abc123_22:05"
+      
+      recordatorios.forEach(async (rec) => {
+        const llaveVigilante = `${rec.id}_${h}`;
+
+        // VALIDACIÓN TRIPLE: 
+        // 1. Que coincida hora/fecha
+        // 2. Que Firebase diga que no se ha enviado
+        // 3. QUE NO HAYAMOS ENVIADO ESTA LLAVE EN ESTE MINUTO
+        if (rec.fecha === f && rec.hora === h && !rec.enviado && ultimoMinutoEnviado.current !== llaveVigilante) {
+          
+          // Bloqueo instantáneo
+          ultimoMinutoEnviado.current = llaveVigilante;
+
+          try {
+            const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: `🔔 *EVENTO:* ${rec.titulo}\n⏰ *HORA:* ${rec.hora} HRS`, parse_mode: 'Markdown' })
+            });
+
+            if (res.ok) {
+              await updateDoc(doc(db, "recordatorios", rec.id), { enviado: true });
+              console.log("✅ Mensaje único enviado con éxito");
+            }
+          } catch (e) {
+            // Si falló internet, liberamos la llave para que el siguiente ciclo del interval reintente
+            ultimoMinutoEnviado.current = "";
+            console.error("❌ Error:", e);
+          }
+        }
+      });
+    }, 5000); // Revisamos cada 5 segundos para no perder el minuto
+
+    return () => clearInterval(vigilante);
+  }, [recordatorios]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -353,7 +404,7 @@ function App() {
           </div>
         </div>
 
-        {/* MODAL NUEVO PROD (RESTAURADO AL 100% SEGÚN LA IMAGEN) */}
+        {/* MODAL NUEVO PROD */}
         {verModalNuevoProd && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
             <div className="bg-slate-900 border border-slate-800 w-full max-w-[420px] rounded-[2.5rem] p-8 shadow-2xl relative">
@@ -418,11 +469,12 @@ function App() {
           </div>
         )}
 
-        {/* MODAL TICKET DISEÑO PROFESIONAL */}
+        {/* --- MODAL TICKET DISEÑO PROFESIONAL --- */}
         {ticketParaReimprimir && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
             <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-orange-600 print:border-none">
               <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
+
               <div className="text-center mb-6">
                 <h2 className="font-black text-3xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Nota de Venta</p>
@@ -437,6 +489,7 @@ function App() {
                   </div>
                 </div>
               </div>
+
               <div className="text-[11px] mb-6">
                 <div className="flex justify-between font-black border-b border-black pb-1 mb-2">
                   <span>DESCRIPCIÓN</span>
@@ -446,12 +499,14 @@ function App() {
                   {ticketParaReimprimir.detalle}
                 </div>
               </div>
+
               <div className="border-t-4 border-double border-black pt-4 mb-8">
                 <div className="flex justify-between items-end">
                   <span className="font-bold text-sm">TOTAL:</span>
                   <span className="font-black text-4xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
                 </div>
               </div>
+
               <div className="text-center space-y-4">
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-gray-300"></span></div>
@@ -461,6 +516,7 @@ function App() {
                 </div>
                 <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">¡Gracias por tu visita!</p>
               </div>
+
               <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors">
                 <Printer size={20}/> CONFIRMAR IMPRESIÓN
               </button>
@@ -476,11 +532,11 @@ function App() {
       <div className="absolute inset-0 opacity-40"><img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="f" /><div className="absolute inset-0 bg-slate-950/80"></div></div>
       <div className="relative z-10 space-y-12 w-full max-w-lg">
         <div className="space-y-4">
-          <div className="flex justify-center items-center gap-2 text-orange-500 animate-pulse"><Zap size={48} /><h1 className="text-7xl font-black italic uppercase leading-none">{nombreBarDinamico}</h1></div>
+          <div className="flex justify-center items-center gap-2 text-orange-500 animate-pulse"><h1 className="text-7xl font-black italic uppercase leading-none">{nombreBarDinamico}</h1></div>
           <div className="space-y-2 uppercase tracking-tight"><h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2><p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{obtenerPlanta(mesa)}</p></div>
         </div>
         <div className="grid gap-4">
-          <button onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} className="flex items-center gap-5 bg-slate-800/60 p-5 rounded-3xl border border-slate-700/30 backdrop-blur-sm shadow-xl active:scale-95 transition-all"><Wifi className="text-sky-400" size={28} /><div className="text-left font-bold uppercase text-[10px] text-slate-400"><p>Wi-Fi Gratis</p><p className="text-lg text-white font-black">tribus2026</p></div></button>
+          <button onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} className="flex items-center gap-5 bg-slate-800/60 p-5 rounded-3xl border border-slate-700/30 backdrop-blur-sm shadow-xl active:scale-95 transition-all"><Wifi className="text-sky-400" size={28} /><div className="text-left font-bold uppercase text-[10px] text-slate-400"><p>Wi-Fi Gratis</p><p className="text-lg text-white font-black">tribu´s Bar</p></div></button>
           <button onClick={() => setView('menu')} className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 transition-all"><UtensilsCrossed size={28} /><div className="text-left font-bold uppercase text-[10px] text-orange-200"><p>Menú Digital</p><p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p></div></button>
           <button onClick={() => window.open(LINK_PRINCIPAL, '_blank')} className="flex items-center gap-5 bg-slate-800/60 p-5 rounded-3xl border border-slate-700/30 backdrop-blur-sm shadow-xl active:scale-95 transition-all"><ExternalLink className="text-green-500" size={28} /><div className="text-left font-bold uppercase text-[10px] text-slate-400"><p>Rockola</p><p className="text-lg text-white font-black">{TEXTO_LINK}</p></div></button>
         </div><button onClick={() => setView('barra')} className="opacity-10 text-[10px] uppercase font-bold tracking-widest hover:opacity-100 transition-opacity">Acceso Barra</button>
