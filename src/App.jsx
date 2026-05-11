@@ -50,7 +50,8 @@ function App() {
   const [nuevoEvento, setNuevoEvento] = useState({ titulo: "", fecha: "", hora: "" });
   const [verModalNuevoProd, setVerModalNuevoProd] = useState(false);
   const [nuevoProd, setNuevoProd] = useState({
-    nombre: "", precioMesa: "", precioDomicilio: "", stock: "", categoria: "Cerveza", subcategoria: "", descripcion: "", imagen: "", ubicacion: "PLANTA BAJA"
+    nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", 
+    categoria: "Cerveza", subcategoria: "", imagen: ""
   });
   const [esNuevaSub, setEsNuevaSub] = useState(false);
   const [productosMenu, setProductosMenu] = useState([]);
@@ -65,8 +66,8 @@ function App() {
     if (!idMesa) return "EXTERNO";
     const n = parseInt(idMesa);
     if (isNaN(n)) return "EXTERNO";
-    if (n >= 1 && n <= 10) return "PLANTA BAJA";
-    if (n >= 11 && n <= 20) return "TERRAZA";
+    if (n >= 1 && n <= 25) return "PLANTA BAJA";
+    if (n >= 26 && n <= 50) return "TERRAZA";
     return "EXTERNO";
   };
 
@@ -93,8 +94,30 @@ function App() {
 
   const totalCajaHoy = historialFiltradoParaCaja.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
 
- // 1. Candado de minuto: Guarda el último minuto en que se envió un mensaje exitoso
   const ultimoMinutoEnviado = useRef("");
+
+  // --- FUNCIÓN MOVER MESA (CORREGIDA FUERA DE USEEFFECT) ---
+  const moverMesa = async (pedido) => {
+    const plantaOrigen = obtenerPlanta(pedido.mesa);
+    const nuevaMesa = window.prompt(`Moviendo cuenta de Mesa ${pedido.mesa} (${plantaOrigen}). Ingrese el nuevo número de mesa:`);
+    
+    if (!nuevaMesa || nuevaMesa === "" || nuevaMesa === pedido.mesa) return;
+
+    const plantaDestino = obtenerPlanta(nuevaMesa);
+    const etiquetaTraslado = `\n--- TRASLADO DE ${plantaOrigen} A ${plantaDestino} ---`;
+
+    try {
+      const pedidoRef = doc(db, "pedidos", pedido.id);
+      await updateDoc(pedidoRef, {
+        mesa: String(nuevaMesa),
+        detalle: pedido.detalle + etiquetaTraslado
+      });
+      alert(`Cuenta trasladada a Mesa ${nuevaMesa} (${plantaDestino}) con éxito.`);
+    } catch (e) {
+      console.error("Error al mover mesa:", e);
+      alert("No se pudo mover la mesa.");
+    }
+  };
 
   useEffect(() => {
     const vigilante = setInterval(() => {
@@ -102,40 +125,27 @@ function App() {
       const f = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
       const h = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
       
-      // Creamos una llave única: "ID_DEL_EVENTO + MINUTO_ACTUAL"
-      // Ejemplo: "abc123_22:05"
-      
       recordatorios.forEach(async (rec) => {
         const llaveVigilante = `${rec.id}_${h}`;
-
-        // VALIDACIÓN TRIPLE: 
-        // 1. Que coincida hora/fecha
-        // 2. Que Firebase diga que no se ha enviado
-        // 3. QUE NO HAYAMOS ENVIADO ESTA LLAVE EN ESTE MINUTO
         if (rec.fecha === f && rec.hora === h && !rec.enviado && ultimoMinutoEnviado.current !== llaveVigilante) {
-          
-          // Bloqueo instantáneo
           ultimoMinutoEnviado.current = llaveVigilante;
-
           try {
             const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: `🔔 *EVENTO:* ${rec.titulo}\n⏰ *HORA:* ${rec.hora} HRS`, parse_mode: 'Markdown' })
             });
-
             if (res.ok) {
               await updateDoc(doc(db, "recordatorios", rec.id), { enviado: true });
               console.log("✅ Mensaje único enviado con éxito");
             }
           } catch (e) {
-            // Si falló internet, liberamos la llave para que el siguiente ciclo del interval reintente
             ultimoMinutoEnviado.current = "";
             console.error("❌ Error:", e);
           }
         }
       });
-    }, 5000); // Revisamos cada 5 segundos para no perder el minuto
+    }, 5000);
 
     return () => clearInterval(vigilante);
   }, [recordatorios]);
@@ -328,27 +338,54 @@ function App() {
                       <div className={`absolute top-0 left-0 w-1.5 h-full ${esExterno ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
                       <div><div className="flex justify-between items-start">
                           <div className="flex flex-col"><h3 className="text-2xl font-black italic uppercase tracking-tighter leading-none">{esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}</h3><span className={`text-[9px] font-black uppercase tracking-widest mt-1 ${obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}`}>{obtenerPlanta(p.mesa)}</span></div>
-                          <button onClick={async () => { 
-                            if(window.confirm("¿Cancelar pedido? El stock regresará.")) { 
-                              const batch = writeBatch(db); 
-                              p.detalle.split('\n').forEach(linea => { 
-                                const m = linea.match(/(\d+)x (.*) \(\$/); 
-                                if (m) { 
-                                  const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
-                                  if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
-                                } 
-                              }); 
-                              batch.delete(doc(db, "pedidos", p.id)); 
-                              await batch.commit(); 
-                            } 
-                          }} className="p-1 text-slate-700 hover:text-red-500 transition-colors"><Trash2 size={18}/></button></div>
+                          <div className="flex gap-2">
+                            <button onClick={() => moverMesa(p)} className="p-1 text-slate-500 hover:text-sky-400 transition-colors" title="Mover Mesa"><ExternalLink size={18}/></button>
+                            <button onClick={async () => { 
+                              if(window.confirm("¿Cancelar pedido? El stock regresará.")) { 
+                                const batch = writeBatch(db); 
+                                p.detalle.split('\n').forEach(linea => { 
+                                  const m = linea.match(/(\d+)x (.*) \(\$/); 
+                                  if (m) { 
+                                    const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
+                                    if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
+                                  } 
+                                }); 
+                                batch.delete(doc(db, "pedidos", p.id)); 
+                                await batch.commit(); 
+                              } 
+                            }} className="p-1 text-slate-700 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
+                          </div>
+                      </div>
                       {p.pinMesa && (
                         <div className="bg-orange-600/10 border border-orange-600/20 rounded-lg p-2 mt-3 flex justify-between items-center">
                           <span className="text-[10px] font-black uppercase text-orange-500 tracking-widest">PIN SEGURIDAD:</span>
                           <span className="text-xl font-black text-white">{p.pinMesa}</span>
                         </div>
                       )}
-                      <div className="mt-4 space-y-1">{p.detalle.split('\n').map((linea, idx) => (<div key={idx} className="group/item flex justify-between items-center bg-black/20 p-2 rounded-lg border border-white/5"><span className="text-lg text-slate-300 leading-tight">{linea}</span><button onClick={() => eliminarArticuloComanda(p, idx)} className="opacity-0 group-hover/item:opacity-100 p-1 text-red-500/50 hover:text-red-500 transition-all"><X size={16}/></button></div>))}</div>
+                      <div className="mt-4 space-y-1">
+  {p.detalle.split('\n').map((linea, idx) => {
+    // Verificamos si la línea es un producto (empieza con un número)
+    const esProducto = /^\d+x/.test(linea.trim());
+
+    return (
+      <div key={idx} className="group/item flex justify-between items-center bg-black/20 p-2 rounded-lg border border-white/5">
+        <span className={`text-lg leading-tight ${!esProducto ? 'text-orange-500 font-bold text-xs' : 'text-slate-300'}`}>
+          {linea}
+        </span>
+        
+        {/* Solo mostramos el botón de borrar si es un producto real */}
+        {esProducto && (
+          <button 
+            onClick={() => eliminarArticuloComanda(p, idx)} 
+            className="opacity-0 group-hover/item:opacity-100 p-1 text-red-500/50 hover:text-red-500 transition-all"
+          >
+            <X size={16}/>
+          </button>
+        )}
+      </div>
+    );
+  })}
+</div>
                       {esExterno && (
                         <button onClick={() => window.open(`https://wa.me/${numTel}?text=${encodeURIComponent(mensajeWA)}`, '_blank')} className="flex items-center justify-center gap-2 bg-green-600/10 border border-green-600/20 text-green-500 w-full py-3 rounded-xl font-black uppercase text-xs mt-4 hover:bg-green-600 hover:text-white transition-all"><Phone size={14}/> Enviar Cuenta</button>
                       )}
@@ -404,50 +441,81 @@ function App() {
           </div>
         </div>
 
-        {/* MODAL NUEVO PROD */}
+        {/* --- MODAL NUEVO PROD (CONECTADO) --- */}
         {verModalNuevoProd && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
             <div className="bg-slate-900 border border-slate-800 w-full max-w-[420px] rounded-[2.5rem] p-8 shadow-2xl relative">
               <button onClick={() => { setVerModalNuevoProd(false); setEsNuevaSub(false); }} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"><X/></button>
-              <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><PlusCircle/> Nuevo Item</h2>
-              <form onSubmit={async (e) => { e.preventDefault(); await addDoc(collection(db, "productos"), { ...nuevoProd, stock: Number(nuevoProd.stock), precioMesa: Number(nuevoProd.precioMesa), precioDomicilio: Number(nuevoProd.precioDomicilio) }); setVerModalNuevoProd(false); setEsNuevaSub(false); setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stock: "", categoria: "Cerveza", subcategoria: "", descripcion: "", imagen: "", ubicacion: "PLANTA BAJA" }); }} className="space-y-4">
-                <input required placeholder="Nombre" value={nuevoProd.nombre} onChange={e => setNuevoProd({...nuevoProd, nombre: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
+              <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><PlusCircle/> Nuevo Item Multi-Planta</h2>
+              
+              <form onSubmit={async (e) => { 
+                  e.preventDefault(); 
+                  const batch = writeBatch(db);
+                  
+                  if (nuevoProd.stockBaja > 0) {
+                    const refBaja = doc(collection(db, "productos"));
+                    batch.set(refBaja, {
+                      nombre: nuevoProd.nombre,
+                      stock: Number(nuevoProd.stockBaja),
+                      ubicacion: "PLANTA BAJA",
+                      precioMesa: Number(nuevoProd.precioMesa),
+                      precioDomicilio: Number(nuevoProd.precioDomicilio),
+                      categoria: nuevoProd.categoria,
+                      subcategoria: nuevoProd.subcategoria,
+                      imagen: nuevoProd.imagen
+                    });
+                  }
+
+                  if (nuevoProd.stockTerraza > 0) {
+                    const refTerraza = doc(collection(db, "productos"));
+                    batch.set(refTerraza, {
+                      nombre: nuevoProd.nombre,
+                      stock: Number(nuevoProd.stockTerraza),
+                      ubicacion: "TERRAZA",
+                      precioMesa: Number(nuevoProd.precioMesa),
+                      precioDomicilio: Number(nuevoProd.precioDomicilio),
+                      categoria: nuevoProd.categoria,
+                      subcategoria: nuevoProd.subcategoria,
+                      imagen: nuevoProd.imagen
+                    });
+                  }
+
+                  await batch.commit();
+                  setVerModalNuevoProd(false);
+                  setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", categoria: "Cerveza", subcategoria: "", imagen: "" });
+                }} className="space-y-4">
+                
+                <input required placeholder="Nombre del Producto" value={nuevoProd.nombre} onChange={e => setNuevoProd({...nuevoProd, nombre: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
+                
                 <div className="grid grid-cols-2 gap-4">
                   <input required type="number" placeholder="Precio Mesa" value={nuevoProd.precioMesa} onChange={e => setNuevoProd({...nuevoProd, precioMesa: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
                   <input required type="number" placeholder="Precio Domicilio" value={nuevoProd.precioDomicilio} onChange={e => setNuevoProd({...nuevoProd, precioDomicilio: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <select value={nuevoProd.categoria} onChange={e => setNuevoProd({...nuevoProd, categoria: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner">
-                    {CATEGORIAS.filter(c => c !== "Todos").map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <input required type="number" placeholder="Stock" value={nuevoProd.stock} onChange={e => setNuevoProd({...nuevoProd, stock: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white focus:border-orange-500 shadow-inner" />
+
+                <div className="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-2xl border border-white/5">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-orange-500 uppercase px-1">Stock P. Baja</label>
+                    <input type="number" placeholder="0" value={nuevoProd.stockBaja} onChange={e => setNuevoProd({...nuevoProd, stockBaja: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white focus:border-orange-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-sky-400 uppercase px-1">Stock Terraza</label>
+                    <input type="number" placeholder="0" value={nuevoProd.stockTerraza} onChange={e => setNuevoProd({...nuevoProd, stockTerraza: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white focus:border-sky-500" />
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase ml-2 flex items-center gap-1"><Boxes size={12}/> Ubicación Hielera</label>
-                  <select required value={nuevoProd.ubicacion} onChange={e => setNuevoProd({...nuevoProd, ubicacion: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white focus:border-orange-500 shadow-inner">
-                    <option value="PLANTA BAJA">PLANTA BAJA</option>
-                    <option value="TERRAZA">TERRAZA</option>
-                  </select>
-                </div>
+
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase ml-2 flex items-center gap-1"><Tag size={12}/> Subcategoría</label>
-                  {!esNuevaSub ? (
-                    <select value={nuevoProd.subcategoria} onChange={e => e.target.value === "NEW" ? setEsNuevaSub(true) : setNuevoProd({...nuevoProd, subcategoria: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white focus:border-orange-500 shadow-inner">
-                      <option value="">Seleccionar...</option>
-                      <option value="MEDIA">MEDIA</option>
-                      <option value="CAGUAMA">CAGUAMA</option>
-                      {subcatsExistentes.filter(s => s !== "MEDIA" && s !== "CAGUAMA").map(s => <option key={s} value={s}>{s}</option>)}
-                      <option value="NEW" className="text-orange-500 font-bold">+ AÑADIR NUEVA</option>
+                  <label className="text-[10px] font-black text-slate-500 uppercase ml-2 flex items-center gap-1"><Tag size={12}/> Categoría y Subcategoría</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select value={nuevoProd.categoria} onChange={e => setNuevoProd({...nuevoProd, categoria: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner">
+                      {CATEGORIAS.filter(c => c !== "Todos").map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input autoFocus placeholder="Nombre subcategoría" value={nuevoProd.subcategoria} onChange={e => setNuevoProd({...nuevoProd, subcategoria: e.target.value.toUpperCase()})} className="flex-1 bg-slate-950 border border-orange-500 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
-                      <button type="button" onClick={() => setEsNuevaSub(false)} className="bg-slate-800 p-3 rounded-xl"><X size={16}/></button>
-                    </div>
-                  )}
+                    <input placeholder="Subcat (Media, etc)" value={nuevoProd.subcategoria} onChange={e => setNuevoProd({...nuevoProd, subcategoria: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white" />
+                  </div>
                 </div>
+
                 <input placeholder="URL Imagen" value={nuevoProd.imagen} onChange={e => setNuevoProd({...nuevoProd, imagen: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
-                <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95 transition-all">Guardar</button>
+                
+                <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95 transition-all">Crear Producto(s)</button>
               </form>
             </div>
           </div>
@@ -469,7 +537,7 @@ function App() {
           </div>
         )}
 
-        {/* --- MODAL TICKET DISEÑO PROFESIONAL --- */}
+        {/* --- MODAL TICKET --- */}
         {ticketParaReimprimir && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
             <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-orange-600 print:border-none">
@@ -506,17 +574,7 @@ function App() {
                   <span className="font-black text-4xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
                 </div>
               </div>
-
-              <div className="text-center space-y-4">
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-gray-300"></span></div>
-                  <div className="relative flex justify-center text-[10px] uppercase bg-white px-2 font-black italic">
-                    "La vida es mejor compartida en la Tribu"
-                  </div>
-                </div>
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">¡Gracias por tu visita!</p>
-              </div>
-
+              
               <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors">
                 <Printer size={20}/> CONFIRMAR IMPRESIÓN
               </button>
