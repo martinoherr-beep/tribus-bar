@@ -309,21 +309,44 @@ function App() {
     return (
       <div className="min-h-screen bg-[#05070a] p-4 md:p-6 text-white flex flex-col font-sans">
         <style>{estilosImpresion}</style>
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-800 pb-6 gap-4 no-print">
-            <div className="w-full md:w-auto"><h1 className="text-4xl font-black text-orange-600 italic uppercase tracking-tighter leading-none">TRIBU'S BARRA</h1><div className="flex gap-4 mt-4">
-                <button onClick={() => setTabBarra('comandas')} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-xs transition-all ${tabBarra === 'comandas' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}><LayoutDashboard size={16}/> Comandas</button>
-                <button onClick={() => setTabBarra('inventario')} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-xs transition-all ${tabBarra === 'inventario' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}><Boxes size={16}/> Inventario</button>
-                <button onClick={() => setTabBarra('eventos')} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-xs transition-all ${tabBarra === 'eventos' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}><Calendar size={16}/> Eventos</button></div></div>
-            <div className="flex items-center gap-4">
-              {tabBarra === 'inventario' && (
-                <button onClick={() => setVerModalNuevoProd(true)} className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-xl font-black uppercase text-xs flex items-center gap-2 transition-all shadow-lg"><PlusCircle size={16}/> Nuevo Item</button>
-              )}
-              {tabBarra === 'eventos' && (
-                <button onClick={() => setVerModalNuevoEvento(true)} className="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-xl font-black uppercase text-xs flex items-center gap-2 transition-all shadow-lg"><PlusCircle size={16}/> Agendar</button>
-              )}
-              <div className="bg-slate-900 px-3 py-1 rounded-xl text-green-500 text-[10px] font-bold animate-pulse uppercase tracking-widest">● En Vivo</div>
-            </div>
-        </header>
+      <header className="flex flex-col mb-6 border-b border-slate-800 pb-6 gap-4 no-print">
+  {/* Fila Superior: Título y Status */}
+  <div className="flex justify-between items-center w-full">
+    <h1 className="text-3xl md:text-4xl font-black text-orange-600 italic uppercase tracking-tighter leading-none">
+      TRIBU'S BARRA
+    </h1>
+    <div className="bg-slate-900 px-3 py-1 rounded-xl text-green-500 text-[10px] font-bold animate-pulse uppercase tracking-widest border border-green-500/10">
+      ● En Vivo
+    </div>
+  </div>
+
+  {/* Fila Media: Navegación con Scroll Horizontal (Solución al desplazamiento lateral) */}
+  <div className="w-full overflow-x-auto no-scrollbar flex gap-3 pb-2">
+    <button onClick={() => setTabBarra('comandas')} className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-[10px] transition-all ${tabBarra === 'comandas' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>
+      <LayoutDashboard size={14}/> Comandas
+    </button>
+    <button onClick={() => setTabBarra('inventario')} className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-[10px] transition-all ${tabBarra === 'inventario' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>
+      <Boxes size={14}/> Inventario
+    </button>
+    <button onClick={() => setTabBarra('eventos')} className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-[10px] transition-all ${tabBarra === 'eventos' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>
+      <Calendar size={14}/> Eventos
+    </button>
+  </div>
+
+  {/* Fila Inferior: Botones de Acción (Se adaptan al ancho disponible) */}
+  <div className="flex flex-wrap items-center gap-3">
+    {tabBarra === 'inventario' && (
+      <button onClick={() => setVerModalNuevoProd(true)} className="flex-1 md:flex-none justify-center bg-green-600 hover:bg-green-500 text-white px-4 py-3 rounded-xl font-black uppercase text-[10px] flex items-center gap-2 transition-all shadow-lg">
+        <PlusCircle size={16}/> Nuevo Item
+      </button>
+    )}
+    {tabBarra === 'eventos' && (
+      <button onClick={() => setVerModalNuevoEvento(true)} className="flex-1 md:flex-none justify-center bg-orange-600 hover:bg-orange-500 text-white px-4 py-3 rounded-xl font-black uppercase text-[10px] flex items-center gap-2 transition-all shadow-lg">
+        <PlusCircle size={16}/> Agendar
+      </button>
+    )}
+  </div>
+</header>
 
         <div className="flex flex-col lg:flex-row gap-6">
           {tabBarra === 'comandas' && (
