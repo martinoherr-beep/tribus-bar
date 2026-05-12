@@ -337,7 +337,7 @@ function App() {
   <div className="flex flex-wrap items-center gap-3">
     {tabBarra === 'inventario' && (
       <button onClick={() => setVerModalNuevoProd(true)} className="flex-1 md:flex-none justify-center bg-green-600 hover:bg-green-500 text-white px-4 py-3 rounded-xl font-black uppercase text-[10px] flex items-center gap-2 transition-all shadow-lg">
-        <PlusCircle size={16}/> Nuevo Item
+        <PlusCircle size={16}/>Producto
       </button>
     )}
     {tabBarra === 'eventos' && (
@@ -469,7 +469,7 @@ function App() {
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
             <div className="bg-slate-900 border border-slate-800 w-full max-w-[420px] rounded-[2.5rem] p-8 shadow-2xl relative">
               <button onClick={() => { setVerModalNuevoProd(false); setEsNuevaSub(false); }} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"><X/></button>
-              <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><PlusCircle/> Nuevo Item Multi-Planta</h2>
+              <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><PlusCircle/> Agregar Producto</h2>
               
               <form onSubmit={async (e) => { 
                   e.preventDefault(); 
