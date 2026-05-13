@@ -8,7 +8,12 @@ import {
   ShoppingCart, Trash2, X, Plus, Minus, Wifi, 
   UtensilsCrossed, Zap, CheckCircle, ReceiptText, Printer, Search, CreditCard, Phone, Package, LayoutDashboard, Boxes, PlusCircle, Tag, ExternalLink, Lock, Calendar, History
 } from 'lucide-react';
-
+import { auth } from './firebase';
+import { 
+  RecaptchaVerifier, 
+  signInWithPhoneNumber, 
+  onAuthStateChanged 
+} from "firebase/auth";
 const DATOS_PAGO = "💳 *DATOS DE PAGO*:\nBanco: Tu Banco\nCuenta: 0000 0000 0000 0000\nCLABE: 000000000000000000\nA nombre de: Tribus Bar";
 const PIN_ADMIN = "2370";
 const CATEGORIAS = ["Todos", "Cerveza", "Bebidas Preparadas", "Snacks", "Botellas", "Comidas"];
@@ -70,6 +75,91 @@ function App() {
     if (n >= 26 && n <= 50) return "TERRAZA";
     return "EXTERNO";
   };
+ 
+// Dentro de tu función App()
+const [usuarioLogueado, setUsuarioLogueado] = useState(null);
+const [verModalAuth, setVerModalAuth] = useState(false);
+const [nombreRegistro, setNombreRegistro] = useState("");
+const [pasoAuth, setPasoAuth] = useState('telefono'); // 'telefono' o 'codigo'
+const [codigoOTP, setCodigoOTP] = useState("");
+const [confirmacionResultado, setConfirmacionResult] = useState(null);
+
+// Escuchar si el usuario ya está logueado al cargar
+useEffect(() => {
+  const unsub = onAuthStateChanged(auth, (user) => {
+    if (user) setUsuarioLogueado(user);
+  });
+  return () => unsub();
+}, []);
+
+const enviarCodigoSMS = async () => {
+  if (telefonoInput.length !== 10) return alert("Ingresa 10 dígitos");
+
+  // 1. Limpieza total y forzada
+  if (window.recaptchaVerifier) {
+    try {
+      window.recaptchaVerifier.clear();
+    } catch (e) {
+      console.warn("Error al limpiar:", e);
+    }
+  }
+  
+  const container = document.getElementById('recaptcha-container');
+  if (container) container.innerHTML = ''; 
+
+  try {
+    // 2. Nueva instancia con el ID de la image_911555.png
+    // Asegúrate de que 'auth' esté importado correctamente de tu firebase.js
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      size: 'invisible',
+      'callback': (response) => {
+        console.log("reCAPTCHA resuelto");
+      }
+    });
+
+    const appVerifier = window.recaptchaVerifier;
+    const formatoInternacional = `+52${telefonoInput}`;
+    
+    // Aquí es donde Vite se quejaba; revisa que no falte una llave '}' arriba de esta función
+    const confirmation = await signInWithPhoneNumber(auth, formatoInternacional, appVerifier);
+    
+    setConfirmacionResult(confirmation);
+    setPasoAuth('codigo');
+    alert("Código enviado correctamente");
+
+  } catch (error) {
+    console.error("Error SMS detallado:", error.code, error.message);
+    if (window.recaptchaVerifier) window.recaptchaVerifier.clear();
+    
+    // Manejo de errores comunes de Moapp
+    if (error.code === 'auth/invalid-phone-number') alert("Número inválido");
+    else if (error.code === 'auth/too-many-requests') alert("Demasiados intentos, espera un poco");
+    else alert("Error: " + error.message);
+  }
+};
+
+const verificarCodigo = async () => {
+  try {
+    const result = await confirmacionResult.confirm(codigoOTP);
+    const user = result.user;
+
+    // ESTO ES LO QUE SIGUE: Guardar al cliente en tu colección
+    await setDoc(doc(db, "clientes", user.uid), {
+      nombre: nombreRegistro,
+      telefono: telefonoInput,
+      uid: user.uid,
+      fechaRegistro: serverTimestamp(),
+      puntos: 0, 
+      ultimaVisita: serverTimestamp()
+    });
+
+    setUsuarioLogueado(user);
+    setVerModalAuth(false);
+    alert(`¡Bienvenido, ${nombreRegistro}!`);
+  } catch (error) {
+    alert("Código incorrecto.");
+  }
+};
 
   const plantaActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
   const nombreBarDinamico = plantaActual === "TERRAZA" ? "TRIBU'S BAR TERRAZA" : "TRIBU'S BAR";
@@ -232,11 +322,23 @@ function App() {
   };
 
   const cobrarCuenta = async (p) => {
-    await addDoc(collection(db, "historial_tickets"), { mesa: p.mesa, detalle: p.detalle, total: p.total, fecha: serverTimestamp(), archivado: false });
+    await addDoc(collection(db, "historial_tickets"), { 
+        mesa: p.mesa, 
+        detalle: p.detalle, 
+        total: p.total, 
+        fecha: serverTimestamp(), 
+        archivado: false,
+        // USAMOS LOS DATOS QUE VIENEN EN EL OBJETO 'p'
+        cliente: p.cliente || "Cliente General",
+        telefono: p.telefono || "N/A",
+        uid: p.uidCliente || null
+    });
+
     await deleteDoc(doc(db, "pedidos", p.id));
     setTicketParaReimprimir(p);
-    if (String(p.mesa) === String(mesa)) { setMesaValidada(false); setConsumoAcumulado([]); setView('welcome'); }
-  };
+    
+    // ... resto del código
+};
 
   const eliminarArticuloComanda = async (p, idx) => {
     const lineas = p.detalle.split('\n');
@@ -608,22 +710,133 @@ function App() {
     );
   }
 
-  if (view === 'welcome') return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden font-sans">
-      <div className="absolute inset-0 opacity-40"><img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="f" /><div className="absolute inset-0 bg-slate-950/80"></div></div>
-      <div className="relative z-10 space-y-12 w-full max-w-lg">
-        <div className="space-y-4">
-          <div className="flex justify-center items-center gap-2 text-orange-500 animate-pulse"><h1 className="text-7xl font-black italic uppercase leading-none">{nombreBarDinamico}</h1></div>
-          <div className="space-y-2 uppercase tracking-tight"><h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2><p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{obtenerPlanta(mesa)}</p></div>
+if (view === 'welcome') return (
+  <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden font-sans">
+    {/* Imagen de fondo */}
+    <div className="absolute inset-0 opacity-40">
+      <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="fondo" />
+      <div className="absolute inset-0 bg-slate-950/80"></div>
+    </div>
+
+    <div className="relative z-10 space-y-12 w-full max-w-lg">
+      <div className="space-y-4">
+        <div className="flex justify-center items-center gap-2 text-orange-500 animate-pulse">
+          <h1 className="text-7xl font-black italic uppercase leading-none">{nombreBarDinamico}</h1>
         </div>
-        <div className="grid gap-4">
-          <button onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} className="flex items-center gap-5 bg-slate-800/60 p-5 rounded-3xl border border-slate-700/30 backdrop-blur-sm shadow-xl active:scale-95 transition-all"><Wifi className="text-sky-400" size={28} /><div className="text-left font-bold uppercase text-[10px] text-slate-400"><p>Wi-Fi Gratis</p><p className="text-lg text-white font-black">tribu´s Bar</p></div></button>
-          <button onClick={() => setView('menu')} className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 transition-all"><UtensilsCrossed size={28} /><div className="text-left font-bold uppercase text-[10px] text-orange-200"><p>Menú Digital</p><p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p></div></button>
-          <button onClick={() => window.open(LINK_PRINCIPAL, '_blank')} className="flex items-center gap-5 bg-slate-800/60 p-5 rounded-3xl border border-slate-700/30 backdrop-blur-sm shadow-xl active:scale-95 transition-all"><ExternalLink className="text-green-500" size={28} /><div className="text-left font-bold uppercase text-[10px] text-slate-400"><p>Rockola</p><p className="text-lg text-white font-black">{TEXTO_LINK}</p></div></button>
-        </div><button onClick={() => setView('barra')} className="opacity-10 text-[10px] uppercase font-bold tracking-widest hover:opacity-100 transition-opacity">Acceso Barra</button>
+        <div className="space-y-2 uppercase tracking-tight">
+          <h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2>
+          <p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{obtenerPlanta(mesa)}</p>
+        </div>
+      </div>
+
+     <div className="grid gap-4">
+  {/* Botón Wi-Fi */}
+  <button 
+    onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} 
+    className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 hover:border-white/10 hover:shadow-sky-500/5 transition-all duration-300 group"
+  >
+    <Wifi className="text-sky-400 group-hover:scale-110 transition-transform" size={28} />
+    <div className="text-left font-bold uppercase text-[10px] text-slate-400">
+      <p>Wi-Fi Gratis</p>
+      <p className="text-lg text-white font-black">tribu´s Bar</p>
+    </div>
+  </button>
+
+  {/* Botón Menú Digital */}
+  <button 
+    onClick={() => setView('menu')} 
+    className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 hover:shadow-orange-600/20 transition-all duration-300 group"
+  >
+    <UtensilsCrossed className="text-white group-hover:rotate-12 transition-transform" size={28} />
+    <div className="text-left font-bold uppercase text-[10px] text-orange-200">
+      <p>Menú Digital</p>
+      <p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p>
+    </div>
+  </button>
+
+  {/* Botón de Registro / Estado de Sesión */}
+  {!usuarioLogueado ? (
+    <button 
+      onClick={() => setVerModalAuth(true)} 
+      className="flex items-center gap-5 bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-sm active:scale-95 hover:bg-white/10 hover:border-orange-500/50 transition-all duration-300 group"
+    >
+      <div className="w-10 h-10 rounded-2xl bg-orange-600/20 flex items-center justify-center group-hover:bg-orange-600 transition-colors">
+        <Zap className="text-orange-600 group-hover:text-white" size={20} />
+      </div>
+      <div className="text-left">
+        <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Cliente frecuente?</p>
+        <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén beneficios</p>
+      </div>
+    </button>
+  ) : (
+    <div className="bg-green-600/10 border border-green-600/20 p-4 rounded-3xl flex items-center gap-4 animate-in fade-in zoom-in duration-500">
+      <div className="w-10 h-10 rounded-2xl bg-green-600 flex items-center justify-center shadow-lg shadow-green-600/20">
+        <CheckCircle className="text-white" size={20} />
+      </div>
+      <div className="text-left">
+        <p className="text-[9px] font-black text-green-500 uppercase tracking-widest">Sesión Iniciada</p>
+        <p className="text-sm text-white font-black italic uppercase leading-none">{usuarioLogueado.phoneNumber}</p>
       </div>
     </div>
-  );
+  )}
+
+  {/* Botón Rockola */}
+  <button 
+    onClick={() => window.open(LINK_PRINCIPAL, '_blank')} 
+    className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 hover:border-green-500/30 hover:shadow-green-500/5 transition-all duration-300 group"
+  >
+    <ExternalLink className="text-green-500 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" size={28} />
+    <div className="text-left font-bold uppercase text-[10px] text-slate-400">
+      <p>Rockola</p>
+      <p className="text-lg text-white font-black">{TEXTO_LINK}</p>
+    </div>
+  </button>
+</div>
+
+      <button onClick={() => setView('barra')} className="opacity-10 text-[10px] uppercase font-bold tracking-widest hover:opacity-100 transition-opacity">Acceso Barra</button>
+    </div>
+
+    {/* MODAL DE AUTENTICACIÓN (Dentro del mismo return de welcome) */}
+    {verModalAuth && (
+      <div className="fixed inset-0 z-[250] bg-black/95 flex items-center justify-center p-6 backdrop-blur-md">
+        <div className="bg-slate-900 border border-slate-800 w-full max-w-[380px] rounded-[2.5rem] p-8 shadow-2xl relative">
+          <button onClick={() => setVerModalAuth(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"><X/></button>
+          
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-orange-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Zap className="text-orange-600" size={32}/>
+            </div>
+            <h2 className="text-2xl font-black italic uppercase text-white tracking-tighter leading-none">Únete a la Tribu</h2>
+            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-2">Registra tu visita y obtén beneficios</p>
+          </div>
+
+          {pasoAuth === 'telefono' ? (
+            <div className="space-y-4">
+              <div className="space-y-1 text-left">
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-2">¿Cómo te llamas?</label>
+                <input placeholder="Nombre" value={nombreRegistro} onChange={e => setNombreRegistro(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl text-white outline-none" />
+              </div>
+              <div className="space-y-1 text-left">
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Tu WhatsApp</label>
+                <input placeholder="10 dígitos" type="tel" value={telefonoInput} onChange={e => setTelefonoInput(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl text-white outline-none" />
+              </div>
+              <div id="recaptcha-container"></div>
+              <button onClick={enviarCodigoSMS} className="w-full bg-orange-600 py-4 rounded-2xl font-black text-white uppercase shadow-xl active:scale-95 transition-all">Enviar Código</button>
+              
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <p className="text-[10px] text-orange-500 font-black uppercase tracking-widest text-center">Ingresa el código enviado</p>
+              <input maxLength={6} placeholder="000000" value={codigoOTP} onChange={e => setCodigoOTP(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl text-white text-center text-3xl font-black tracking-[0.3em] outline-none" />
+              <button onClick={verificarCodigo} className="w-full bg-green-600 py-4 rounded-2xl font-black text-white uppercase shadow-xl active:scale-95 transition-all">Verificar</button>
+              <button onClick={() => setPasoAuth('telefono')} className="w-full text-slate-500 text-[10px] font-black uppercase text-center">Corregir número</button>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+  </div>
+);
 
   if (view === 'menu') {
     const ubicacionActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
@@ -636,8 +849,29 @@ function App() {
         <header className="bg-slate-950/95 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-800 px-4 py-3"><div className="max-w-6xl mx-auto flex flex-col gap-3">
           <div className="flex justify-between items-center"><div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none">{nombreBarDinamico}</div>
             <div className="flex gap-2">
-              {consumoAcumulado.length > 0 && (<div className="bg-green-600/10 px-3 py-2 rounded-xl border border-green-500/20 flex items-center gap-2"><History size={14} className="text-green-500" /><span className="text-[10px] font-black text-green-500 leading-none">${totalAcumulado}</span></div>)}
-              <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative border-none outline-none"><ShoppingCart size={20} />{carrito.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-600 text-[10px] px-1.5 rounded-full font-bold shadow-lg">{carrito.reduce((a,b)=>a+b.cantidad,0)}</span>}</button>
+              {/* PIN de Seguridad Discreto */}
+  {pinCorrectoMesa && (
+    <div className="bg-orange-600/10 px-3 py-2 rounded-xl border border-orange-500/20 flex flex-col items-center justify-center">
+      <span className="text-[7px] font-black text-orange-500 uppercase tracking-tighter leading-none mb-0.5">PIN</span>
+      <span className="text-[11px] font-black text-white leading-none tracking-widest">{pinCorrectoMesa}</span>
+    </div>
+  )}
+
+  {consumoAcumulado.length > 0 && (
+    <div className="bg-green-600/10 px-3 py-2 rounded-xl border border-green-500/20 flex items-center gap-2">
+      <History size={14} className="text-green-500" />
+      <span className="text-[10px] font-black text-green-500 leading-none">${totalAcumulado}</span>
+    </div>
+  )}
+
+  <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative border-none outline-none">
+    <ShoppingCart size={20} />
+    {carrito.length > 0 && (
+      <span className="absolute -top-1 -right-1 bg-orange-600 text-[10px] px-1.5 rounded-full font-bold shadow-lg">
+        {carrito.reduce((a, b) => a + b.cantidad, 0)}
+      </span>
+    )}
+  </button>
             </div></div>
           <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">{CATEGORIAS.map(c => (<button key={c} onClick={() => { setCatSeleccionada(c); setSubCatSeleccionada("Todas"); }} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${catSeleccionada === c ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-400'}`}>{c}</button>))}</div>
           {subcategoriasDisponibles.length > 0 && (<div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-800/50"><button onClick={() => setSubCatSeleccionada("Todas")} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === "Todas" ? 'text-sky-400 bg-sky-900/20' : 'text-slate-500'}`}>Todas</button>{subcategoriasDisponibles.map(sc => (<button key={sc} onClick={() => setSubCatSeleccionada(sc)} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === sc ? 'text-sky-400 bg-sky-900/20 shadow-lg' : 'text-slate-500'}`}>{sc}</button>))}</div>)}
