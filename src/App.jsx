@@ -1,3 +1,4 @@
+import { signInWithEmailAndPassword } from "firebase/auth";
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from './firebase'; 
 import { 
@@ -14,7 +15,56 @@ import {
   signInWithPhoneNumber, 
   onAuthStateChanged 
 } from "firebase/auth";
-const DATOS_PAGO = "💳 *DATOS DE PAGO*:\nBanco: Tu Banco\nCuenta: 0000 0000 0000 0000\nCLABE: 000000000000000000\nA nombre de: Tribus Bar";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+
+
+// --- FUNCIONES DE AUTENTICACIÓN (Dentro de App) ---
+  const registrarClienteFrecuente = async () => {
+    if (!nombreRegistro || telefonoInput.length < 10 || password.length < 6) {
+      return alert("Por favor, completa todos los campos (Mínimo 6 caracteres para contraseña).");
+    }
+
+    try {
+      const emailFalso = `${telefonoInput}@tribus.com`;
+      const userCredential = await createUserWithEmailAndPassword(auth, emailFalso, password);
+      const user = userCredential.user;
+
+      await setDoc(doc(db, "clientes", user.uid), {
+        nombre: nombreRegistro,
+        telefono: telefonoInput,
+        uid: user.uid,
+        puntos: 0,
+        fechaRegistro: serverTimestamp(),
+        ultimaVisita: serverTimestamp()
+      });
+
+      setUsuarioLogueado(user);
+      setView('menu'); 
+      alert(`¡Bienvenido a la Tribu, ${nombreRegistro}!`);
+    } catch (error) {
+      if (error.code === 'auth/email-already-in-use') {
+        alert("Este teléfono ya está registrado. Intenta iniciar sesión.");
+      } else {
+        alert("Error al registrar: " + error.message);
+      }
+    }
+  };
+
+  const loginClienteFrecuente = async () => {
+    if (telefonoInput.length < 10 || !password) {
+      return alert("Ingresa tu teléfono y contraseña.");
+    }
+    try {
+      const emailFalso = `${telefonoInput}@tribus.com`;
+      const userCredential = await signInWithEmailAndPassword(auth, emailFalso, password);
+      
+      setUsuarioLogueado(userCredential.user);
+      setView('menu');
+    } catch (error) {
+      alert("Teléfono o contraseña incorrectos.");
+    }
+  };
+const DATOS_PAGO = "💳 *DATOS DE PAGO*:\nBanco: Bancoppel\nCuenta: 4169 1614 6993 9648\nCLABE: 137162104580151937\nA nombre de: Tribus Bar";
 const PIN_ADMIN = "2370";
 const CATEGORIAS = ["Todos", "Cerveza", "Bebidas Preparadas", "Snacks", "Botellas", "Comidas"];
 const LINK_PRINCIPAL = "http://192.168.5.5/youtube/search"; 
@@ -66,7 +116,9 @@ function App() {
   const [historialCerrado, setHistorialCerrado] = useState([]); 
   const [filtroMesa, setFiltroMesa] = useState(""); 
   const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
+  const [nombreRegistro, setNombreRegistro] = useState('');
 
+const [password, setPassword] = useState('');
   const obtenerPlanta = (idMesa) => {
     if (!idMesa) return "EXTERNO";
     const n = parseInt(idMesa);
@@ -79,7 +131,7 @@ function App() {
 // Dentro de tu función App()
 const [usuarioLogueado, setUsuarioLogueado] = useState(null);
 const [verModalAuth, setVerModalAuth] = useState(false);
-const [nombreRegistro, setNombreRegistro] = useState("");
+
 const [pasoAuth, setPasoAuth] = useState('telefono'); // 'telefono' o 'codigo'
 const [codigoOTP, setCodigoOTP] = useState("");
 const [confirmacionResultado, setConfirmacionResult] = useState(null);
@@ -96,13 +148,15 @@ const enviarCodigoSMS = async () => {
   if (telefonoInput.length !== 10) return alert("Ingresa 10 dígitos");
 
   // 1. Limpieza total y forzada
-  if (window.recaptchaVerifier) {
+ if (window.recaptchaVerifier) {
     try {
-      window.recaptchaVerifier.clear();
+        // Esto detiene cualquier intento de la librería de tocar el DOM
+        window.recaptchaVerifier.clear(); 
+        window.recaptchaVerifier = null;
     } catch (e) {
-      console.warn("Error al limpiar:", e);
+        console.warn("Recaptcha ya no existía");
     }
-  }
+}
   
   const container = document.getElementById('recaptcha-container');
   if (container) container.innerHTML = ''; 
@@ -137,27 +191,35 @@ const enviarCodigoSMS = async () => {
     else alert("Error: " + error.message);
   }
 };
-
 const verificarCodigo = async () => {
+  if (!confirmacionResult) {
+    alert("La sesión ha expirado. Por favor, solicita un nuevo código.");
+    return;
+  }
+
   try {
+    // Intentar la confirmación con el código de la imagen image_70dd8a.png
     const result = await confirmacionResult.confirm(codigoOTP);
     const user = result.user;
 
-    // ESTO ES LO QUE SIGUE: Guardar al cliente en tu colección
+    // Guardar los datos del cliente para que aparezcan en la barra
     await setDoc(doc(db, "clientes", user.uid), {
-      nombre: nombreRegistro,
+      nombre: nombreRegistro || "Cliente Nuevo",
       telefono: telefonoInput,
       uid: user.uid,
-      fechaRegistro: serverTimestamp(),
-      puntos: 0, 
-      ultimaVisita: serverTimestamp()
+      fechaRegistro: serverTimestamp()
     });
 
     setUsuarioLogueado(user);
     setVerModalAuth(false);
-    alert(`¡Bienvenido, ${nombreRegistro}!`);
+    alert(`¡Bienvenido a la Tribu, ${nombreRegistro}!`);
+
   } catch (error) {
-    alert("Código incorrecto.");
+    console.error("Error en confirmación:", error.code);
+    alert("Error de verificación. Por favor, intenta de nuevo.");
+    
+    // IMPORTANTE: Limpiar el resultado para forzar un nuevo SMS si falló la sesión
+    setConfirmacionResult(null);
   }
 };
 
@@ -710,133 +772,153 @@ const verificarCodigo = async () => {
     );
   }
 
-if (view === 'welcome') return (
-  <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden font-sans">
-    {/* Imagen de fondo */}
-    <div className="absolute inset-0 opacity-40">
-      <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="fondo" />
-      <div className="absolute inset-0 bg-slate-950/80"></div>
-    </div>
-
-    <div className="relative z-10 space-y-12 w-full max-w-lg">
-      <div className="space-y-4">
-        <div className="flex justify-center items-center gap-2 text-orange-500 animate-pulse">
-          <h1 className="text-7xl font-black italic uppercase leading-none">{nombreBarDinamico}</h1>
+// 1. SI LA VISTA ES WELCOME
+  if (view === 'welcome') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden font-sans">
+        {/* Imagen de fondo */}
+        <div className="absolute inset-0 opacity-40">
+          <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="fondo" />
+          <div className="absolute inset-0 bg-slate-950/80"></div>
         </div>
-        <div className="space-y-2 uppercase tracking-tight">
-          <h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2>
-          <p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{obtenerPlanta(mesa)}</p>
-        </div>
-      </div>
 
-     <div className="grid gap-4">
-  {/* Botón Wi-Fi */}
-  <button 
-    onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} 
-    className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 hover:border-white/10 hover:shadow-sky-500/5 transition-all duration-300 group"
-  >
-    <Wifi className="text-sky-400 group-hover:scale-110 transition-transform" size={28} />
-    <div className="text-left font-bold uppercase text-[10px] text-slate-400">
-      <p>Wi-Fi Gratis</p>
-      <p className="text-lg text-white font-black">tribu´s Bar</p>
-    </div>
-  </button>
-
-  {/* Botón Menú Digital */}
-  <button 
-    onClick={() => setView('menu')} 
-    className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 hover:shadow-orange-600/20 transition-all duration-300 group"
-  >
-    <UtensilsCrossed className="text-white group-hover:rotate-12 transition-transform" size={28} />
-    <div className="text-left font-bold uppercase text-[10px] text-orange-200">
-      <p>Menú Digital</p>
-      <p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p>
-    </div>
-  </button>
-
-  {/* Botón de Registro / Estado de Sesión */}
-  {!usuarioLogueado ? (
-    <button 
-      onClick={() => setVerModalAuth(true)} 
-      className="flex items-center gap-5 bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-sm active:scale-95 hover:bg-white/10 hover:border-orange-500/50 transition-all duration-300 group"
-    >
-      <div className="w-10 h-10 rounded-2xl bg-orange-600/20 flex items-center justify-center group-hover:bg-orange-600 transition-colors">
-        <Zap className="text-orange-600 group-hover:text-white" size={20} />
-      </div>
-      <div className="text-left">
-        <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Cliente frecuente?</p>
-        <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén beneficios</p>
-      </div>
-    </button>
-  ) : (
-    <div className="bg-green-600/10 border border-green-600/20 p-4 rounded-3xl flex items-center gap-4 animate-in fade-in zoom-in duration-500">
-      <div className="w-10 h-10 rounded-2xl bg-green-600 flex items-center justify-center shadow-lg shadow-green-600/20">
-        <CheckCircle className="text-white" size={20} />
-      </div>
-      <div className="text-left">
-        <p className="text-[9px] font-black text-green-500 uppercase tracking-widest">Sesión Iniciada</p>
-        <p className="text-sm text-white font-black italic uppercase leading-none">{usuarioLogueado.phoneNumber}</p>
-      </div>
-    </div>
-  )}
-
-  {/* Botón Rockola */}
-  <button 
-    onClick={() => window.open(LINK_PRINCIPAL, '_blank')} 
-    className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 hover:border-green-500/30 hover:shadow-green-500/5 transition-all duration-300 group"
-  >
-    <ExternalLink className="text-green-500 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" size={28} />
-    <div className="text-left font-bold uppercase text-[10px] text-slate-400">
-      <p>Rockola</p>
-      <p className="text-lg text-white font-black">{TEXTO_LINK}</p>
-    </div>
-  </button>
-</div>
-
-      <button onClick={() => setView('barra')} className="opacity-10 text-[10px] uppercase font-bold tracking-widest hover:opacity-100 transition-opacity">Acceso Barra</button>
-    </div>
-
-    {/* MODAL DE AUTENTICACIÓN (Dentro del mismo return de welcome) */}
-    {verModalAuth && (
-      <div className="fixed inset-0 z-[250] bg-black/95 flex items-center justify-center p-6 backdrop-blur-md">
-        <div className="bg-slate-900 border border-slate-800 w-full max-w-[380px] rounded-[2.5rem] p-8 shadow-2xl relative">
-          <button onClick={() => setVerModalAuth(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"><X/></button>
-          
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-orange-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Zap className="text-orange-600" size={32}/>
+        <div className="relative z-10 space-y-12 w-full max-w-lg">
+          <div className="space-y-4">
+            <div className="flex justify-center items-center gap-2 text-orange-500 animate-pulse">
+              <h1 className="text-7xl font-black italic uppercase leading-none">{nombreBarDinamico}</h1>
             </div>
-            <h2 className="text-2xl font-black italic uppercase text-white tracking-tighter leading-none">Únete a la Tribu</h2>
-            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-2">Registra tu visita y obtén beneficios</p>
+            <div className="space-y-2 uppercase tracking-tight">
+              <h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2>
+              <p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{obtenerPlanta(mesa)}</p>
+            </div>
           </div>
 
-          {pasoAuth === 'telefono' ? (
-            <div className="space-y-4">
-              <div className="space-y-1 text-left">
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2">¿Cómo te llamas?</label>
-                <input placeholder="Nombre" value={nombreRegistro} onChange={e => setNombreRegistro(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl text-white outline-none" />
+          <div className="grid gap-4">
+            {/* Botón Wi-Fi */}
+            <button 
+              onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} 
+              className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group"
+            >
+              <Wifi className="text-sky-400" size={28} />
+              <div className="text-left font-bold uppercase text-[10px] text-slate-400">
+                <p>Wi-Fi Gratis</p>
+                <p className="text-lg text-white font-black">tribu´s Bar</p>
               </div>
-              <div className="space-y-1 text-left">
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Tu WhatsApp</label>
-                <input placeholder="10 dígitos" type="tel" value={telefonoInput} onChange={e => setTelefonoInput(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl text-white outline-none" />
+            </button>
+
+            {/* Botón Menú Digital */}
+            <button 
+              onClick={() => setView('menu')} 
+              className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 transition-all duration-300 group"
+            >
+              <UtensilsCrossed className="text-white" size={28} />
+              <div className="text-left font-bold uppercase text-[10px] text-orange-200">
+                <p>Menú Digital</p>
+                <p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p>
               </div>
-              <div id="recaptcha-container"></div>
-              <button onClick={enviarCodigoSMS} className="w-full bg-orange-600 py-4 rounded-2xl font-black text-white uppercase shadow-xl active:scale-95 transition-all">Enviar Código</button>
-              
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <p className="text-[10px] text-orange-500 font-black uppercase tracking-widest text-center">Ingresa el código enviado</p>
-              <input maxLength={6} placeholder="000000" value={codigoOTP} onChange={e => setCodigoOTP(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl text-white text-center text-3xl font-black tracking-[0.3em] outline-none" />
-              <button onClick={verificarCodigo} className="w-full bg-green-600 py-4 rounded-2xl font-black text-white uppercase shadow-xl active:scale-95 transition-all">Verificar</button>
-              <button onClick={() => setPasoAuth('telefono')} className="w-full text-slate-500 text-[10px] font-black uppercase text-center">Corregir número</button>
-            </div>
-          )}
+            </button>
+
+            {/* Botón de Registro NUEVO */}
+            {!usuarioLogueado ? (
+              <button 
+                onClick={() => setView('registro')} 
+                className="flex items-center gap-5 bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-sm active:scale-95 hover:bg-white/10 hover:border-orange-500/50 transition-all duration-300 group"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-orange-600/20 flex items-center justify-center group-hover:bg-orange-600 transition-colors">
+                  <Zap className="text-orange-600 group-hover:text-white" size={20} />
+                </div>
+                <div className="text-left">
+                  <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Cliente frecuente?</p>
+                  <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén beneficios</p>
+                </div>
+              </button>
+            ) : (
+              <div className="bg-green-600/10 border border-green-600/20 p-4 rounded-3xl flex items-center gap-4">
+                <div className="w-10 h-10 rounded-2xl bg-green-600 flex items-center justify-center">
+                  <CheckCircle className="text-white" size={20} />
+                </div>
+                <div className="text-left">
+                  <p className="text-[9px] font-black text-green-500 uppercase tracking-widest">Sesión Iniciada</p>
+                  <p className="text-sm text-white font-black italic uppercase leading-none">{usuarioLogueado.phoneNumber || usuarioLogueado.email.split('@')[0]}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Botón Rockola */}
+            <button 
+              onClick={() => window.open(LINK_PRINCIPAL, '_blank')} 
+              className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group"
+            >
+              <ExternalLink className="text-green-500" size={28} />
+              <div className="text-left font-bold uppercase text-[10px] text-slate-400">
+                <p>Rockola</p>
+                <p className="text-lg text-white font-black">{TEXTO_LINK}</p>
+              </div>
+            </button>
+          </div>
+
+          <button onClick={() => setView('barra')} className="opacity-10 text-[10px] uppercase font-bold tracking-widest hover:opacity-100 transition-opacity">Acceso Barra</button>
         </div>
       </div>
-    )}
-  </div>
-);
+    );
+  }
+
+  // 2. SI LA VISTA ES REGISTRO (Nueva pantalla estilo image_e6c462.png)
+  if (view === 'registro') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black p-4">
+        <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
+          
+          <button onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
+
+          <div className="bg-[#2d1b14] p-4 rounded-full mb-6">
+            <div className="text-[#ff4d00] text-3xl italic font-black font-sans">⚡</div>
+          </div>
+
+          <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">Únete a la Tribu</h2>
+          <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 font-bold text-center">Registra tu visita y obtén beneficios</p>
+
+          <div className="w-full space-y-5">
+            <div>
+              <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">¿Cómo te llamas?</label>
+              <input 
+                type="text" 
+                placeholder="Nombre" 
+                className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors"
+                onChange={(e) => setNombreRegistro(e.target.value)} 
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu WhatsApp</label>
+              <input 
+                type="tel" 
+                placeholder="10 dígitos" 
+                className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors"
+                onChange={(e) => setTelefonoInput(e.target.value)} 
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Crea tu contraseña</label>
+              <input 
+                type="password" 
+                placeholder="Mínimo 6 caracteres" 
+                className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors"
+                onChange={(e) => setPassword(e.target.value)} 
+              />
+            </div>
+            <button 
+              onClick={registrarClienteFrecuente}
+              className="w-full bg-[#ff4d00] hover:bg-[#e64500] py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+            >
+              Registrarme
+            </button>
+            <button onClick={() => setView('login')} className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest">Ya tengo cuenta</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
 
   if (view === 'menu') {
     const ubicacionActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
@@ -895,12 +977,98 @@ if (view === 'welcome') return (
       </div>
     );
   }
+ 
+ {view === 'registro' && (
+  <div className="flex items-center justify-center min-h-screen bg-black p-4">
+    {/* Contenedor Principal estilo image_e6c462.png */}
+    <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
+      
+      {/* Botón de cerrar (X) */}
+      <button 
+        onClick={() => setView('welcome')} 
+        className="absolute top-6 right-8 text-gray-500 hover:text-white text-xl"
+      >
+        ✕
+      </button>
 
+      {/* Icono del Rayo (Branding Moapp/Tribu) */}
+      <div className="bg-[#2d1b14] p-4 rounded-full mb-6 mt-2">
+        <div className="text-[#ff4d00] text-3xl italic font-black">⚡</div>
+      </div>
+
+      <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">
+        Únete a la Tribu
+      </h2>
+      <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 text-center font-bold">
+        Registra tu visita y obtén beneficios
+      </p>
+
+      <div className="w-full space-y-5">
+        {/* Campo Nombre */}
+        <div className="flex flex-col">
+          <label className="text-[10px] font-black text-gray-500 uppercase ml-1 mb-2 tracking-widest">
+            ¿Cómo te llamas?
+          </label>
+          <input 
+            type="text" 
+            placeholder="Nombre"
+            className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl text-white outline-none focus:border-[#ff4d00] transition-colors"
+            onChange={(e) => setNombreRegistro(e.target.value)}
+          />
+        </div>
+
+        {/* Campo Teléfono / WhatsApp */}
+        <div className="flex flex-col">
+          <label className="text-[10px] font-black text-gray-500 uppercase ml-1 mb-2 tracking-widest">
+            Tu WhatsApp
+          </label>
+          <input 
+            type="tel" 
+            placeholder="10 dígitos"
+            className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl text-white outline-none focus:border-[#ff4d00] transition-colors"
+            onChange={(e) => setTelefonoInput(e.target.value)}
+          />
+        </div>
+
+        {/* Campo Contraseña (Clave para evitar SMS) */}
+        <div className="flex flex-col">
+          <label className="text-[10px] font-black text-gray-500 uppercase ml-1 mb-2 tracking-widest">
+            Crea tu contraseña
+          </label>
+          <input 
+            type="password" 
+            placeholder="Mínimo 6 caracteres"
+            className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl text-white outline-none focus:border-[#ff4d00] transition-colors"
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+
+        {/* Botón de Acción Principal */}
+        <button 
+          onClick={registrarClienteFrecuente}
+          className="w-full bg-[#ff4d00] hover:bg-[#e64500] text-white py-5 rounded-2xl font-black uppercase tracking-[0.15em] transition-all mt-4 shadow-lg active:scale-95"
+        >
+          Registrarme
+        </button>
+
+        {/* Link para los que ya tienen cuenta */}
+        <button 
+          onClick={() => setView('login')} // Asegúrate de crear esta vista después
+          className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest hover:text-white transition-colors"
+        >
+          Ya tengo una cuenta
+        </button>
+      </div>
+    </div>
+  </div>
+)}
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center">
        <p className="text-white animate-pulse font-black italic uppercase tracking-widest">TRIBU'S BAR</p>
     </div>
   );
+  {/* Colócalo al final de tu App.jsx o fuera de los condicionales de 'pasoAuth' */}
+<div id="recaptcha-container"></div>
 }
 
 export default App;
