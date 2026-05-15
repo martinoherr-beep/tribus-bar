@@ -3,67 +3,67 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db } from './firebase'; 
 import { 
   collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, 
-  query, where, orderBy, serverTimestamp, writeBatch, increment 
+  query, where, orderBy, serverTimestamp, writeBatch, increment, setDoc, getDoc 
 } from "firebase/firestore";
-import { 
-  ShoppingCart, Trash2, X, Plus, Minus, Wifi, 
-  UtensilsCrossed, Zap, CheckCircle, ReceiptText, Printer, Search, CreditCard, Phone, Package, LayoutDashboard, Boxes, PlusCircle, Tag, ExternalLink, Lock, Calendar, History
-} from 'lucide-react';
+
 import { auth } from './firebase';
 import { 
   RecaptchaVerifier, 
   signInWithPhoneNumber, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  signOut // <--- Añade esto aquí
 } from "firebase/auth";
 import { createUserWithEmailAndPassword } from "firebase/auth";
+import { 
+  ShoppingCart, Trash2, X, Plus, Minus, Wifi, 
+  UtensilsCrossed, Zap, CheckCircle, ReceiptText, Printer, Search, 
+  CreditCard, Phone, Package, LayoutDashboard, Boxes, PlusCircle, 
+  Tag, ExternalLink, Lock, Calendar, History,
+  LogOut // <--- Añade este icono
+} from 'lucide-react';
 
 
-// --- FUNCIONES DE AUTENTICACIÓN (Dentro de App) ---
-  const registrarClienteFrecuente = async () => {
-    if (!nombreRegistro || telefonoInput.length < 10 || password.length < 6) {
-      return alert("Por favor, completa todos los campos (Mínimo 6 caracteres para contraseña).");
+ // --- FUNCIONES DE AUTENTICACIÓN (Dentro de App) ---
+const registrarClienteFrecuente = async () => {
+  // Validaciones de seguridad
+  if (!nombreRegistro || telefonoInput.length < 10 || password.length < 6) {
+    return alert("Por favor, completa todos los campos (Mínimo 6 caracteres para contraseña).");
+  }
+
+  try {
+    // Generamos el correo ficticio para evitar costos de SMS en Firebase
+    const emailFalso = `${telefonoInput}@tribus.com`;
+
+    // 1. Crear el usuario en Firebase Auth
+    const userCredential = await createUserWithEmailAndPassword(auth, emailFalso, password);
+    const user = userCredential.user;
+
+    // 2. Crear el perfil en Firestore (Asegúrate de tener importado setDoc y doc)
+    await setDoc(doc(db, "clientes", user.uid), {
+      nombre: nombreRegistro,
+      telefono: telefonoInput,
+      uid: user.uid,
+      puntos: 0,
+      fechaRegistro: serverTimestamp(),
+      ultimaVisita: serverTimestamp()
+    });
+
+    // 3. Actualizar estado y navegar al menú
+    setUsuarioLogueado(user);
+    setView('menu'); 
+    alert(`¡Bienvenido a la Tribu, ${nombreRegistro}!`);
+
+  } catch (error) {
+    console.error("Error en el registro:", error.code);
+    if (error.code === 'auth/email-already-in-use') {
+      alert("Este teléfono ya está registrado. Intenta iniciar sesión.");
+    } else {
+      alert("Error al registrar: " + error.message);
     }
+  }
+};
 
-    try {
-      const emailFalso = `${telefonoInput}@tribus.com`;
-      const userCredential = await createUserWithEmailAndPassword(auth, emailFalso, password);
-      const user = userCredential.user;
 
-      await setDoc(doc(db, "clientes", user.uid), {
-        nombre: nombreRegistro,
-        telefono: telefonoInput,
-        uid: user.uid,
-        puntos: 0,
-        fechaRegistro: serverTimestamp(),
-        ultimaVisita: serverTimestamp()
-      });
-
-      setUsuarioLogueado(user);
-      setView('menu'); 
-      alert(`¡Bienvenido a la Tribu, ${nombreRegistro}!`);
-    } catch (error) {
-      if (error.code === 'auth/email-already-in-use') {
-        alert("Este teléfono ya está registrado. Intenta iniciar sesión.");
-      } else {
-        alert("Error al registrar: " + error.message);
-      }
-    }
-  };
-
-  const loginClienteFrecuente = async () => {
-    if (telefonoInput.length < 10 || !password) {
-      return alert("Ingresa tu teléfono y contraseña.");
-    }
-    try {
-      const emailFalso = `${telefonoInput}@tribus.com`;
-      const userCredential = await signInWithEmailAndPassword(auth, emailFalso, password);
-      
-      setUsuarioLogueado(userCredential.user);
-      setView('menu');
-    } catch (error) {
-      alert("Teléfono o contraseña incorrectos.");
-    }
-  };
 const DATOS_PAGO = "💳 *DATOS DE PAGO*:\nBanco: Bancoppel\nCuenta: 4169 1614 6993 9648\nCLABE: 137162104580151937\nA nombre de: Tribus Bar";
 const PIN_ADMIN = "2370";
 const CATEGORIAS = ["Todos", "Cerveza", "Bebidas Preparadas", "Snacks", "Botellas", "Comidas"];
@@ -100,6 +100,7 @@ function App() {
   const [verCarrito, setVerCarrito] = useState(false);
   const [verModalTelefono, setVerModalTelefono] = useState(false);
   const [telefonoInput, setTelefonoInput] = useState("");
+  const [nombreUsuarioLogueado, setNombreUsuarioLogueado] = useState("");
   const [recordatorios, setRecordatorios] = useState([]);
   const [verModalNuevoEvento, setVerModalNuevoEvento] = useState(false);
   const [nuevoEvento, setNuevoEvento] = useState({ titulo: "", fecha: "", hora: "" });
@@ -117,7 +118,12 @@ function App() {
   const [filtroMesa, setFiltroMesa] = useState(""); 
   const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
   const [nombreRegistro, setNombreRegistro] = useState('');
-
+const [usuarioLogueado, setUsuarioLogueado] = useState(null);
+const [verModalAuth, setVerModalAuth] = useState(false);
+const [historialHoy, setHistorialHoy] = useState([]);
+const [pasoAuth, setPasoAuth] = useState('telefono'); // 'telefono' o 'codigo'
+const [codigoOTP, setCodigoOTP] = useState("");
+const [confirmacionResultado, setConfirmacionResult] = useState(null);
 const [password, setPassword] = useState('');
   const obtenerPlanta = (idMesa) => {
     if (!idMesa) return "EXTERNO";
@@ -127,15 +133,119 @@ const [password, setPassword] = useState('');
     if (n >= 26 && n <= 50) return "TERRAZA";
     return "EXTERNO";
   };
- 
+  const [mispedidos, setMisPedidos] = useState([]);
+
+// Función para escuchar solo los pedidos de este usuario
+useEffect(() => {
+  if (usuarioLogueado) {
+    const q = query(
+      collection(db, "pedidos"),
+      where("uid", "==", usuarioLogueado.uid),
+      orderBy("fecha", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMisPedidos(docs);
+    });
+
+    return () => unsubscribe();
+  }
+}, [usuarioLogueado]);
+  // --- FUNCIÓN DE LOGIN CORREGIDA (Dentro de App) ---
+  const loginClienteFrecuente = async () => {
+    // Validamos que los estados no estén vacíos
+    if (!telefonoInput || !password) {
+      return alert("Por favor, ingresa tu teléfono y contraseña.");
+    }
+
+    try {
+      // Usamos el mismo formato de correo falso que en el registro
+      const emailFalso = `${telefonoInput}@tribus.com`;
+      
+      const userCredential = await signInWithEmailAndPassword(auth, emailFalso, password);
+      
+      // Si el login es exitoso, actualizamos la app
+      setUsuarioLogueado(userCredential.user);
+      setView('menu');
+      alert("¡Qué bueno verte de nuevo en la Tribu!");
+
+    } catch (error) {
+      console.error("Error al entrar:", error.code);
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        alert("Teléfono o contraseña incorrectos.");
+      } else {
+        alert("Error al iniciar sesión: " + error.message);
+      }
+    }
+  };
+  // --- FUNCIONES DE AUTENTICACIÓN (Dentro de App) ---
+const registrarClienteFrecuente = async () => {
+  // Validaciones de seguridad
+  if (!nombreRegistro || telefonoInput.length < 10 || password.length < 6) {
+    return alert("Por favor, completa todos los campos (Mínimo 6 caracteres para contraseña).");
+  }
+
+  try {
+    // Generamos el correo ficticio para evitar costos de SMS en Firebase
+    const emailFalso = `${telefonoInput}@tribus.com`;
+
+    // 1. Crear el usuario en Firebase Auth
+    const userCredential = await createUserWithEmailAndPassword(auth, emailFalso, password);
+    const user = userCredential.user;
+
+    // 2. Crear el perfil en Firestore (Asegúrate de tener importado setDoc y doc)
+    await setDoc(doc(db, "clientes", user.uid), {
+      nombre: nombreRegistro,
+      telefono: telefonoInput,
+      uid: user.uid,
+      puntos: 0,
+      fechaRegistro: serverTimestamp(),
+      ultimaVisita: serverTimestamp()
+    });
+
+    // 3. Actualizar estado y navegar al menú
+    setUsuarioLogueado(user);
+    setView('menu'); 
+    alert(`¡Bienvenido a la Tribu, ${nombreRegistro}!`);
+
+  } catch (error) {
+    console.error("Error en el registro:", error.code);
+    if (error.code === 'auth/email-already-in-use') {
+      alert("Este teléfono ya está registrado. Intenta iniciar sesión.");
+    } else {
+      alert("Error al registrar: " + error.message);
+    }
+  }
+};
+const cerrarSesion = async () => {
+  try {
+    await signOut(auth); // Finaliza la sesión en Firebase
+    setUsuarioLogueado(null); // Limpia el estado del usuario
+    setView('welcome'); // Regresa a la pantalla de bienvenida
+    alert("Sesión cerrada. ¡Vuelve pronto a la Tribu!");
+  } catch (error) {
+    console.error("Error al salir:", error);
+  }
+};
+
 // Dentro de tu función App()
-const [usuarioLogueado, setUsuarioLogueado] = useState(null);
-const [verModalAuth, setVerModalAuth] = useState(false);
 
-const [pasoAuth, setPasoAuth] = useState('telefono'); // 'telefono' o 'codigo'
-const [codigoOTP, setCodigoOTP] = useState("");
-const [confirmacionResultado, setConfirmacionResult] = useState(null);
 
+useEffect(() => {
+  if (usuarioLogueado) {
+    const obtenerDatosCliente = async () => {
+      const docRef = doc(db, "clientes", usuarioLogueado.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setNombreUsuarioLogueado(docSnap.data().nombre);
+      }
+    };
+    obtenerDatosCliente();
+  } else {
+    setNombreUsuarioLogueado(""); // Limpiar si cierra sesión
+  }
+}, [usuarioLogueado]);
 // Escuchar si el usuario ya está logueado al cargar
 useEffect(() => {
   const unsub = onAuthStateChanged(auth, (user) => {
@@ -354,43 +464,79 @@ const verificarCodigo = async () => {
     else setCarrito(carrito.map(x => x.id === id ? { ...ex, cantidad: ex.cantidad - 1 } : x));
   };
 
-  const intentarEnviar = () => {
-    if (carrito.length === 0) return;
-    mesa ? procesarEnvio(mesa) : setVerModalTelefono(true);
-  };
+ const intentarEnviar = () => {
+  if (carrito.length === 0) return;
 
-  const procesarEnvio = async (idDestino) => {
-    const batch = writeBatch(db);
-    const idFinal = mesa ? idDestino : `TEL:${telefonoInput}`;
-    const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
-    try {
-      carrito.forEach((item) => { batch.update(doc(db, "productos", item.id), { stock: increment(-item.cantidad) }); });
-      const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
-      if (existente) {
-        batch.update(doc(db, "pedidos", existente.id), { detalle: existente.detalle + "\n" + detalleNuevo, total: Number(existente.total) + Number(totalCarrito), fecha: serverTimestamp() });
-      } else {
-        const pinAleatorio = Math.floor(1000 + Math.random() * 9000);
-        batch.set(doc(collection(db, "pedidos")), { mesa: String(idFinal), detalle: detalleNuevo, total: Number(totalCarrito), estado: "pendiente", fecha: serverTimestamp(), archivado: false, pinMesa: mesa ? pinAleatorio : null });
-      }
-      await batch.commit();
+  // LÓGICA: 
+  // 1. Si hay mesa, envía directo.
+  // 2. Si NO hay mesa PERO hay usuario logueado, envía directo.
+  // 3. Si no hay nada de lo anterior, pide el teléfono.
+  if (mesa || usuarioLogueado) {
+    procesarEnvio(mesa);
+  } else {
+    setVerModalTelefono(true);
+  }
+};
 
-      if (!mesa) {
-        const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está registrado.\n\n*Total a pagar: $${totalCarrito}*\n\n*Detalle del pedido:*\n${detalleNuevo}\n\n${DATOS_PAGO}`;
-        window.open(`https://wa.me/${telefonoInput}?text=${encodeURIComponent(mensajeWA)}`, '_blank');
-      }
+const procesarEnvio = async (idDestino) => {
+  const batch = writeBatch(db);
 
-      setView('success'); setCarrito([]); setVerCarrito(false); setVerModalTelefono(false); setTelefonoInput("");
-    } catch (e) { console.error(e); }
-  };
+  // 1. Definimos las variables UNA SOLA VEZ
+  // Usamos el teléfono del login si existe, si no, el del teclado manual
+  const telFinal = usuarioLogueado?.telefono || telefonoInput;
+  
+  // Si hay mesa (idDestino), usamos eso. Si no, usamos el formato TEL:
+  const idFinal = idDestino ? idDestino : `TEL:${telFinal}`;
 
-  const cobrarCuenta = async (p) => {
+  // 2. Preparamos el detalle del pedido
+  const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
+  
+  try {
+    // Buscamos si esa mesa/tel ya tiene un pedido activo para sumarlo
+    const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
+    
+    if (existente) {
+      batch.update(doc(db, "pedidos", existente.id), { 
+        detalle: existente.detalle + "\n" + detalleNuevo, 
+        total: Number(existente.total) + Number(totalCarrito), 
+        fecha: serverTimestamp() 
+      });
+    } else {
+      batch.set(doc(collection(db, "pedidos")), { 
+        mesa: String(idFinal), 
+        detalle: detalleNuevo, 
+        total: Number(totalCarrito), 
+        estado: "pendiente", 
+        fecha: serverTimestamp(), 
+        archivado: false,
+        // Datos del cliente para la barra
+        cliente: nombreUsuarioLogueado || "Cliente",
+        telefono: telFinal,
+        uid: usuarioLogueado?.uid || null
+      });
+    }
+    
+    await batch.commit();
+    
+    // Limpiamos estados
+    setView('success'); 
+    setCarrito([]); 
+    setVerCarrito(false); 
+    setVerModalTelefono(false);
+
+  } catch (e) { 
+    console.error("Error al procesar:", e);
+    alert("Hubo un error al enviar el pedido.");
+  }
+};
+
+ const cobrarCuenta = async (p) => {
     await addDoc(collection(db, "historial_tickets"), { 
         mesa: p.mesa, 
         detalle: p.detalle, 
-        total: p.total, 
+        total: Number(p.total), // <--- FORZAMOS A NÚMERO AQUÍ
         fecha: serverTimestamp(), 
         archivado: false,
-        // USAMOS LOS DATOS QUE VIENEN EN EL OBJETO 'p'
         cliente: p.cliente || "Cliente General",
         telefono: p.telefono || "N/A",
         uid: p.uidCliente || null
@@ -398,10 +544,25 @@ const verificarCodigo = async () => {
 
     await deleteDoc(doc(db, "pedidos", p.id));
     setTicketParaReimprimir(p);
-    
-    // ... resto del código
 };
+useEffect(() => {
+  // Consulta que trae TODO lo cobrado hoy (mesas y externos)
+  const q = query(
+    collection(db, "historial_tickets"),
+    where("archivado", "==", false)
+    // Puedes agregar un filtro de fecha aquí si ya lo tienes
+  );
 
+  const unsub = onSnapshot(q, (snapshot) => {
+    const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setHistorialHoy(docs);
+  });
+
+  return () => unsub();
+}, []);
+
+// EL CÁLCULO: Asegúrate de convertir a Number para evitar errores de suma
+const ingresosDelDia = historialHoy.reduce((acc, t) => acc + (Number(t.total) || 0), 0);
   const eliminarArticuloComanda = async (p, idx) => {
     const lineas = p.detalle.split('\n');
     const match = lineas[idx].match(/(\d+)x (.*?) \(\$(\d+)\)/);
@@ -432,14 +593,60 @@ const verificarCodigo = async () => {
     setNuevoEvento({ titulo: "", fecha: "", hora: "" });
   };
 
-  if (view === 'success') return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center text-white font-sans">
-      <CheckCircle size={80} className="text-green-500 mb-6 animate-bounce" />
-      <h1 className="text-4xl font-black italic mb-4 uppercase tracking-tighter">¡RECIBIDO!</h1>
-      <button onClick={() => setView('menu')} className="text-orange-500 font-bold border-b border-orange-500 uppercase tracking-widest">Seguir Consumiendo</button>
+if (view === 'success') return (
+  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center text-white font-sans">
+    <CheckCircle size={80} className="text-green-500 mb-6 animate-bounce" />
+    <h1 className="text-4xl font-black italic mb-4 uppercase tracking-tighter">¡PEDIDO RECIBIDO!</h1>
+    
+    {!mesa && (
+      <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 mb-8 max-w-sm">
+        <p className="text-orange-500 font-black uppercase text-[10px] tracking-widest mb-4">Instrucciones de Pago</p>
+        <pre className="text-xs text-slate-300 font-sans whitespace-pre-wrap leading-relaxed">
+          {DATOS_PAGO}
+        </pre>
+      </div>
+    )}
+
+    <button onClick={() => setView('menu')} className="text-orange-500 font-bold border-b border-orange-500 uppercase tracking-widest">Seguir Consumiendo</button>
+  </div>
+);
+if (view === 'mis_pedidos') {
+  return (
+    <div className="min-h-screen bg-black p-6 font-sans text-white">
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-2xl font-black italic uppercase tracking-tighter">Mis Órdenes</h2>
+        <button onClick={() => setView('menu')} className="bg-slate-800 p-2 rounded-full"><X size={20}/></button>
+      </div>
+
+      <div className="space-y-4">
+        {mispedidos.length === 0 ? (
+          <p className="text-gray-500 text-center text-xs uppercase tracking-widest mt-20">No tienes pedidos activos</p>
+        ) : (
+          mispedidos.map((p) => (
+            <div key={p.id} className="bg-[#0f172a] border border-gray-800 p-5 rounded-[30px]">
+              <div className="flex justify-between items-start mb-3">
+                <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">
+                  {p.mesa.includes('TEL') ? 'Para Llevar' : `Mesa ${p.mesa}`}
+                </span>
+                <span className={`text-[9px] font-bold px-3 py-1 rounded-full uppercase ${
+                  p.estado === 'pendiente' ? 'bg-amber-500/10 text-amber-500' : 
+                  p.estado === 'preparando' ? 'bg-sky-500/10 text-sky-500' : 'bg-green-500/10 text-green-500'
+                }`}>
+                  {p.estado}
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-400 whitespace-pre-line mb-3">{p.detalle}</p>
+              <div className="border-t border-gray-800 pt-3 flex justify-between items-center">
+                <span className="text-xs font-bold text-gray-500 italic">Total</span>
+                <span className="text-lg font-black text-white">${p.total}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
-
+}
   if (mesa && !mesaValidada && pinCorrectoMesa) return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
       <Lock size={48} className="text-orange-600 mb-6 animate-pulse" />
@@ -524,7 +731,12 @@ const verificarCodigo = async () => {
                     <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl relative shadow-xl flex flex-col justify-between group transition-all">
                       <div className={`absolute top-0 left-0 w-1.5 h-full ${esExterno ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
                       <div><div className="flex justify-between items-start">
-                          <div className="flex flex-col"><h3 className="text-2xl font-black italic uppercase tracking-tighter leading-none">{esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}</h3><span className={`text-[9px] font-black uppercase tracking-widest mt-1 ${obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}`}>{obtenerPlanta(p.mesa)}</span></div>
+                          <div className="flex flex-col"><h3 className="text-2xl font-black italic uppercase tracking-tighter leading-none">{esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}</h3>{/* AGREGA ESTE BLOQUE PARA EL NOMBRE */}
+  {p.cliente && (
+    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+      Atendiendo a: <span className="text-orange-500">{p.cliente}</span>
+    </span>
+  )}<span className={`text-[9px] font-black uppercase tracking-widest mt-1 ${obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}`}>{obtenerPlanta(p.mesa)}</span></div>
                           <div className="flex gap-2">
                             <button onClick={() => moverMesa(p)} className="p-1 text-slate-500 hover:text-sky-400 transition-colors" title="Mover Mesa"><ExternalLink size={18}/></button>
                             <button onClick={async () => { 
@@ -833,15 +1045,23 @@ const verificarCodigo = async () => {
                 </div>
               </button>
             ) : (
-              <div className="bg-green-600/10 border border-green-600/20 p-4 rounded-3xl flex items-center gap-4">
-                <div className="w-10 h-10 rounded-2xl bg-green-600 flex items-center justify-center">
-                  <CheckCircle className="text-white" size={20} />
-                </div>
-                <div className="text-left">
-                  <p className="text-[9px] font-black text-green-500 uppercase tracking-widest">Sesión Iniciada</p>
-                  <p className="text-sm text-white font-black italic uppercase leading-none">{usuarioLogueado.phoneNumber || usuarioLogueado.email.split('@')[0]}</p>
-                </div>
-              </div>
+              <div className="flex items-center gap-4 bg-green-950/20 border border-green-500/30 p-4 rounded-[30px] backdrop-blur-sm">
+  {/* Icono del check verde */}
+  <div className="bg-green-600 p-3 rounded-2xl shadow-lg shadow-green-900/20">
+    <CheckCircle size={24} className="text-white" />
+  </div>
+
+  <div className="flex flex-col">
+    <span className="text-[10px] font-black text-green-500 uppercase tracking-[0.2em] leading-none mb-1">
+      Sesión Iniciada
+    </span>
+    
+    {/* CAMBIO AQUÍ: Usamos nombreUsuarioLogueado en lugar del teléfono */}
+    <h2 className="text-xl font-black text-white uppercase italic tracking-tighter leading-none">
+      {nombreUsuarioLogueado || "Cargando..."}
+    </h2>
+  </div>
+</div>
             )}
 
             {/* Botón Rockola */}
@@ -918,7 +1138,59 @@ const verificarCodigo = async () => {
       </div>
     );
   }
+// --- VISTA DE LOGIN (Inicia sesión si ya tienes cuenta) ---
+  if (view === 'login') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black p-4 font-sans">
+        <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
+          
+          <button onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
 
+          <div className="bg-[#2d1b14] p-4 rounded-full mb-6">
+            <div className="text-[#ff4d00] text-3xl italic font-black">⚡</div>
+          </div>
+
+          <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">Bienvenido de nuevo</h2>
+          <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 font-bold text-center">Ingresa tus datos para continuar</p>
+
+          <div className="w-full space-y-5">
+            <div>
+              <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu WhatsApp</label>
+              <input 
+                type="tel" 
+                placeholder="10 dígitos" 
+                className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors"
+                onChange={(e) => setTelefonoInput(e.target.value)} 
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu contraseña</label>
+              <input 
+                type="password" 
+                placeholder="Ingresa tu clave" 
+                className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors"
+                onChange={(e) => setPassword(e.target.value)} 
+              />
+            </div>
+            
+            <button 
+              onClick={loginClienteFrecuente}
+              className="w-full bg-[#ff4d00] hover:bg-[#e64500] py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+            >
+              Entrar
+            </button>
+
+            <button 
+              onClick={() => setView('registro')} 
+              className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest"
+            >
+              No tengo cuenta, quiero registrarme
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'menu') {
     const ubicacionActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
@@ -946,14 +1218,49 @@ const verificarCodigo = async () => {
     </div>
   )}
 
+<div className="flex gap-3 items-center">
+  {/* Nombre del Usuario (Nuevo) */}
+ {usuarioLogueado && (
+  <div className="flex flex-col items-end mr-1 gap-[2px]">
+    <span className="text-[8px] font-black text-orange-500 uppercase tracking-tighter leading-none">
+      Miembro de la Tribu
+    </span>
+    
+    {/* Mostramos el nombre si ya cargó, de lo contrario un espacio reservado */}
+    <span className="text-[11px] font-black text-white uppercase italic leading-none min-h-[11px]">
+      {nombreUsuarioLogueado || "Cargando..."}
+    </span>
+
+    <button 
+      onClick={() => setView('mis_pedidos')}
+      className="flex items-center gap-1 text-[8px] font-black text-orange-500 uppercase tracking-widest mt-1 active:scale-95 transition-transform"
+    >
+      <History size={10} />
+      Ver mis pedidos
+    </button>
+  </div>
+)}
+
+  {/* Botón Carrito */}
   <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative border-none outline-none">
     <ShoppingCart size={20} />
     {carrito.length > 0 && (
-      <span className="absolute -top-1 -right-1 bg-orange-600 text-[10px] px-1.5 rounded-full font-bold shadow-lg">
+      <span className="absolute -top-1 -right-1 bg-orange-600 text-[10px] px-1.5 rounded-full font-bold">
         {carrito.reduce((a, b) => a + b.cantidad, 0)}
       </span>
     )}
   </button>
+
+  {/* Botón Salir */}
+  {usuarioLogueado && (
+    <button 
+      onClick={cerrarSesion} 
+      className="bg-red-500/10 p-2.5 rounded-full border border-red-500/20 text-red-500 active:scale-95 transition-all"
+    >
+      <LogOut size={20} />
+    </button>
+  )}
+</div>
             </div></div>
           <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">{CATEGORIAS.map(c => (<button key={c} onClick={() => { setCatSeleccionada(c); setSubCatSeleccionada("Todas"); }} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${catSeleccionada === c ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-400'}`}>{c}</button>))}</div>
           {subcategoriasDisponibles.length > 0 && (<div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-800/50"><button onClick={() => setSubCatSeleccionada("Todas")} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === "Todas" ? 'text-sky-400 bg-sky-900/20' : 'text-slate-500'}`}>Todas</button>{subcategoriasDisponibles.map(sc => (<button key={sc} onClick={() => setSubCatSeleccionada(sc)} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === sc ? 'text-sky-400 bg-sky-900/20 shadow-lg' : 'text-slate-500'}`}>{sc}</button>))}</div>)}
@@ -1062,9 +1369,13 @@ const verificarCodigo = async () => {
     </div>
   </div>
 )}
+// Este es el return final de tu función App
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-       <p className="text-white animate-pulse font-black italic uppercase tracking-widest">TRIBU'S BAR</p>
+        {view !== 'welcome' && view !== 'registro' && view !== 'menu' && view !== 'barra' && (
+            <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
+        )}
+        <div id="recaptcha-container"></div>
     </div>
   );
   {/* Colócalo al final de tu App.jsx o fuera de los condicionales de 'pasoAuth' */}
