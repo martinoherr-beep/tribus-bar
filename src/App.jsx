@@ -134,22 +134,21 @@ const [password, setPassword] = useState('');
     return "EXTERNO";
   };
   const [mispedidos, setMisPedidos] = useState([]);
-
+const [telefonoUsuarioLogueado, setTelefonoUsuarioLogueado] = useState("");
 // Función para escuchar solo los pedidos de este usuario
 useEffect(() => {
   if (usuarioLogueado) {
     const q = query(
       collection(db, "pedidos"),
-      where("uid", "==", usuarioLogueado.uid),
-      orderBy("fecha", "desc")
+      where("uid", "==", usuarioLogueado.uid) // Asegúrate que en procesarEnvio se guarde como 'uid'
+      // Si te da error de Firebase, quita el orderBy momentáneamente hasta crear el índice
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsub = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMisPedidos(docs);
     });
-
-    return () => unsubscribe();
+    return () => unsub();
   }
 }, [usuarioLogueado]);
   // --- FUNCIÓN DE LOGIN CORREGIDA (Dentro de App) ---
@@ -179,6 +178,18 @@ useEffect(() => {
       }
     }
   };
+  const informarPago = async (pedidoId) => {
+  try {
+    const pedidoRef = doc(db, "pedidos", pedidoId);
+    await updateDoc(pedidoRef, {
+      pagoInformado: true,
+      horaPago: serverTimestamp()
+    });
+    alert("¡Gracias! En la barra verificaremos tu depósito ahora mismo.");
+  } catch (error) {
+    console.error("Error al informar pago:", error);
+  }
+};
   // --- FUNCIONES DE AUTENTICACIÓN (Dentro de App) ---
 const registrarClienteFrecuente = async () => {
   // Validaciones de seguridad
@@ -239,6 +250,8 @@ useEffect(() => {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setNombreUsuarioLogueado(docSnap.data().nombre);
+        // AQUÍ CARGAMOS EL TELÉFONO DESDE FIRESTORE
+        setTelefonoUsuarioLogueado(docSnap.data().telefono);
       }
     };
     obtenerDatosCliente();
@@ -412,6 +425,52 @@ const verificarCodigo = async () => {
     return () => clearInterval(vigilante);
   }, [recordatorios]);
 
+useEffect(() => {
+  // Escuchamos la colección que alimenta la Rockola
+  const q = query(collection(db, "rockola_pendientes"), where("estado", "==", "pendiente"));
+
+  const unsub = onSnapshot(q, async (snapshot) => {
+    for (const cambio of snapshot.docChanges()) {
+      if (cambio.type === "added") {
+        const dataRockola = cambio.doc.data();
+        const mesaRockola = dataRockola.mesa; // Ej: "4"
+        const totalCreditos = dataRockola.total; // Ej: 20
+        const detalleCreditos = dataRockola.detalle; // Ej: "1x Créditos de Rockola ($20)"
+
+        // 1. Buscamos la comanda activa de esa mesa en 'pedidos'
+        const pedidoActivo = pedidosBarra.find(p => String(p.mesa) === String(mesaRockola));
+
+        if (pedidoActivo) {
+          const pedidoRef = doc(db, "pedidos", pedidoActivo.id);
+          // ... dentro del if (!pedidoActivo)
+const nuevoPedidoRef = doc(collection(db, "pedidos"));
+await setDoc(nuevoPedidoRef, {
+  mesa: mesaRockola,
+  detalle: detalleCreditos,
+  total: totalCreditos,
+  estado: "pendiente",
+  fecha: serverTimestamp(),
+  archivado: false,
+  cliente: "Cliente Rockola"
+});
+          // 2. Sumamos los créditos al pedido existente
+          await updateDoc(pedidoRef, {
+            detalle: pedidoActivo.detalle + "\n" + detalleCreditos,
+            total: Number(pedidoActivo.total) + Number(totalCreditos)
+          });
+
+          // 3. Marcamos como procesado en la rockola para que no se repita
+          await deleteDoc(doc(db, "rockola_pendientes", cambio.doc.id));
+          
+          console.log(`🎵 Rockola: Créditos añadidos a Mesa ${mesaRockola}`);
+        }
+      }
+    }
+  });
+
+  return () => unsub();
+}, [pedidosBarra]); // Se ejecuta cuando la lista de pedidos cambia
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const mesaId = params.get("mesa");
@@ -464,15 +523,12 @@ const verificarCodigo = async () => {
     else setCarrito(carrito.map(x => x.id === id ? { ...ex, cantidad: ex.cantidad - 1 } : x));
   };
 
- const intentarEnviar = () => {
+const intentarEnviar = () => {
   if (carrito.length === 0) return;
 
-  // LÓGICA: 
-  // 1. Si hay mesa, envía directo.
-  // 2. Si NO hay mesa PERO hay usuario logueado, envía directo.
-  // 3. Si no hay nada de lo anterior, pide el teléfono.
+  // Si hay mesa o el usuario está logueado, intentamos enviar
   if (mesa || usuarioLogueado) {
-    procesarEnvio(mesa);
+    procesarEnvio(mesa || null);
   } else {
     setVerModalTelefono(true);
   }
@@ -481,54 +537,65 @@ const verificarCodigo = async () => {
 const procesarEnvio = async (idDestino) => {
   const batch = writeBatch(db);
 
-  // 1. Definimos las variables UNA SOLA VEZ
-  // Usamos el teléfono del login si existe, si no, el del teclado manual
-  const telFinal = usuarioLogueado?.telefono || telefonoInput;
-  
-  // Si hay mesa (idDestino), usamos eso. Si no, usamos el formato TEL:
+  // 1. Lógica de Identificación
+  const telFinal = telefonoUsuarioLogueado || usuarioLogueado?.phoneNumber || telefonoInput || "S/N";
   const idFinal = idDestino ? idDestino : `TEL:${telFinal}`;
 
-  // 2. Preparamos el detalle del pedido
   const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
   
   try {
-    // Buscamos si esa mesa/tel ya tiene un pedido activo para sumarlo
+    // Buscamos si ya existe un pedido abierto para esta mesa o teléfono
     const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
     
     if (existente) {
+      // SI YA EXISTE: Mantenemos el PIN que ya tenía y sumamos el nuevo consumo al detalle anterior
       batch.update(doc(db, "pedidos", existente.id), { 
         detalle: existente.detalle + "\n" + detalleNuevo, 
         total: Number(existente.total) + Number(totalCarrito), 
-        fecha: serverTimestamp() 
+        fecha: serverTimestamp(),
+        // Mantenemos los datos del cliente/uid actualizados
+        cliente: nombreUsuarioLogueado || existente.cliente || "Cliente",
+        uid: usuarioLogueado?.uid || existente.uid || null
       });
     } else {
-      batch.set(doc(collection(db, "pedidos")), { 
+      // SI ES NUEVO: Creamos el documento con todos los campos necesarios
+      const nuevoPedidoRef = doc(collection(db, "pedidos"));
+      
+      const datosNuevoPedido = { 
         mesa: String(idFinal), 
         detalle: detalleNuevo, 
         total: Number(totalCarrito), 
         estado: "pendiente", 
         fecha: serverTimestamp(), 
         archivado: false,
-        // Datos del cliente para la barra
         cliente: nombreUsuarioLogueado || "Cliente",
         telefono: telFinal,
-        uid: usuarioLogueado?.uid || null
-      });
+        uid: usuarioLogueado?.uid || null 
+      };
+
+      // RESTAURADO: Si es una mesa física (bar), le asignamos su PIN de seguridad
+      if (idDestino && !String(idDestino).startsWith("TEL:")) {
+        datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
+      }
+
+      batch.set(nuevoPedidoRef, datosNuevoPedido);
     }
     
     await batch.commit();
     
-    // Limpiamos estados
+    // Limpieza de estados
     setView('success'); 
     setCarrito([]); 
     setVerCarrito(false); 
     setVerModalTelefono(false);
 
   } catch (e) { 
-    console.error("Error al procesar:", e);
-    alert("Hubo un error al enviar el pedido.");
+    console.error("Error en Firebase:", e);
+    alert("Error al procesar el pedido.");
   }
 };
+
+
 
  const cobrarCuenta = async (p) => {
     await addDoc(collection(db, "historial_tickets"), { 
@@ -639,6 +706,20 @@ if (view === 'mis_pedidos') {
               <div className="border-t border-gray-800 pt-3 flex justify-between items-center">
                 <span className="text-xs font-bold text-gray-500 italic">Total</span>
                 <span className="text-lg font-black text-white">${p.total}</span>
+                {/* Dentro del map de mispedidos, debajo del total */}
+{p.mesa.includes('TEL') && p.estado !== 'entregado' && (
+  <button 
+    onClick={() => informarPago(p.id)}
+    className={`w-full mt-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
+      p.pagoInformado 
+        ? 'bg-green-500/20 text-green-500 border border-green-500/50' 
+        : 'bg-blue-600 text-white animate-pulse'
+    }`}
+    disabled={p.pagoInformado}
+  >
+    {p.pagoInformado ? 'Pago en Verificación' : 'Ya deposité / Informar Pago'}
+  </button>
+)}
               </div>
             </div>
           ))
@@ -730,7 +811,15 @@ if (view === 'mis_pedidos') {
                   return (
                     <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl relative shadow-xl flex flex-col justify-between group transition-all">
                       <div className={`absolute top-0 left-0 w-1.5 h-full ${esExterno ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
+                      {/* 1. PEGA EL AVISO AQUÍ (Justo antes del flex de los nombres) */}
+  {p.pagoInformado && (
+    <div className="bg-blue-600 text-white text-[10px] font-black p-3 rounded-xl mb-4 flex items-center justify-center gap-2 animate-pulse shadow-lg shadow-blue-900/40 border border-blue-400/30">
+      <CheckCircle size={14} />
+      PAGO INFORMADO - VERIFICAR CAJA
+    </div>
+  )}
                       <div><div className="flex justify-between items-start">
+                        
                           <div className="flex flex-col"><h3 className="text-2xl font-black italic uppercase tracking-tighter leading-none">{esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}</h3>{/* AGREGA ESTE BLOQUE PARA EL NOMBRE */}
   {p.cliente && (
     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
@@ -786,7 +875,7 @@ if (view === 'mis_pedidos') {
   })}
 </div>
                       {esExterno && (
-                        <button onClick={() => window.open(`https://wa.me/${numTel}?text=${encodeURIComponent(mensajeWA)}`, '_blank')} className="flex items-center justify-center gap-2 bg-green-600/10 border border-green-600/20 text-green-500 w-full py-3 rounded-xl font-black uppercase text-xs mt-4 hover:bg-green-600 hover:text-white transition-all"><Phone size={14}/> Enviar Cuenta</button>
+                        <button onClick={() => window.open(`https://wa.me/${numTel}?text=${encodeURIComponent(mensajeWA)}`, '_blank')} className="flex items-center justify-center gap-2 bg-green-600/10 border border-green-600/20 text-green-500 w-full py-3 rounded-xl font-black uppercase text-xs mt-4 hover:bg-green-600 hover:text-white transition-all"><Phone size={14}/> Enviar Datos Bancarios</button>
                       )}
                       </div>
                       <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-4 rounded-xl font-black text-lg mt-6 active:scale-95 uppercase tracking-tighter shadow-lg">Cobrar ${p.total}</button></div>
