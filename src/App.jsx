@@ -2,66 +2,25 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from './firebase'; 
 import { 
-  collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, 
-  query, where, orderBy, serverTimestamp, writeBatch, increment, setDoc, getDoc 
+ collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, 
+ query, where, orderBy, serverTimestamp, writeBatch, increment, setDoc, getDoc 
 } from "firebase/firestore";
 
 import { auth } from './firebase';
 import { 
-  RecaptchaVerifier, 
-  signInWithPhoneNumber, 
-  onAuthStateChanged,
-  signOut // <--- Añade esto aquí
+ RecaptchaVerifier, 
+ signInWithPhoneNumber, 
+ onAuthStateChanged,
+ signOut 
 } from "firebase/auth";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { 
-  ShoppingCart, Trash2, X, Plus, Minus, Wifi, 
-  UtensilsCrossed, Zap, CheckCircle, ReceiptText, Printer, Search, 
-  CreditCard, Phone, Package, LayoutDashboard, Boxes, PlusCircle, 
-  Tag, ExternalLink, Lock, Calendar, History,
-  LogOut // <--- Añade este icono
+ ShoppingCart, Trash2, X, Plus, Minus, Wifi, 
+ UtensilsCrossed, Zap, CheckCircle, ReceiptText, Printer, Search, 
+ CreditCard, Phone, Package, LayoutDashboard, Boxes, PlusCircle, 
+ Tag, ExternalLink, Lock, Calendar, History,
+ LogOut 
 } from 'lucide-react';
-
-
- // --- FUNCIONES DE AUTENTICACIÓN (Dentro de App) ---
-const registrarClienteFrecuente = async () => {
-  // Validaciones de seguridad
-  if (!nombreRegistro || telefonoInput.length < 10 || password.length < 6) {
-    return alert("Por favor, completa todos los campos (Mínimo 6 caracteres para contraseña).");
-  }
-
-  try {
-    // Generamos el correo ficticio para evitar costos de SMS en Firebase
-    const emailFalso = `${telefonoInput}@tribus.com`;
-
-    // 1. Crear el usuario en Firebase Auth
-    const userCredential = await createUserWithEmailAndPassword(auth, emailFalso, password);
-    const user = userCredential.user;
-
-    // 2. Crear el perfil en Firestore (Asegúrate de tener importado setDoc y doc)
-    await setDoc(doc(db, "clientes", user.uid), {
-      nombre: nombreRegistro,
-      telefono: telefonoInput,
-      uid: user.uid,
-      puntos: 0,
-      fechaRegistro: serverTimestamp(),
-      ultimaVisita: serverTimestamp()
-    });
-
-    // 3. Actualizar estado y navegar al menú
-    setUsuarioLogueado(user);
-    setView('menu'); 
-    alert(`¡Bienvenido a la Tribu, ${nombreRegistro}!`);
-
-  } catch (error) {
-    console.error("Error en el registro:", error.code);
-    if (error.code === 'auth/email-already-in-use') {
-      alert("Este teléfono ya está registrado. Intenta iniciar sesión.");
-    } else {
-      alert("Error al registrar: " + error.message);
-    }
-  }
-};
 
 
 const DATOS_PAGO = "💳 *DATOS DE PAGO*:\nBanco: Bancoppel\nCuenta: 4169 1614 6993 9648\nCLABE: 137162104580151937\nA nombre de: Tribus Bar";
@@ -76,48 +35,48 @@ const TELEGRAM_CHAT_ID = "8712410394";
 
 // --- ESTILOS DE IMPRESIÓN ---
 const estilosImpresion = `
-  @media print {
-    body * { visibility: hidden; }
-    .print-container, .print-container * { visibility: visible; }
-    .print-container { 
-      position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none !important;
-    }
-    .no-print { display: none !important; }
-  }
+ @media print {
+   body * { visibility: hidden; }
+   .print-container, .print-container * { visibility: visible; }
+   .print-container { 
+     position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none !important;
+   }
+   .no-print { display: none !important; }
+ }
 `;
 
 function App() {
-  const [view, setView] = useState('welcome');
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [pinInput, setPinInput] = useState("");
-  const [tabBarra, setTabBarra] = useState('comandas');
-  const [mesaValidada, setMesaValidada] = useState(false);
-  const [pinMesaInput, setPinMesaInput] = useState("");
-  const [pinCorrectoMesa, setPinCorrectoMesa] = useState(null);
-  const [carrito, setCarrito] = useState([]);
-  const [consumoAcumulado, setConsumoAcumulado] = useState([]); 
-  const [mesa, setMesa] = useState(null);
-  const [verCarrito, setVerCarrito] = useState(false);
-  const [verModalTelefono, setVerModalTelefono] = useState(false);
-  const [telefonoInput, setTelefonoInput] = useState("");
-  const [nombreUsuarioLogueado, setNombreUsuarioLogueado] = useState("");
-  const [recordatorios, setRecordatorios] = useState([]);
-  const [verModalNuevoEvento, setVerModalNuevoEvento] = useState(false);
-  const [nuevoEvento, setNuevoEvento] = useState({ titulo: "", fecha: "", hora: "" });
-  const [verModalNuevoProd, setVerModalNuevoProd] = useState(false);
-  const [nuevoProd, setNuevoProd] = useState({
-    nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", 
-    categoria: "Cerveza", subcategoria: "", imagen: ""
-  });
-  const [esNuevaSub, setEsNuevaSub] = useState(false);
-  const [productosMenu, setProductosMenu] = useState([]);
-  const [catSeleccionada, setCatSeleccionada] = useState("Todos");
-  const [subCatSeleccionada, setSubCatSeleccionada] = useState("Todas");
-  const [pedidosBarra, setPedidosBarra] = useState([]);
-  const [historialCerrado, setHistorialCerrado] = useState([]); 
-  const [filtroMesa, setFiltroMesa] = useState(""); 
-  const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
-  const [nombreRegistro, setNombreRegistro] = useState('');
+ const [view, setView] = useState('welcome');
+ const [isAdmin, setIsAdmin] = useState(false);
+ const [pinInput, setPinInput] = useState("");
+ const [tabBarra, setTabBarra] = useState('comandas');
+ const [mesaValidada, setMesaValidada] = useState(false);
+ const [pinMesaInput, setPinMesaInput] = useState("");
+ const [pinCorrectoMesa, setPinCorrectoMesa] = useState(null);
+ const [carrito, setCarrito] = useState([]);
+ const [consumoAcumulado, setConsumoAcumulado] = useState([]); 
+ const [mesa, setMesa] = useState(null);
+ const [verCarrito, setVerCarrito] = useState(false);
+ const [verModalTelefono, setVerModalTelefono] = useState(false);
+ const [telefonoInput, setTelefonoInput] = useState("");
+ const [nombreUsuarioLogueado, setNombreUsuarioLogueado] = useState("");
+ const [recordatorios, setRecordatorios] = useState([]);
+ const [verModalNuevoEvento, setVerModalNuevoEvento] = useState(false);
+ const [nuevoEvento, setNuevoEvento] = useState({ titulo: "", fecha: "", hora: "" });
+ const [verModalNuevoProd, setVerModalNuevoProd] = useState(false);
+ const [nuevoProd, setNuevoProd] = useState({
+   nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", 
+   categoria: "Cerveza", subcategoria: "", imagen: ""
+ });
+ const [esNuevaSub, setEsNuevaSub] = useState(false);
+ const [productosMenu, setProductosMenu] = useState([]);
+ const [catSeleccionada, setCatSeleccionada] = useState("Todos");
+ const [subCatSeleccionada, setSubCatSeleccionada] = useState("Todas");
+ const [pedidosBarra, setPedidosBarra] = useState([]);
+ const [historialCerrado, setHistorialCerrado] = useState([]); 
+ const [filtroMesa, setFiltroMesa] = useState(""); 
+ const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
+ const [nombreRegistro, setNombreRegistro] = useState('');
 const [usuarioLogueado, setUsuarioLogueado] = useState(null);
 const [verModalAuth, setVerModalAuth] = useState(false);
 const [historialHoy, setHistorialHoy] = useState([]);
@@ -125,1350 +84,1371 @@ const [pasoAuth, setPasoAuth] = useState('telefono'); // 'telefono' o 'codigo'
 const [codigoOTP, setCodigoOTP] = useState("");
 const [confirmacionResultado, setConfirmacionResult] = useState(null);
 const [password, setPassword] = useState('');
-  const obtenerPlanta = (idMesa) => {
-    if (!idMesa) return "EXTERNO";
-    const n = parseInt(idMesa);
-    if (isNaN(n)) return "EXTERNO";
-    if (n >= 1 && n <= 25) return "PLANTA BAJA";
-    if (n >= 26 && n <= 50) return "TERRAZA";
-    return "EXTERNO";
-  };
-  const [mispedidos, setMisPedidos] = useState([]);
-const [telefonoUsuarioLogueado, setTelefonoUsuarioLogueado] = useState("");
-// Función para escuchar solo los pedidos de este usuario
-useEffect(() => {
-  if (usuarioLogueado) {
-    const q = query(
-      collection(db, "pedidos"),
-      where("uid", "==", usuarioLogueado.uid) // Asegúrate que en procesarEnvio se guarde como 'uid'
-      // Si te da error de Firebase, quita el orderBy momentáneamente hasta crear el índice
-    );
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setMisPedidos(docs);
-    });
-    return () => unsub();
+const [areaStaff, setAreaStaff] = useState('TODOS');
+const [fechaInicioRep, setFechaInicioRep] = useState("");
+const [fechaFinRep, setFechaFinRep] = useState("");
+const [reporteFiltrado, setReporteFiltrado] = useState(null);
+const [esSuperAdmin, setEsSuperAdmin] = useState(false);
+ const obtenerPlanta = (idMesa) => {
+   if (!idMesa) return "EXTERNO";
+   const n = parseInt(idMesa);
+   if (isNaN(n)) return "EXTERNO";
+   if (n >= 1 && n <= 25) return "PLANTA BAJA";
+   if (n >= 26 && n <= 50) return "TERRAZA";
+   return "EXTERNO";
+ };
+ const generarReporteVentas = () => {
+  if (!fechaInicioRep || !fechaFinRep) {
+    return alert("Por favor, selecciona ambas fechas para el reporte.");
   }
-}, [usuarioLogueado]);
-  // --- FUNCIÓN DE LOGIN CORREGIDA (Dentro de App) ---
-  const loginClienteFrecuente = async () => {
-    // Validamos que los estados no estén vacíos
-    if (!telefonoInput || !password) {
-      return alert("Por favor, ingresa tu teléfono y contraseña.");
-    }
 
-    try {
-      // Usamos el mismo formato de correo falso que en el registro
-      const emailFalso = `${telefonoInput}@tribus.com`;
-      
-      const userCredential = await signInWithEmailAndPassword(auth, emailFalso, password);
-      
-      // Si el login es exitoso, actualizamos la app
-      setUsuarioLogueado(userCredential.user);
-      setView('menu');
-      alert("¡Qué bueno verte de nuevo en la Tribu!");
+  // Convertir strings de input (YYYY-MM-DD) a objetos Date para comparar
+  const inicio = new Date(fechaInicioRep + "T00:00:00");
+  const fin = new Date(fechaFinRep + "T23:59:59");
 
-    } catch (error) {
-      console.error("Error al entrar:", error.code);
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        alert("Teléfono o contraseña incorrectos.");
-      } else {
-        alert("Error al iniciar sesión: " + error.message);
+  let totalBaja = 0;
+  let totalTerraza = 0;
+  let totalExterno = 0;
+  let ticketsEnRango = 0;
+
+  historialCerrado.forEach(ticket => {
+    if (ticket.fecha?.seconds) {
+      const fechaTicket = new Date(ticket.fecha.seconds * 1000);
+      
+      if (fechaTicket >= inicio && fechaTicket <= fin) {
+        ticketsEnRango++;
+        const planta = obtenerPlanta(ticket.mesa);
+        const monto = Number(ticket.total) || 0;
+
+        if (planta === "PLANTA BAJA") {
+          totalBaja += monto;
+        } else if (planta === "TERRAZA") {
+          totalTerraza += monto;
+        } else {
+          totalExterno += monto;
+        }
       }
     }
-  };
-  const informarPago = async (pedidoId) => {
-  try {
-    const pedidoRef = doc(db, "pedidos", pedidoId);
-    await updateDoc(pedidoRef, {
-      pagoInformado: true,
-      horaPago: serverTimestamp()
-    });
-    alert("¡Gracias! En la barra verificaremos tu depósito ahora mismo.");
-  } catch (error) {
-    console.error("Error al informar pago:", error);
-  }
-};
-  // --- FUNCIONES DE AUTENTICACIÓN (Dentro de App) ---
-const registrarClienteFrecuente = async () => {
-  // Validaciones de seguridad
-  if (!nombreRegistro || telefonoInput.length < 10 || password.length < 6) {
-    return alert("Por favor, completa todos los campos (Mínimo 6 caracteres para contraseña).");
-  }
-
-  try {
-    // Generamos el correo ficticio para evitar costos de SMS en Firebase
-    const emailFalso = `${telefonoInput}@tribus.com`;
-
-    // 1. Crear el usuario en Firebase Auth
-    const userCredential = await createUserWithEmailAndPassword(auth, emailFalso, password);
-    const user = userCredential.user;
-
-    // 2. Crear el perfil en Firestore (Asegúrate de tener importado setDoc y doc)
-    await setDoc(doc(db, "clientes", user.uid), {
-      nombre: nombreRegistro,
-      telefono: telefonoInput,
-      uid: user.uid,
-      puntos: 0,
-      fechaRegistro: serverTimestamp(),
-      ultimaVisita: serverTimestamp()
-    });
-
-    // 3. Actualizar estado y navegar al menú
-    setUsuarioLogueado(user);
-    setView('menu'); 
-    alert(`¡Bienvenido a la Tribu, ${nombreRegistro}!`);
-
-  } catch (error) {
-    console.error("Error en el registro:", error.code);
-    if (error.code === 'auth/email-already-in-use') {
-      alert("Este teléfono ya está registrado. Intenta iniciar sesión.");
-    } else {
-      alert("Error al registrar: " + error.message);
-    }
-  }
-};
-const cerrarSesion = async () => {
-  try {
-    await signOut(auth); // Finaliza la sesión en Firebase
-    setUsuarioLogueado(null); // Limpia el estado del usuario
-    setView('welcome'); // Regresa a la pantalla de bienvenida
-    alert("Sesión cerrada. ¡Vuelve pronto a la Tribu!");
-  } catch (error) {
-    console.error("Error al salir:", error);
-  }
-};
-
-// Dentro de tu función App()
-
-
-useEffect(() => {
-  if (usuarioLogueado) {
-    const obtenerDatosCliente = async () => {
-      const docRef = doc(db, "clientes", usuarioLogueado.uid);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setNombreUsuarioLogueado(docSnap.data().nombre);
-        // AQUÍ CARGAMOS EL TELÉFONO DESDE FIRESTORE
-        setTelefonoUsuarioLogueado(docSnap.data().telefono);
-      }
-    };
-    obtenerDatosCliente();
-  } else {
-    setNombreUsuarioLogueado(""); // Limpiar si cierra sesión
-  }
-}, [usuarioLogueado]);
-// Escuchar si el usuario ya está logueado al cargar
-useEffect(() => {
-  const unsub = onAuthStateChanged(auth, (user) => {
-    if (user) setUsuarioLogueado(user);
   });
-  return () => unsub();
-}, []);
 
-const enviarCodigoSMS = async () => {
-  if (telefonoInput.length !== 10) return alert("Ingresa 10 dígitos");
-
-  // 1. Limpieza total y forzada
- if (window.recaptchaVerifier) {
-    try {
-        // Esto detiene cualquier intento de la librería de tocar el DOM
-        window.recaptchaVerifier.clear(); 
-        window.recaptchaVerifier = null;
-    } catch (e) {
-        console.warn("Recaptcha ya no existía");
-    }
-}
-  
-  const container = document.getElementById('recaptcha-container');
-  if (container) container.innerHTML = ''; 
-
-  try {
-    // 2. Nueva instancia con el ID de la image_911555.png
-    // Asegúrate de que 'auth' esté importado correctamente de tu firebase.js
-    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      size: 'invisible',
-      'callback': (response) => {
-        console.log("reCAPTCHA resuelto");
-      }
-    });
-
-    const appVerifier = window.recaptchaVerifier;
-    const formatoInternacional = `+52${telefonoInput}`;
-    
-    // Aquí es donde Vite se quejaba; revisa que no falte una llave '}' arriba de esta función
-    const confirmation = await signInWithPhoneNumber(auth, formatoInternacional, appVerifier);
-    
-    setConfirmacionResult(confirmation);
-    setPasoAuth('codigo');
-    alert("Código enviado correctamente");
-
-  } catch (error) {
-    console.error("Error SMS detallado:", error.code, error.message);
-    if (window.recaptchaVerifier) window.recaptchaVerifier.clear();
-    
-    // Manejo de errores comunes de Moapp
-    if (error.code === 'auth/invalid-phone-number') alert("Número inválido");
-    else if (error.code === 'auth/too-many-requests') alert("Demasiados intentos, espera un poco");
-    else alert("Error: " + error.message);
-  }
-};
-const verificarCodigo = async () => {
-  if (!confirmacionResult) {
-    alert("La sesión ha expirado. Por favor, solicita un nuevo código.");
+  if (ticketsEnRango === 0) {
+    alert("No se encontraron ventas en el rango de fechas seleccionado.");
+    setReporteFiltrado(null);
     return;
   }
 
-  try {
-    // Intentar la confirmación con el código de la imagen image_70dd8a.png
-    const result = await confirmacionResult.confirm(codigoOTP);
-    const user = result.user;
+  setReporteFiltrado({
+    inicio: new Date(inicio).toLocaleDateString('es-MX'),
+    fin: new Date(fin).toLocaleDateString('es-MX'),
+    plantaBaja: totalBaja,
+    terraza: totalTerraza,
+    externo: totalExterno,
+    totalGlobal: totalBaja + totalTerraza + totalExterno,
+    cantidadTickets: ticketsEnRango
+  });
+};
+ const [mispedidos, setMisPedidos] = useState([]);
+const [telefonoUsuarioLogueado, setTelefonoUsuarioLogueado] = useState("");
 
-    // Guardar los datos del cliente para que aparezcan en la barra
-    await setDoc(doc(db, "clientes", user.uid), {
-      nombre: nombreRegistro || "Cliente Nuevo",
-      telefono: telefonoInput,
-      uid: user.uid,
-      fechaRegistro: serverTimestamp()
-    });
+// Función para escuchar solo los pedidos de este usuario
+useEffect(() => {
+ if (usuarioLogueado) {
+   const q = query(
+     collection(db, "pedidos"),
+     where("uid", "==", usuarioLogueado.uid) 
+   );
 
-    setUsuarioLogueado(user);
-    setVerModalAuth(false);
-    alert(`¡Bienvenido a la Tribu, ${nombreRegistro}!`);
+   const unsub = onSnapshot(q, (snapshot) => {
+     const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+     setMisPedidos(docs);
+   });
+   return () => unsub();
+ }
+}, [usuarioLogueado]);
 
-  } catch (error) {
-    console.error("Error en confirmación:", error.code);
-    alert("Error de verificación. Por favor, intenta de nuevo.");
-    
-    // IMPORTANTE: Limpiar el resultado para forzar un nuevo SMS si falló la sesión
-    setConfirmacionResult(null);
-  }
+ // --- FUNCIÓN DE LOGIN CORREGIDA (Dentro de App) ---
+ const loginClienteFrecuente = async () => {
+   if (!telefonoInput || !password) {
+     return alert("Por favor, ingresa tu teléfono y contraseña.");
+   }
+
+   try {
+     const emailFalso = `${telefonoInput}@tribus.com`;
+     const userCredential = await signInWithEmailAndPassword(auth, emailFalso, password);
+     setUsuarioLogueado(userCredential.user);
+     setView('menu');
+     alert("¡Qué bueno verte de nuevo en la Tribu!");
+   } catch (error) {
+     console.error("Error al entrar:", error.code);
+     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+       alert("Teléfono o contraseña incorrectos.");
+     } else {
+       alert("Error al iniciar sesión: " + error.message);
+     }
+   }
+ };
+
+ const informarPago = async (pedidoId) => {
+ try {
+   const pedidoRef = doc(db, "pedidos", pedidoId);
+   await updateDoc(pedidoRef, {
+     pagoInformado: true,
+     horaPago: serverTimestamp()
+   });
+   alert("¡Gracias! En la barra verificaremos tu depósito ahora mismo.");
+ } catch (error) {
+   console.error("Error al informar pago:", error);
+ }
 };
 
-  const plantaActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
-  const nombreBarDinamico = plantaActual === "TERRAZA" ? "TRIBU'S BAR TERRAZA" : "TRIBU'S BAR";
+ // --- FUNCIONES DE AUTENTICACIÓN (Dentro de App) ---
+const registrarClienteFrecuente = async () => {
+ if (!nombreRegistro || telefonoInput.length < 10 || password.length < 6) {
+   return alert("Por favor, completa todos los campos (Mínimo 6 caracteres para contraseña).");
+ }
 
-  const obtenerPrecioItem = (item) => mesa ? item.precioMesa : item.precioDomicilio;
-  const totalCarrito = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
-  const totalAcumulado = consumoAcumulado.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+ try {
+   const emailFalso = `${telefonoInput}@tribus.com`;
+   const userCredential = await createUserWithEmailAndPassword(auth, emailFalso, password);
+   const user = userCredential.user;
 
-  const historialFiltradoParaCaja = historialCerrado.filter(hc => {
-    const busqueda = filtroMesa.toLowerCase().trim();
-    const mesaOriginal = String(hc.mesa || "").toLowerCase().trim();
-    const plantaMesa = obtenerPlanta(hc.mesa).toLowerCase();
-    if (busqueda === "") return !hc.archivado && !mesaOriginal.startsWith("tel:");
-    if (["externo", "terraza", "planta baja", "baja"].some(zona => busqueda.includes(zona))) return plantaMesa.includes(busqueda);
-    if (!isNaN(busqueda)) {
-      if (busqueda.length <= 2) return mesaOriginal === busqueda;
-      else return mesaOriginal.includes(busqueda);
-    }
-    const fechaTicket = hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleDateString('es-MX') : "";
-    return fechaTicket.includes(busqueda);
-  });
+   await setDoc(doc(db, "clientes", user.uid), {
+     nombre: nombreRegistro,
+     telefono: telefonoInput,
+     uid: user.uid,
+     puntos: 0,
+     fechaRegistro: serverTimestamp(),
+     ultimaVisita: serverTimestamp()
+   });
 
-  const totalCajaHoy = historialFiltradoParaCaja.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
+   setUsuarioLogueado(user);
+   setView('menu'); 
+   alert(`¡Bienvenido a la Tribu, ${nombreRegistro}!`);
+ } catch (error) {
+   console.error("Error en el registro:", error.code);
+   if (error.code === 'auth/email-already-in-use') {
+     alert("Este teléfono ya está registrado. Intenta iniciar sesión.");
+   } else {
+     alert("Error al registrar: " + error.message);
+   }
+ }
+};
 
-  const ultimoMinutoEnviado = useRef("");
-
-  // --- FUNCIÓN MOVER MESA (CORREGIDA FUERA DE USEEFFECT) ---
-  const moverMesa = async (pedido) => {
-    const plantaOrigen = obtenerPlanta(pedido.mesa);
-    const nuevaMesa = window.prompt(`Moviendo cuenta de Mesa ${pedido.mesa} (${plantaOrigen}). Ingrese el nuevo número de mesa:`);
-    
-    if (!nuevaMesa || nuevaMesa === "" || nuevaMesa === pedido.mesa) return;
-
-    const plantaDestino = obtenerPlanta(nuevaMesa);
-    const etiquetaTraslado = `\n--- TRASLADO DE ${plantaOrigen} A ${plantaDestino} ---`;
-
-    try {
-      const pedidoRef = doc(db, "pedidos", pedido.id);
-      await updateDoc(pedidoRef, {
-        mesa: String(nuevaMesa),
-        detalle: pedido.detalle + etiquetaTraslado
-      });
-      alert(`Cuenta trasladada a Mesa ${nuevaMesa} (${plantaDestino}) con éxito.`);
-    } catch (e) {
-      console.error("Error al mover mesa:", e);
-      alert("No se pudo mover la mesa.");
-    }
-  };
-
-  useEffect(() => {
-    const vigilante = setInterval(() => {
-      const ahora = new Date();
-      const f = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
-      const h = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
-      
-      recordatorios.forEach(async (rec) => {
-        const llaveVigilante = `${rec.id}_${h}`;
-        if (rec.fecha === f && rec.hora === h && !rec.enviado && ultimoMinutoEnviado.current !== llaveVigilante) {
-          ultimoMinutoEnviado.current = llaveVigilante;
-          try {
-            const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: `🔔 *EVENTO:* ${rec.titulo}\n⏰ *HORA:* ${rec.hora} HRS`, parse_mode: 'Markdown' })
-            });
-            if (res.ok) {
-              await updateDoc(doc(db, "recordatorios", rec.id), { enviado: true });
-              console.log("✅ Mensaje único enviado con éxito");
-            }
-          } catch (e) {
-            ultimoMinutoEnviado.current = "";
-            console.error("❌ Error:", e);
-          }
-        }
-      });
-    }, 5000);
-
-    return () => clearInterval(vigilante);
-  }, [recordatorios]);
+const cerrarSesion = async () => {
+ try {
+   await signOut(auth); 
+   setUsuarioLogueado(null); 
+   setView('welcome'); 
+   alert("Sesión cerrada. ¡Vuelve pronto a la Tribu!");
+ } catch (error) {
+   console.error("Error al salir:", error);
+ }
+};
 
 useEffect(() => {
-  // Escuchamos la colección que alimenta la Rockola
+ if (usuarioLogueado) {
+   const obtenerDatosCliente = async () => {
+     const docRef = doc(db, "clientes", usuarioLogueado.uid);
+     const docSnap = await getDoc(docRef);
+     if (docSnap.exists() && docSnap.data().nombre) {
+       setNombreUsuarioLogueado(docSnap.data().nombre);
+       setTelefonoUsuarioLogueado(docSnap.data().telefono);
+     } else {
+       setNombreUsuarioLogueado("Invitado Tribu");
+     }
+   };
+   obtenerDatosCliente();
+ } else {
+   setNombreUsuarioLogueado(""); 
+ }
+}, [usuarioLogueado]);
+
+useEffect(() => {
+  const desubscribir = onAuthStateChanged(auth, (usuario) => {
+    if (usuario) {
+      setUsuarioLogueado(usuario);
+      
+      // Detección automática de área por correo:
+      if (usuario.email === 'baja@tribus.com') {
+        setAreaStaff('PLANTA BAJA');
+        setEsSuperAdmin(false); // Por seguridad, nos aseguramos que esté apagado
+      } else if (usuario.email === 'terraza@tribus.com') {
+        setAreaStaff('TERRAZA');
+        setEsSuperAdmin(false); // Por seguridad, nos aseguramos que esté apagado
+      } else if (usuario.email === 'admin@tribus.com') {
+        setAreaStaff('TODOS');
+        setEsSuperAdmin(true);  // 🔥 ¡Activación automática de reportes para ti!
+      }
+    } else {
+      setUsuarioLogueado(null);
+      setEsSuperAdmin(false);
+    }
+  });
+  return () => desubscribir();
+}, []);
+
+const enviarCodigoSMS = async () => {
+ if (telefonoInput.length !== 10) return alert("Ingresa 10 dígitos");
+
+ if (window.recaptchaVerifier) {
+   try {
+       window.recaptchaVerifier.clear(); 
+       window.recaptchaVerifier = null;
+   } catch (e) {
+       console.warn("Recaptcha ya no existía");
+   }
+}
+  
+ const container = document.getElementById('recaptcha-container');
+ if (container) container.innerHTML = ''; 
+
+ try {
+   window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+     size: 'invisible',
+     'callback': (response) => {
+       console.log("reCAPTCHA resuelto");
+     }
+   });
+
+   const appVerifier = window.recaptchaVerifier;
+   const formatoInternacional = `+52${telefonoInput}`;
+   
+   const confirmation = await signInWithPhoneNumber(auth, formatoInternacional, appVerifier);
+   
+   setConfirmacionResult(confirmation);
+   setPasoAuth('codigo');
+   alert("Código enviado correctamente");
+
+ } catch (error) {
+   console.error("Error SMS detallado:", error.code, error.message);
+   if (window.recaptchaVerifier) window.recaptchaVerifier.clear();
+   
+   if (error.code === 'auth/invalid-phone-number') alert("Número inválido");
+   else if (error.code === 'auth/too-many-requests') alert("Demasiados intentos, espera un poco");
+   else alert("Error: " + error.message);
+ }
+};
+
+const verificarCodigo = async () => {
+ if (!confirmacionResultado) {
+   alert("La sesión ha expirado. Por favor, solicita un nuevo código.");
+   return;
+ }
+
+ try {
+   const result = await confirmacionResultado.confirm(codigoOTP);
+   const user = result.user;
+
+   await setDoc(doc(db, "clientes", user.uid), {
+     nombre: nombreRegistro || "Cliente Nuevo",
+     telefono: telefonoInput,
+     uid: user.uid,
+     fechaRegistro: serverTimestamp()
+   });
+
+   setUsuarioLogueado(user);
+   setVerModalAuth(false);
+   alert(`¡Bienvenido a la Tribu, ${nombreRegistro}!`);
+
+ } catch (error) {
+   console.error("Error en confirmación:", error.code);
+   alert("Error de verificación. Por favor, intenta de nuevo.");
+   setConfirmacionResult(null);
+ }
+};
+
+ const plantaActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
+ const nombreBarDinamico = plantaActual === "TERRAZA" ? "TRIBU'S BAR TERRAZA" : "TRIBU'S BAR";
+
+ const obtenerPrecioItem = (item) => mesa ? item.precioMesa : item.precioDomicilio;
+ const totalCarrito = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+ const totalAcumulado = consumoAcumulado.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+
+ const historialFiltradoParaCaja = historialCerrado.filter(hc => {
+   const busqueda = filtroMesa.toLowerCase().trim();
+   const mesaOriginal = String(hc.mesa || "").toLowerCase().trim();
+   const plantaMesa = obtenerPlanta(hc.mesa).toLowerCase();
+   if (busqueda === "") return !hc.archivado && !mesaOriginal.startsWith("tel:");
+   if (["externo", "terraza", "planta baja", "baja"].some(zona => busqueda.includes(zona))) return plantaMesa.includes(busqueda);
+   if (!isNaN(busqueda)) {
+     if (busqueda.length <= 2) return mesaOriginal === busqueda;
+     else return mesaOriginal.includes(busqueda);
+   }
+   const fechaTicket = hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleDateString('es-MX') : "";
+   return fechaTicket.includes(busqueda);
+ });
+
+ const totalCajaHoy = historialFiltradoParaCaja.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
+
+ const ultimoMinutoEnviado = useRef("");
+
+ const moverMesa = async (pedido) => {
+   const plantaOrigen = obtenerPlanta(pedido.mesa);
+   const nuevaMesa = window.prompt(`Moviendo cuenta de Mesa ${pedido.mesa} (${plantaOrigen}). Ingrese el nuevo número de mesa:`);
+   
+   if (!nuevaMesa || nuevaMesa === "" || nuevaMesa === pedido.mesa) return;
+
+   const plantaDestino = obtenerPlanta(nuevaMesa);
+   const etiquetaTraslado = `\n--- TRASLADO DE ${plantaOrigen} A ${plantaDestino} ---`;
+
+   try {
+     const pedidoRef = doc(db, "pedidos", pedido.id);
+     await updateDoc(pedidoRef, {
+       mesa: String(nuevaMesa),
+       detalle: pedido.detalle + etiquetaTraslado
+     });
+     alert(`Cuenta trasladada a Mesa ${nuevaMesa} (${plantaDestino}) con éxito.`);
+   } catch (e) {
+     console.error("Error al mover mesa:", e);
+     alert("No se pudo mover la mesa.");
+   }
+ };
+
+ useEffect(() => {
+   const vigilante = setInterval(() => {
+     const ahora = new Date();
+     const f = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
+     const h = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+     
+     recordatorios.forEach(async (rec) => {
+       const llaveVigilante = `${rec.id}_${h}`;
+       if (rec.fecha === f && rec.hora === h && !rec.enviado && ultimoMinutoEnviado.current !== llaveVigilante) {
+         ultimoMinutoEnviado.current = llaveVigilante;
+         try {
+           const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: `🔔 *EVENTO:* ${rec.titulo}\n⏰ *HORA:* ${rec.hora} HRS`, parse_mode: 'Markdown' })
+           });
+           if (res.ok) {
+             await updateDoc(doc(db, "recordatorios", rec.id), { enviado: true });
+             console.log("✅ Mensaje único enviado con éxito");
+           }
+         } catch (e) {
+           ultimoMinutoEnviado.current = "";
+           console.error("❌ Error:", e);
+         }
+       }
+     });
+   }, 5000);
+
+   return () => clearInterval(vigilante);
+ }, [recordatorios]);
+
+// --- ESCUCHA DE ROCKOLA CORREGIDA (SIN DUPLICADOS) ---
+useEffect(() => {
+  // Escuchamos la colección de la Rockola de forma aislada
   const q = query(collection(db, "rockola_pendientes"), where("estado", "==", "pendiente"));
 
   const unsub = onSnapshot(q, async (snapshot) => {
+    // Usamos un Batch para escribir todo junto y evitar múltiples disparos en bucle
+    const batch = writeBatch(db);
+    let huboCambios = false;
+
     for (const cambio of snapshot.docChanges()) {
       if (cambio.type === "added") {
+        huboCambios = true;
         const dataRockola = cambio.doc.data();
-        const mesaRockola = dataRockola.mesa; // Ej: "4"
-        const totalCreditos = dataRockola.total; // Ej: 20
-        const detalleCreditos = dataRockola.detalle; // Ej: "1x Créditos de Rockola ($20)"
+        const mesaRockola = String(dataRockola.mesa); 
+        const totalCreditos = Number(dataRockola.total) || 0; 
+        const detalleCreditos = dataRockola.detalle; 
+        const rockolaDocId = cambio.doc.id;
 
-        // 1. Buscamos la comanda activa de esa mesa en 'pedidos'
-        const pedidoActivo = pedidosBarra.find(p => String(p.mesa) === String(mesaRockola));
+        // Buscamos el pedido activo usando el snapshot actual en tiempo real de Firestore (db)
+        // para evitar depender del estado 'pedidosBarra' de React
+        const pedidoActivo = pedidosBarra.find(p => String(p.mesa) === mesaRockola);
 
         if (pedidoActivo) {
+          // 1. Si la mesa ya tiene cuenta, le sumamos los créditos al pedido existente
           const pedidoRef = doc(db, "pedidos", pedidoActivo.id);
-          // ... dentro del if (!pedidoActivo)
-const nuevoPedidoRef = doc(collection(db, "pedidos"));
-await setDoc(nuevoPedidoRef, {
-  mesa: mesaRockola,
-  detalle: detalleCreditos,
-  total: totalCreditos,
-  estado: "pendiente",
-  fecha: serverTimestamp(),
-  archivado: false,
-  cliente: "Cliente Rockola"
-});
-          // 2. Sumamos los créditos al pedido existente
-          await updateDoc(pedidoRef, {
+          batch.update(pedidoRef, {
             detalle: pedidoActivo.detalle + "\n" + detalleCreditos,
-            total: Number(pedidoActivo.total) + Number(totalCreditos)
+            total: Number(pedidoActivo.total) + totalCreditos
           });
-
-          // 3. Marcamos como procesado en la rockola para que no se repita
-          await deleteDoc(doc(db, "rockola_pendientes", cambio.doc.id));
-          
-          console.log(`🎵 Rockola: Créditos añadidos a Mesa ${mesaRockola}`);
+          console.log(`🎵 Rockola: Créditos sumados a Mesa ${mesaRockola}`);
+        } else {
+          // 2. Si la mesa NO tiene cuenta abierta, creamos una NUEVA comanda única
+          const nuevoPedidoRef = doc(collection(db, "pedidos"));
+          batch.set(nuevoPedidoRef, {
+            mesa: mesaRockola,
+            detalle: detalleCreditos,
+            total: totalCreditos,
+            estado: "pendiente",
+            fecha: serverTimestamp(),
+            archivado: false,
+            cliente: "Cliente Rockola"
+          });
+          console.log(`🎵 Rockola: Comanda nueva creada para Mesa ${mesaRockola}`);
         }
+
+        // 3. Eliminamos INMEDIATAMENTE el pendiente de la rockola en el mismo proceso batch
+        // para que otra ejecución no lo vuelva a leer como duplicado
+        const rockolaRef = doc(db, "rockola_pendientes", rockolaDocId);
+        batch.delete(rockolaRef);
+      }
+    }
+
+    // Si procesamos créditos, ejecutamos la escritura única en Firebase
+    if (huboCambios) {
+      try {
+        await batch.commit();
+      } catch (error) {
+        console.error("Error al procesar lote de rockola:", error);
       }
     }
   });
 
   return () => unsub();
-}, [pedidosBarra]); // Se ejecuta cuando la lista de pedidos cambia
+}, []); // ⚡ IMPORTANTE: Arreglo vacío. Solo se monta UNA vez al arrancar la app.
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const mesaId = params.get("mesa");
-    if (mesaId) setMesa(mesaId);
-    if (params.get("view") === 'barra') setView('barra');
+ useEffect(() => {
+   const params = new URLSearchParams(window.location.search);
+   const mesaId = params.get("mesa");
+   if (mesaId) setMesa(mesaId);
+   if (params.get("view") === 'barra') setView('barra');
 
-    onSnapshot(collection(db, "productos"), (snap) => setProductosMenu(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setPedidosBarra(data);
-      if (mesaId) {
-        const pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
-        if (pedidoMesa && pedidoMesa.pinMesa) {
-            setPinCorrectoMesa(pedidoMesa.pinMesa);
-            const items = pedidoMesa.detalle.split('\n').map(linea => {
-                const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
-                if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
-                return null;
-            }).filter(i => i !== null);
-            setConsumoAcumulado(items);
-        } else { setMesaValidada(true); setConsumoAcumulado([]); }
-      }
-    });
-    onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
-    onSnapshot(query(collection(db, "recordatorios"), orderBy("fecha", "asc")), (snap) => setRecordatorios(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-  }, [mesa]);
+   onSnapshot(collection(db, "productos"), (snap) => setProductosMenu(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+   onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
+     const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+     setPedidosBarra(data);
+     if (mesaId) {
+       const pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
+       if (pedidoMesa && pedidoMesa.pinMesa) {
+           setPinCorrectoMesa(pedidoMesa.pinMesa);
+           const items = pedidoMesa.detalle.split('\n').map(linea => {
+               const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
+               if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
+               return null;
+           }).filter(i => i !== null);
+           setConsumoAcumulado(items);
+       } else { setMesaValidada(true); setConsumoAcumulado([]); }
+     }
+   });
+   onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+   onSnapshot(query(collection(db, "recordatorios"), orderBy("fecha", "asc")), (snap) => setRecordatorios(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+ }, [mesa]);
 
-  const manejarPinMesa = (num) => {
-    if (pinMesaInput.length < 4) {
-      const nuevoPin = pinMesaInput + num;
-      setPinMesaInput(nuevoPin);
-      if (nuevoPin === String(pinCorrectoMesa)) setMesaValidada(true);
-      else if (nuevoPin.length === 4) setTimeout(() => setPinMesaInput(""), 500);
-    }
-  };
+ const manejarPinMesa = (num) => {
+   if (pinMesaInput.length < 4) {
+     const nuevoPin = pinMesaInput + num;
+     setPinMesaInput(nuevoPin);
+     if (nuevoPin === String(pinCorrectoMesa)) setMesaValidada(true);
+     else if (nuevoPin.length === 4) setTimeout(() => setPinMesaInput(""), 500);
+   }
+ };
 
-  const agregarAlCarrito = (item) => {
-    const p = obtenerPrecioItem(item);
-    const itemStock = productosMenu.find(x => x.id === item.id);
-    const ex = carrito.find(x => x.id === item.id);
-    if (itemStock && itemStock.stock <= (ex ? ex.cantidad : 0)) return alert("Sin stock.");
-    if (ex) setCarrito(carrito.map(x => x.id === item.id ? { ...ex, cantidad: ex.cantidad + 1 } : x));
-    else setCarrito([...carrito, { ...item, precio: p, cantidad: 1 }]);
-  };
+ const agregarAlCarrito = (item) => {
+   const p = obtenerPrecioItem(item);
+   const itemStock = productosMenu.find(x => x.id === item.id);
+   const ex = carrito.find(x => x.id === item.id);
+   if (itemStock && itemStock.stock <= (ex ? ex.cantidad : 0)) return alert("Sin stock.");
+   if (ex) setCarrito(carrito.map(x => x.id === item.id ? { ...ex, cantidad: ex.cantidad + 1 } : x));
+   else setCarrito([...carrito, { ...item, precio: p, cantidad: 1 }]);
+ };
 
-  const restarDelCarrito = (id) => {
-    const ex = carrito.find(x => x.id === id);
-    if (!ex) return;
-    if (ex.cantidad === 1) setCarrito(carrito.filter(x => x.id !== id));
-    else setCarrito(carrito.map(x => x.id === id ? { ...ex, cantidad: ex.cantidad - 1 } : x));
-  };
+ const restarDelCarrito = (id) => {
+   const ex = carrito.find(x => x.id === id);
+   if (!ex) return;
+   if (ex.cantidad === 1) setCarrito(carrito.filter(x => x.id !== id));
+   else setCarrito(carrito.map(x => x.id === id ? { ...ex, cantidad: ex.cantidad - 1 } : x));
+ };
 
 const intentarEnviar = () => {
-  if (carrito.length === 0) return;
-
-  // Si hay mesa o el usuario está logueado, intentamos enviar
-  if (mesa || usuarioLogueado) {
-    procesarEnvio(mesa || null);
-  } else {
-    setVerModalTelefono(true);
-  }
+ if (carrito.length === 0) return;
+ if (mesa || usuarioLogueado) {
+   procesarEnvio(mesa || null);
+ } else {
+   setVerModalTelefono(true);
+ }
 };
 
 const procesarEnvio = async (idDestino) => {
-  const batch = writeBatch(db);
-
-  // 1. Lógica de Identificación
-  const telFinal = telefonoUsuarioLogueado || usuarioLogueado?.phoneNumber || telefonoInput || "S/N";
-  const idFinal = idDestino ? idDestino : `TEL:${telFinal}`;
-
-  const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
+ const batch = writeBatch(db);
+ const telFinal = telefonoUsuarioLogueado || usuarioLogueado?.phoneNumber || telefonoInput || "S/N";
+ const idFinal = idDestino ? idDestino : `TEL:${telFinal}`;
+ const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
   
-  try {
-    // Buscamos si ya existe un pedido abierto para esta mesa o teléfono
-    const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
-    
-    if (existente) {
-      // SI YA EXISTE: Mantenemos el PIN que ya tenía y sumamos el nuevo consumo al detalle anterior
-      batch.update(doc(db, "pedidos", existente.id), { 
-        detalle: existente.detalle + "\n" + detalleNuevo, 
-        total: Number(existente.total) + Number(totalCarrito), 
-        fecha: serverTimestamp(),
-        // Mantenemos los datos del cliente/uid actualizados
-        cliente: nombreUsuarioLogueado || existente.cliente || "Cliente",
-        uid: usuarioLogueado?.uid || existente.uid || null
-      });
-    } else {
-      // SI ES NUEVO: Creamos el documento con todos los campos necesarios
-      const nuevoPedidoRef = doc(collection(db, "pedidos"));
-      
-      const datosNuevoPedido = { 
-        mesa: String(idFinal), 
-        detalle: detalleNuevo, 
-        total: Number(totalCarrito), 
-        estado: "pendiente", 
-        fecha: serverTimestamp(), 
-        archivado: false,
-        cliente: nombreUsuarioLogueado || "Cliente",
-        telefono: telFinal,
-        uid: usuarioLogueado?.uid || null 
-      };
+ try {
+   const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
+   if (existente) {
+     batch.update(doc(db, "pedidos", existente.id), { 
+       detalle: existente.detalle + "\n" + detalleNuevo, 
+       total: Number(existente.total) + Number(totalCarrito), 
+       fecha: serverTimestamp(),
+       cliente: nombreUsuarioLogueado || existente.cliente || "Cliente",
+       uid: usuarioLogueado?.uid || existente.uid || null
+     });
+   } else {
+     const nuevoPedidoRef = doc(collection(db, "pedidos"));
+     const datosNuevoPedido = { 
+       mesa: String(idFinal), 
+       detalle: detalleNuevo, 
+       total: Number(totalCarrito), 
+       estado: "pendiente", 
+       fecha: serverTimestamp(), 
+       archivado: false,
+       cliente: nombreUsuarioLogueado || "Cliente",
+       telefono: telFinal,
+       uid: usuarioLogueado?.uid || null 
+     };
 
-      // RESTAURADO: Si es una mesa física (bar), le asignamos su PIN de seguridad
-      if (idDestino && !String(idDestino).startsWith("TEL:")) {
-        datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
-      }
-
-      batch.set(nuevoPedidoRef, datosNuevoPedido);
-    }
-    
-    await batch.commit();
-    
-    // Limpieza de estados
-    setView('success'); 
-    setCarrito([]); 
-    setVerCarrito(false); 
-    setVerModalTelefono(false);
-
-  } catch (e) { 
-    console.error("Error en Firebase:", e);
-    alert("Error al procesar el pedido.");
-  }
+     if (idDestino && !String(idDestino).startsWith("TEL:")) {
+       datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
+     }
+     batch.set(nuevoPedidoRef, datosNuevoPedido);
+   }
+   await batch.commit();
+   setView('success'); 
+   setCarrito([]); 
+   setVerCarrito(false); 
+   setVerModalTelefono(false);
+ } catch (e) { 
+   console.error("Error en Firebase:", e);
+   alert("Error al procesar el pedido.");
+ }
 };
 
-
-
- const cobrarCuenta = async (p) => {
-    await addDoc(collection(db, "historial_tickets"), { 
-        mesa: p.mesa, 
-        detalle: p.detalle, 
-        total: Number(p.total), // <--- FORZAMOS A NÚMERO AQUÍ
-        fecha: serverTimestamp(), 
-        archivado: false,
-        cliente: p.cliente || "Cliente General",
-        telefono: p.telefono || "N/A",
-        uid: p.uidCliente || null
-    });
-
-    await deleteDoc(doc(db, "pedidos", p.id));
-    setTicketParaReimprimir(p);
+const cobrarCuenta = async (p) => {
+   await addDoc(collection(db, "historial_tickets"), { 
+       mesa: p.mesa, 
+       detalle: p.detalle, 
+       total: Number(p.total), 
+       fecha: serverTimestamp(), 
+       archivado: false,
+       cliente: p.cliente || "Cliente General",
+       telefono: p.telefono || "N/A",
+       uid: p.uidCliente || null
+   });
+   await deleteDoc(doc(db, "pedidos", p.id));
+   setTicketParaReimprimir(p);
 };
+
 useEffect(() => {
-  // Consulta que trae TODO lo cobrado hoy (mesas y externos)
-  const q = query(
-    collection(db, "historial_tickets"),
-    where("archivado", "==", false)
-    // Puedes agregar un filtro de fecha aquí si ya lo tienes
-  );
-
-  const unsub = onSnapshot(q, (snapshot) => {
-    const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setHistorialHoy(docs);
-  });
-
-  return () => unsub();
+ const q = query(collection(db, "historial_tickets"), where("archivado", "==", false));
+ const unsub = onSnapshot(q, (snapshot) => {
+   const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+   setHistorialHoy(docs);
+ });
+ return () => unsub();
 }, []);
 
-// EL CÁLCULO: Asegúrate de convertir a Number para evitar errores de suma
 const ingresosDelDia = historialHoy.reduce((acc, t) => acc + (Number(t.total) || 0), 0);
-  const eliminarArticuloComanda = async (p, idx) => {
-    const lineas = p.detalle.split('\n');
-    const match = lineas[idx].match(/(\d+)x (.*?) \(\$(\d+)\)/);
-    if (match) {
-      const batch = writeBatch(db);
-      const nombreLimpio = match[2].trim();
-      const prodEnc = productosMenu.find(pr => pr.nombre.trim() === nombreLimpio);
-      if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(match[1])) });
-      const nuevasLineas = lineas.filter((_, i) => i !== idx);
-      if (nuevasLineas.length === 0) batch.delete(doc(db, "pedidos", p.id));
-      else batch.update(doc(db, "pedidos", p.id), { detalle: nuevasLineas.join('\n'), total: Math.max(0, Number(p.total) - Number(match[3]))});
-      await batch.commit();
-    }
-  };
 
-  const realizarCierreTurno = async () => {
-    if (window.confirm(`¿Cerrar con $${totalCajaHoy}?`)) {
-      const batch = writeBatch(db);
-      historialCerrado.forEach(t => { if (!t.archivado) batch.update(doc(db, "historial_tickets", t.id), { archivado: true }); });
-      await batch.commit();
-    }
-  };
+const eliminarArticuloComanda = async (p, idx) => {
+   const lineas = p.detalle.split('\n');
+   const match = lineas[idx].match(/(\d+)x (.*?) \(\$(\d+)\)/);
+   if (match) {
+     const batch = writeBatch(db);
+     const nombreLimpio = match[2].trim();
+     const prodEnc = productosMenu.find(pr => pr.nombre.trim() === nombreLimpio);
+     if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(match[1])) });
+     const nuevasLineas = lineas.filter((_, i) => i !== idx);
+     if (nuevasLineas.length === 0) batch.delete(doc(db, "pedidos", p.id));
+     else batch.update(doc(db, "pedidos", p.id), { detalle: nuevasLineas.join('\n'), total: Math.max(0, Number(p.total) - Number(match[3]))});
+     await batch.commit();
+   }
+};
 
-  const guardarEvento = async (e) => {
-    e.preventDefault();
-    await addDoc(collection(db, "recordatorios"), { ...nuevoEvento, enviado: false, createdAt: serverTimestamp() });
-    setVerModalNuevoEvento(false);
-    setNuevoEvento({ titulo: "", fecha: "", hora: "" });
-  };
+const realizarCierreTurno = async () => {
+   if (window.confirm(`¿Cerrar con $${totalCajaHoy}?`)) {
+     const batch = writeBatch(db);
+     historialCerrado.forEach(t => { if (!t.archivado) batch.update(doc(db, "historial_tickets", t.id), { archivado: true }); });
+     await batch.commit();
+   }
+};
+
+const guardarEvento = async (e) => {
+   e.preventDefault();
+   await addDoc(collection(db, "recordatorios"), { ...nuevoEvento, enviado: false, createdAt: serverTimestamp() });
+   setVerModalNuevoEvento(false);
+   setNuevoEvento({ titulo: "", fecha: "", hora: "" });
+ };
 
 if (view === 'success') return (
-  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center text-white font-sans">
-    <CheckCircle size={80} className="text-green-500 mb-6 animate-bounce" />
-    <h1 className="text-4xl font-black italic mb-4 uppercase tracking-tighter">¡PEDIDO RECIBIDO!</h1>
-    
-    {!mesa && (
-      <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 mb-8 max-w-sm">
-        <p className="text-orange-500 font-black uppercase text-[10px] tracking-widest mb-4">Instrucciones de Pago</p>
-        <pre className="text-xs text-slate-300 font-sans whitespace-pre-wrap leading-relaxed">
-          {DATOS_PAGO}
-        </pre>
-      </div>
-    )}
-
-    <button onClick={() => setView('menu')} className="text-orange-500 font-bold border-b border-orange-500 uppercase tracking-widest">Seguir Consumiendo</button>
-  </div>
+ <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center text-white font-sans">
+   <CheckCircle size={80} className="text-green-500 mb-6 animate-bounce" />
+   <h1 className="text-4xl font-black italic mb-4 uppercase tracking-tighter">¡PEDIDO RECIBIDO!</h1>
+   {!mesa && (
+     <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 mb-8 max-w-sm">
+       <p className="text-orange-500 font-black uppercase text-[10px] tracking-widest mb-4">Instrucciones de Pago</p>
+       <pre className="text-xs text-slate-300 font-sans whitespace-pre-wrap leading-relaxed">{DATOS_PAGO}</pre>
+     </div>
+   )}
+   <button onClick={() => setView('menu')} className="text-orange-500 font-bold border-b border-orange-500 uppercase tracking-widest">Seguir Consumiendo</button>
+ </div>
 );
+
 if (view === 'mis_pedidos') {
-  return (
-    <div className="min-h-screen bg-black p-6 font-sans text-white">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-2xl font-black italic uppercase tracking-tighter">Mis Órdenes</h2>
-        <button onClick={() => setView('menu')} className="bg-slate-800 p-2 rounded-full"><X size={20}/></button>
-      </div>
-
-      <div className="space-y-4">
-        {mispedidos.length === 0 ? (
-          <p className="text-gray-500 text-center text-xs uppercase tracking-widest mt-20">No tienes pedidos activos</p>
-        ) : (
-          mispedidos.map((p) => (
-            <div key={p.id} className="bg-[#0f172a] border border-gray-800 p-5 rounded-[30px]">
-              <div className="flex justify-between items-start mb-3">
-                <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">
-                  {p.mesa.includes('TEL') ? 'Para Llevar' : `Mesa ${p.mesa}`}
-                </span>
-                <span className={`text-[9px] font-bold px-3 py-1 rounded-full uppercase ${
-                  p.estado === 'pendiente' ? 'bg-amber-500/10 text-amber-500' : 
-                  p.estado === 'preparando' ? 'bg-sky-500/10 text-sky-500' : 'bg-green-500/10 text-green-500'
-                }`}>
-                  {p.estado}
-                </span>
-              </div>
-              <p className="text-[11px] text-gray-400 whitespace-pre-line mb-3">{p.detalle}</p>
-              <div className="border-t border-gray-800 pt-3 flex justify-between items-center">
-                <span className="text-xs font-bold text-gray-500 italic">Total</span>
-                <span className="text-lg font-black text-white">${p.total}</span>
-                {/* Dentro del map de mispedidos, debajo del total */}
-{p.mesa.includes('TEL') && p.estado !== 'entregado' && (
-  <button 
-    onClick={() => informarPago(p.id)}
-    className={`w-full mt-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
-      p.pagoInformado 
-        ? 'bg-green-500/20 text-green-500 border border-green-500/50' 
-        : 'bg-blue-600 text-white animate-pulse'
-    }`}
-    disabled={p.pagoInformado}
-  >
-    {p.pagoInformado ? 'Pago en Verificación' : 'Ya deposité / Informar Pago'}
-  </button>
-)}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
+ return (
+   <div className="min-h-screen bg-black p-6 font-sans text-white">
+     <div className="flex justify-between items-center mb-8">
+       <h2 className="text-2xl font-black italic uppercase tracking-tighter">Mis Órdenes</h2>
+       <button onClick={() => setView('menu')} className="bg-slate-800 p-2 rounded-full"><X size={20}/></button>
+     </div>
+     <div className="space-y-4">
+       {mispedidos.length === 0 ? (
+         <p className="text-gray-500 text-center text-xs uppercase tracking-widest mt-20">No tienes pedidos activos</p>
+       ) : (
+         mispedidos.map((p) => (
+           <div key={p.id} className="bg-[#0f172a] border border-gray-800 p-5 rounded-[30px]">
+             <div className="flex justify-between items-start mb-3">
+               <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">{p.mesa.includes('TEL') ? 'Para Llevar' : `Mesa ${p.mesa}`}</span>
+               <span className={`text-[9px] font-bold px-3 py-1 rounded-full uppercase ${p.estado === 'pendiente' ? 'bg-amber-500/10 text-amber-500' : p.estado === 'preparando' ? 'bg-sky-500/10 text-sky-500' : 'bg-green-500/10 text-green-500'}`}>{p.estado}</span>
+             </div>
+             <p className="text-[11px] text-gray-400 whitespace-pre-line mb-3">{p.detalle}</p>
+             <div className="border-t border-gray-800 pt-3 flex justify-between items-center">
+               <span className="text-xs font-bold text-gray-500 italic">Total</span>
+               <span className="text-lg font-black text-white">${p.total}</span>
+               {p.mesa.includes('TEL') && p.estado !== 'entregado' && (
+                 <button onClick={() => informarPago(p.id)} className={`w-full mt-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${p.pagoInformado ? 'bg-green-500/20 text-green-500 border border-green-500/50' : 'bg-blue-600 text-white animate-pulse'}`} disabled={p.pagoInformado}>{p.pagoInformado ? 'Pago en Verificación' : 'Ya deposité / Informar Pago'}</button>
+               )}
+             </div>
+           </div>
+         ))
+       )}
+     </div>
+   </div>
+ );
 }
-  if (mesa && !mesaValidada && pinCorrectoMesa) return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
-      <Lock size={48} className="text-orange-600 mb-6 animate-pulse" />
-      <h2 className="text-2xl font-black italic uppercase text-center tracking-tighter">Mesa con Cuenta Abierta</h2>
-      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-8">Ingresa el PIN de seguridad</p>
-      <div className="flex gap-4 mb-12">
-        {[1, 2, 3, 4].map((dot) => (
-          <div key={dot} className={`w-4 h-4 rounded-full border-2 border-orange-600 transition-all ${pinMesaInput.length >= dot ? 'bg-orange-600 shadow-lg shadow-orange-600/40' : 'bg-transparent'}`} />
-        ))}
-      </div>
-      <div className="grid grid-cols-3 gap-4 max-w-[280px]">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-          <button key={n} onClick={() => manejarPinMesa(n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90 transition-all">{n}</button>
-        ))}
-        <div />
-        <button onClick={() => manejarPinMesa(0)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">0</button>
-      </div>
-    </div>
-  );
 
-  if (view === 'barra' && !isAdmin) return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
-      <div className="mb-8 text-center"><Zap size={32} className="text-orange-600 mx-auto mb-4" /><h2 className="text-2xl font-black italic uppercase tracking-tighter leading-none">Acceso Barra</h2></div>
-      <div className="flex gap-4 mb-12">{[1, 2, 3, 4].map((dot) => (<div key={dot} className={`w-4 h-4 rounded-full border-2 border-orange-600 transition-all ${pinInput.length >= dot ? 'bg-orange-600' : 'bg-transparent'}`} />))}</div>
-      <div className="grid grid-cols-3 gap-4 max-w-[280px]">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => <button key={n} onClick={() => { const nuevo = pinInput + n; setPinInput(nuevo); if(nuevo === PIN_ADMIN) setIsAdmin(true); else if(nuevo.length === 4) setPinInput(""); }} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90 transition-all">{n}</button>)}<div /><button onClick={() => { const nuevo = pinInput + "0"; setPinInput(nuevo); if(nuevo === PIN_ADMIN) setIsAdmin(true); else if(nuevo.length === 4) setPinInput(""); }} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90 transition-all">0</button><button onClick={() => setView('welcome')} className="w-16 h-16 rounded-full flex items-center justify-center text-slate-500 hover:text-white transition-colors"><X size={24} /></button></div>
-    </div>
-  );
+if (view === 'login_staff') {
+ return (
+   <div className="min-h-screen bg-[#05070a] flex items-center justify-center p-4 text-white font-sans relative overflow-hidden">
+     <div className="absolute top-[-10%] left-[-10%] w-[300px] h-[300px] bg-orange-600/10 rounded-full blur-[120px]"></div>
+     <div className="absolute bottom-[-10%] right-[-10%] w-[300px] h-[300px] bg-sky-500/10 rounded-full blur-[120px]"></div>
+     <div className="bg-[#0c111a] border border-slate-800/80 p-8 rounded-[24px] w-full max-w-md shadow-2xl relative z-10 backend-card">
+       <div className="text-center mb-8">
+         <h2 className="text-4xl font-black text-orange-600 italic uppercase tracking-tighter leading-none mb-2">TRIBU'S STAFF</h2>
+         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Control de Áreas y Comandas</p>
+       </div>
+       <form onSubmit={async (e) => {
+         e.preventDefault();
+         const email = e.target.email.value;
+         const password = e.target.password.value;
+         try {
+           const credenciales = await signInWithEmailAndPassword(auth, email, password);
+           if (credenciales.user.email === 'baja@tribus.com') setAreaStaff('PLANTA BAJA');
+           else if (credenciales.user.email === 'terraza@tribus.com') setAreaStaff('TERRAZA');
+           else setAreaStaff('TODOS');
+           setView('barra');
+         } catch (error) {
+           alert("Acceso denegado: Verifica el correo o la contraseña del staff.");
+         }
+       }} className="space-y-5">
+         <div>
+           <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-2">Correo del Encargado</label>
+           <input type="email" name="email" required className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-3.5 text-white outline-none focus:border-orange-600 transition-all text-sm font-medium" placeholder="ej: baja@tribus.com" />
+         </div>
+         <div>
+           <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-2">Contraseña</label>
+           <input type="password" name="password" required className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-3.5 text-white outline-none focus:border-orange-600 transition-all text-sm tracking-widest" placeholder="••••••••" />
+         </div>
+         <button type="submit" className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-[11px] transition-all shadow-lg mt-4">Ingresar a Sistema</button>
+       </form>
+       <button onClick={() => setView('welcome')} className="w-full text-center text-[10px] font-bold text-slate-500 hover:text-slate-400 transition-colors mt-6 uppercase tracking-wider">Volver al Menú</button>
+     </div>
+   </div>
+ );
+}
 
-  if (view === 'barra') {
-    const subcatsExistentes = Array.from(new Set(productosMenu.map(p => p.subcategoria).filter(s => s && s !== "")));
-    return (
-      <div className="min-h-screen bg-[#05070a] p-4 md:p-6 text-white flex flex-col font-sans">
-        <style>{estilosImpresion}</style>
-      <header className="flex flex-col mb-6 border-b border-slate-800 pb-6 gap-4 no-print">
-  {/* Fila Superior: Título y Status */}
-  <div className="flex justify-between items-center w-full">
-    <h1 className="text-3xl md:text-4xl font-black text-orange-600 italic uppercase tracking-tighter leading-none">
-      TRIBU'S BARRA
-    </h1>
-    <div className="bg-slate-900 px-3 py-1 rounded-xl text-green-500 text-[10px] font-bold animate-pulse uppercase tracking-widest border border-green-500/10">
-      ● En Vivo
-    </div>
-  </div>
+ if (mesa && !mesaValidada && pinCorrectoMesa) return (
+   <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
+     <Lock size={48} className="text-orange-600 mb-6 animate-pulse" />
+     <h2 className="text-2xl font-black italic uppercase text-center tracking-tighter">Mesa con Cuenta Abierta</h2>
+     <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-8">Ingresa el PIN de seguridad</p>
+     <div className="flex gap-4 mb-12">
+       {[1, 2, 3, 4].map((dot) => (
+         <div key={dot} className={`w-4 h-4 rounded-full border-2 border-orange-600 transition-all ${pinMesaInput.length >= dot ? 'bg-orange-600 shadow-lg shadow-orange-600/40' : 'bg-transparent'}`} />
+       ))}
+     </div>
+     <div className="grid grid-cols-3 gap-4 max-w-[280px]">
+       {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+         <button key={n} onClick={() => manejarPinMesa(n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90 transition-all">{n}</button>
+       ))}
+       <div />
+       <button onClick={() => manejarPinMesa(0)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">0</button>
+     </div>
+   </div>
+ );
 
-  {/* Fila Media: Navegación con Scroll Horizontal (Solución al desplazamiento lateral) */}
-  <div className="w-full overflow-x-auto no-scrollbar flex gap-3 pb-2">
-    <button onClick={() => setTabBarra('comandas')} className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-[10px] transition-all ${tabBarra === 'comandas' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>
-      <LayoutDashboard size={14}/> Comandas
-    </button>
-    <button onClick={() => setTabBarra('inventario')} className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-[10px] transition-all ${tabBarra === 'inventario' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>
-      <Boxes size={14}/> Inventario
-    </button>
-    <button onClick={() => setTabBarra('eventos')} className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-[10px] transition-all ${tabBarra === 'eventos' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>
-      <Calendar size={14}/> Eventos
-    </button>
-  </div>
 
-  {/* Fila Inferior: Botones de Acción (Se adaptan al ancho disponible) */}
-  <div className="flex flex-wrap items-center gap-3">
-    {tabBarra === 'inventario' && (
-      <button onClick={() => setVerModalNuevoProd(true)} className="flex-1 md:flex-none justify-center bg-green-600 hover:bg-green-500 text-white px-4 py-3 rounded-xl font-black uppercase text-[10px] flex items-center gap-2 transition-all shadow-lg">
-        <PlusCircle size={16}/>Producto
-      </button>
-    )}
-    {tabBarra === 'eventos' && (
-      <button onClick={() => setVerModalNuevoEvento(true)} className="flex-1 md:flex-none justify-center bg-orange-600 hover:bg-orange-500 text-white px-4 py-3 rounded-xl font-black uppercase text-[10px] flex items-center gap-2 transition-all shadow-lg">
-        <PlusCircle size={16}/> Agendar
-      </button>
-    )}
-  </div>
-</header>
 
-        <div className="flex flex-col lg:flex-row gap-6">
-          {tabBarra === 'comandas' && (
-            <div className="flex-1 no-print">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).map(p => {
-                  const esExterno = String(p.mesa).startsWith("TEL:");
-                  const numTel = esExterno ? p.mesa.replace("TEL:", "") : "";
-                  const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está listo.\n\n*Total a pagar: $${p.total}*\n\n*Detalle del pedido:*\n${p.detalle}\n\n${DATOS_PAGO}`;
-                  return (
-                    <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl relative shadow-xl flex flex-col justify-between group transition-all">
-                      <div className={`absolute top-0 left-0 w-1.5 h-full ${esExterno ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
-                      {/* 1. PEGA EL AVISO AQUÍ (Justo antes del flex de los nombres) */}
-  {p.pagoInformado && (
-    <div className="bg-blue-600 text-white text-[10px] font-black p-3 rounded-xl mb-4 flex items-center justify-center gap-2 animate-pulse shadow-lg shadow-blue-900/40 border border-blue-400/30">
-      <CheckCircle size={14} />
-      PAGO INFORMADO - VERIFICAR CAJA
-    </div>
-  )}
-                      <div><div className="flex justify-between items-start">
-                        
-                          <div className="flex flex-col"><h3 className="text-2xl font-black italic uppercase tracking-tighter leading-none">{esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}</h3>{/* AGREGA ESTE BLOQUE PARA EL NOMBRE */}
-  {p.cliente && (
-    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-      Atendiendo a: <span className="text-orange-500">{p.cliente}</span>
-    </span>
-  )}<span className={`text-[9px] font-black uppercase tracking-widest mt-1 ${obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}`}>{obtenerPlanta(p.mesa)}</span></div>
-                          <div className="flex gap-2">
-                            <button onClick={() => moverMesa(p)} className="p-1 text-slate-500 hover:text-sky-400 transition-colors" title="Mover Mesa"><ExternalLink size={18}/></button>
-                            <button onClick={async () => { 
-                              if(window.confirm("¿Cancelar pedido? El stock regresará.")) { 
-                                const batch = writeBatch(db); 
-                                p.detalle.split('\n').forEach(linea => { 
-                                  const m = linea.match(/(\d+)x (.*) \(\$/); 
-                                  if (m) { 
-                                    const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
-                                    if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
-                                  } 
-                                }); 
-                                batch.delete(doc(db, "pedidos", p.id)); 
-                                await batch.commit(); 
-                              } 
-                            }} className="p-1 text-slate-700 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
-                          </div>
-                      </div>
-                      {p.pinMesa && (
-                        <div className="bg-orange-600/10 border border-orange-600/20 rounded-lg p-2 mt-3 flex justify-between items-center">
-                          <span className="text-[10px] font-black uppercase text-orange-500 tracking-widest">PIN SEGURIDAD:</span>
-                          <span className="text-xl font-black text-white">{p.pinMesa}</span>
-                        </div>
-                      )}
-                      <div className="mt-4 space-y-1">
-  {p.detalle.split('\n').map((linea, idx) => {
-    // Verificamos si la línea es un producto (empieza con un número)
-    const esProducto = /^\d+x/.test(linea.trim());
-
-    return (
-      <div key={idx} className="group/item flex justify-between items-center bg-black/20 p-2 rounded-lg border border-white/5">
-        <span className={`text-lg leading-tight ${!esProducto ? 'text-orange-500 font-bold text-xs' : 'text-slate-300'}`}>
-          {linea}
-        </span>
-        
-        {/* Solo mostramos el botón de borrar si es un producto real */}
-        {esProducto && (
-          <button 
-            onClick={() => eliminarArticuloComanda(p, idx)} 
-            className="opacity-0 group-hover/item:opacity-100 p-1 text-red-500/50 hover:text-red-500 transition-all"
-          >
-            <X size={16}/>
-          </button>
-        )}
-      </div>
-    );
-  })}
-</div>
-                      {esExterno && (
-                        <button onClick={() => window.open(`https://wa.me/${numTel}?text=${encodeURIComponent(mensajeWA)}`, '_blank')} className="flex items-center justify-center gap-2 bg-green-600/10 border border-green-600/20 text-green-500 w-full py-3 rounded-xl font-black uppercase text-xs mt-4 hover:bg-green-600 hover:text-white transition-all"><Phone size={14}/> Enviar Datos Bancarios</button>
-                      )}
-                      </div>
-                      <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-4 rounded-xl font-black text-lg mt-6 active:scale-95 uppercase tracking-tighter shadow-lg">Cobrar ${p.total}</button></div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {tabBarra === 'inventario' && (
-            <div className="flex-1 no-print space-y-8">
-              <div><h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2"><div className="w-2 h-2 bg-orange-500 rounded-full"></div> HIELERA PLANTA BAJA</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {productosMenu.filter(p => p.ubicacion === "PLANTA BAJA" || !p.ubicacion || p.ubicacion === "HIELERA BAJA").map(prod => (
-                    <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
-                      <div className="flex justify-between items-start mb-4"><div className="flex gap-3"><div className="w-16 h-16 rounded-xl border border-slate-800 bg-slate-900 flex-shrink-0 overflow-hidden"><img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/></div><div><h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4><p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p></div></div><div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div></div>
-                      <div className="grid grid-cols-2 gap-2 mt-auto"><button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button><button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
-                      <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button></div></div>
-                  ))}
-                </div>
-              </div>
-              <div><h2 className="text-sky-400 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2"><div className="w-2 h-2 bg-sky-400 rounded-full"></div> HIELERA TERRAZA</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {productosMenu.filter(p => p.ubicacion === "TERRAZA").map(prod => (
-                    <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
-                      <div className="flex justify-between items-start mb-4"><div className="flex gap-3"><div className="w-16 h-16 rounded-xl border border-slate-800 bg-slate-900 flex-shrink-0 overflow-hidden"><img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/></div><div><h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4><p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p></div></div><div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div></div>
-                      <div className="grid grid-cols-2 gap-2 mt-auto"><button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button><button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
-                      <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button></div></div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {tabBarra === 'eventos' && (
-            <div className="flex-1 no-print p-4">
-              <div className="grid gap-4">{recordatorios.map(rec => (<div key={rec.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl flex justify-between items-center shadow-xl"><div><p className="text-white font-bold uppercase tracking-tight">{rec.titulo}</p><p className="text-orange-500 text-[10px] font-black mt-1 uppercase tracking-widest">{rec.fecha} | {rec.hora} HRS</p></div><button onClick={() => deleteDoc(doc(db, "recordatorios", rec.id))} className="text-red-500/30 hover:text-red-500 transition-colors"><Trash2 size={20}/></button></div>))}</div>
-            </div>
-          )}
-
-          <div className="w-full lg:w-[350px] space-y-4 no-print">
-            <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 shadow-xl"><div className="relative"><Search className="absolute left-3 top-2.5 text-slate-600" size={16}/><input type="text" placeholder="Mesa, Tel o Fecha" value={filtroMesa} onChange={(e) => setFiltroMesa(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl pl-10 py-2 text-sm text-white focus:border-orange-500 font-bold shadow-inner" /></div></div>
-            <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-orange-900/10 shadow-2xl">
-              <div className="flex justify-between items-center mb-4"><h2 className="text-lg font-black text-orange-600 uppercase italic flex items-center gap-2"><ReceiptText size={20}/> Caja Hoy</h2><button onClick={realizarCierreTurno} className="text-[9px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-lg uppercase hover:bg-red-600 transition-all">Cierre</button></div>
-              <div className="space-y-3 max-h-[550px] overflow-y-auto no-scrollbar mb-4">
-                {historialFiltradoParaCaja.map((hc) => (
-                    <div key={hc.id} onClick={() => setTicketParaReimprimir(hc)} className="group p-3 bg-[#05070a] rounded-xl border border-slate-700 flex items-center justify-between hover:border-orange-500 transition-all shadow-sm cursor-pointer"><div className="flex-1"><div className="flex justify-between font-black text-[11px] uppercase tracking-tighter"><span className="text-slate-400">Mesa {hc.mesa} - {obtenerPlanta(hc.mesa)}</span><span className="text-green-500">${hc.total}</span></div><div className="flex justify-between items-center mt-1"><p className="text-[8px] text-slate-500 uppercase font-bold">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) : 'Reciente'}</p><p className="text-[11px] text-slate-400 font-black uppercase italic tracking-tighter">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleDateString('es-MX') : ''}</p></div></div><button onClick={(e) => { e.stopPropagation(); if(window.confirm("¿Borrar?")) deleteDoc(doc(db, "historial_tickets", hc.id)); }} className="ml-2 p-1.5 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={14}/></button></div>
-                  ))}
-              </div>
-              <div className="pt-3 border-t border-slate-800 flex justify-between font-black"><span className="text-slate-500 text-[10px] uppercase italic tracking-widest">Total:</span><span className="text-2xl text-green-500 tracking-tighter">${totalCajaHoy}</span></div></div>
-          </div>
-        </div>
-
-        {/* --- MODAL NUEVO PROD (CONECTADO) --- */}
-        {verModalNuevoProd && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-[420px] rounded-[2.5rem] p-8 shadow-2xl relative">
-              <button onClick={() => { setVerModalNuevoProd(false); setEsNuevaSub(false); }} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"><X/></button>
-              <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><PlusCircle/> Agregar Producto</h2>
-              
-              <form onSubmit={async (e) => { 
-                  e.preventDefault(); 
-                  const batch = writeBatch(db);
-                  
-                  if (nuevoProd.stockBaja > 0) {
-                    const refBaja = doc(collection(db, "productos"));
-                    batch.set(refBaja, {
-                      nombre: nuevoProd.nombre,
-                      stock: Number(nuevoProd.stockBaja),
-                      ubicacion: "PLANTA BAJA",
-                      precioMesa: Number(nuevoProd.precioMesa),
-                      precioDomicilio: Number(nuevoProd.precioDomicilio),
-                      categoria: nuevoProd.categoria,
-                      subcategoria: nuevoProd.subcategoria,
-                      imagen: nuevoProd.imagen
-                    });
-                  }
-
-                  if (nuevoProd.stockTerraza > 0) {
-                    const refTerraza = doc(collection(db, "productos"));
-                    batch.set(refTerraza, {
-                      nombre: nuevoProd.nombre,
-                      stock: Number(nuevoProd.stockTerraza),
-                      ubicacion: "TERRAZA",
-                      precioMesa: Number(nuevoProd.precioMesa),
-                      precioDomicilio: Number(nuevoProd.precioDomicilio),
-                      categoria: nuevoProd.categoria,
-                      subcategoria: nuevoProd.subcategoria,
-                      imagen: nuevoProd.imagen
-                    });
-                  }
-
-                  await batch.commit();
-                  setVerModalNuevoProd(false);
-                  setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", categoria: "Cerveza", subcategoria: "", imagen: "" });
-                }} className="space-y-4">
-                
-                <input required placeholder="Nombre del Producto" value={nuevoProd.nombre} onChange={e => setNuevoProd({...nuevoProd, nombre: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <input required type="number" placeholder="Precio Mesa" value={nuevoProd.precioMesa} onChange={e => setNuevoProd({...nuevoProd, precioMesa: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
-                  <input required type="number" placeholder="Precio Domicilio" value={nuevoProd.precioDomicilio} onChange={e => setNuevoProd({...nuevoProd, precioDomicilio: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-2xl border border-white/5">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-orange-500 uppercase px-1">Stock P. Baja</label>
-                    <input type="number" placeholder="0" value={nuevoProd.stockBaja} onChange={e => setNuevoProd({...nuevoProd, stockBaja: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white focus:border-orange-500" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-sky-400 uppercase px-1">Stock Terraza</label>
-                    <input type="number" placeholder="0" value={nuevoProd.stockTerraza} onChange={e => setNuevoProd({...nuevoProd, stockTerraza: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white focus:border-sky-500" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase ml-2 flex items-center gap-1"><Tag size={12}/> Categoría y Subcategoría</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <select value={nuevoProd.categoria} onChange={e => setNuevoProd({...nuevoProd, categoria: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner">
-                      {CATEGORIAS.filter(c => c !== "Todos").map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <input placeholder="Subcat (Media, etc)" value={nuevoProd.subcategoria} onChange={e => setNuevoProd({...nuevoProd, subcategoria: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white" />
-                  </div>
-                </div>
-
-                <input placeholder="URL Imagen" value={nuevoProd.imagen} onChange={e => setNuevoProd({...nuevoProd, imagen: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
-                
-                <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95 transition-all">Crear Producto(s)</button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL NUEVO EVENTO */}
-        {verModalNuevoEvento && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-[350px] rounded-[2.5rem] p-8 shadow-2xl relative">
-              <button onClick={() => setVerModalNuevoEvento(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white"><X/></button>
-              <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><Calendar/> Nuevo Evento</h2>
-              <form onSubmit={guardarEvento} className="space-y-4">
-                <input required placeholder="Título" value={nuevoEvento.titulo} onChange={e => setNuevoEvento({...nuevoEvento, titulo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
-                <input required type="date" value={nuevoEvento.fecha} onChange={e => setNuevoEvento({...nuevoEvento, fecha: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
-                <input required type="time" value={nuevoEvento.hora} onChange={e => setNuevoEvento({...nuevoEvento, hora: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
-                <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95">Guardar</button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* --- MODAL TICKET --- */}
-        {ticketParaReimprimir && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
-            <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-orange-600 print:border-none">
-              <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
-
-              <div className="text-center mb-6">
-                <h2 className="font-black text-3xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Nota de Venta</p>
-                <div className="border-y-2 border-black py-2 my-2 space-y-1">
-                  <div className="flex justify-between text-[11px] font-bold">
-                    <span>MESA:</span>
-                    <span className="bg-black text-white px-2 uppercase">{ticketParaReimprimir.mesa.replace("TEL:", "EXT-")}</span>
-                  </div>
-                  <div className="flex justify-between text-[9px] text-gray-600">
-                    <span>FECHA:</span>
-                    <span>{ticketParaReimprimir.fecha?.seconds ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : new Date().toLocaleString('es-MX')}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-[11px] mb-6">
-                <div className="flex justify-between font-black border-b border-black pb-1 mb-2">
-                  <span>DESCRIPCIÓN</span>
-                  <span>IMPORTE</span>
-                </div>
-                <div className="space-y-3 whitespace-pre-line leading-tight italic">
-                  {ticketParaReimprimir.detalle}
-                </div>
-              </div>
-
-              <div className="border-t-4 border-double border-black pt-4 mb-8">
-                <div className="flex justify-between items-end">
-                  <span className="font-bold text-sm">TOTAL:</span>
-                  <span className="font-black text-4xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
-                </div>
-              </div>
-              
-              <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors">
-                <Printer size={20}/> CONFIRMAR IMPRESIÓN
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-// 1. SI LA VISTA ES WELCOME
-  if (view === 'welcome') {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden font-sans">
-        {/* Imagen de fondo */}
-        <div className="absolute inset-0 opacity-40">
-          <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="fondo" />
-          <div className="absolute inset-0 bg-slate-950/80"></div>
-        </div>
-
-        <div className="relative z-10 space-y-12 w-full max-w-lg">
-          <div className="space-y-4">
-            <div className="flex justify-center items-center gap-2 text-orange-500 animate-pulse">
-              <h1 className="text-7xl font-black italic uppercase leading-none">{nombreBarDinamico}</h1>
-            </div>
-            <div className="space-y-2 uppercase tracking-tight">
-              <h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2>
-              <p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{obtenerPlanta(mesa)}</p>
-            </div>
+if (view === 'barra') {
+ const subcatsExistentes = Array.from(new Set(productosMenu.map(p => p.subcategoria).filter(s => s && s !== "")));
+ return (
+   <div className="min-h-screen bg-[#05070a] p-4 md:p-6 text-white flex flex-col font-sans">
+     <style>{estilosImpresion}</style>
+     <header className="flex flex-col mb-6 border-b border-slate-800 pb-6 gap-4 no-print">
+        {/* Fila Superior: Título, Área Asignada, Status y Salir */}
+        <div className="flex justify-between items-center w-full flex-wrap gap-2">
+          <div className="flex flex-col">
+            <h1 className="text-3xl md:text-4xl font-black text-orange-600 italic uppercase tracking-tighter leading-none">
+              TRIBU'S BARRA
+            </h1>
+            {/* Indicador visual de qué área está viendo el encargado logueado */}
+            <span className="text-[10px] font-black tracking-widest mt-1 uppercase text-slate-400">
+              ZONA: <span className={areaStaff === 'TERRAZA' ? 'text-sky-400' : areaStaff === 'PLANTA BAJA' ? 'text-orange-500' : 'text-green-500'}>
+                {areaStaff === 'TODOS' ? 'Control General (Todo)' : areaStaff}
+              </span>
+            </span>
           </div>
 
-          <div className="grid gap-4">
-            {/* Botón Wi-Fi */}
-            <button 
-              onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} 
-              className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group"
-            >
-              <Wifi className="text-sky-400" size={28} />
-              <div className="text-left font-bold uppercase text-[10px] text-slate-400">
-                <p>Wi-Fi Gratis</p>
-                <p className="text-lg text-white font-black">tribu´s Bar</p>
-              </div>
-            </button>
-
-            {/* Botón Menú Digital */}
-            <button 
-              onClick={() => setView('menu')} 
-              className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 transition-all duration-300 group"
-            >
-              <UtensilsCrossed className="text-white" size={28} />
-              <div className="text-left font-bold uppercase text-[10px] text-orange-200">
-                <p>Menú Digital</p>
-                <p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p>
-              </div>
-            </button>
-
-            {/* Botón de Registro NUEVO */}
-            {!usuarioLogueado ? (
-              <button 
-                onClick={() => setView('registro')} 
-                className="flex items-center gap-5 bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-sm active:scale-95 hover:bg-white/10 hover:border-orange-500/50 transition-all duration-300 group"
+          <div className="flex items-center gap-3">
+            {/* Si eres el Admin (TODOS), te dejamos este selector pequeño para saltar entre áreas manualmente si lo necesitas */}
+            {usuarioLogueado?.email === 'admin@tribus.com' && (
+              <select 
+                value={areaStaff} 
+                onChange={(e) => setAreaStaff(e.target.value)}
+                className="bg-slate-900 border border-slate-800 text-[10px] font-black uppercase rounded-lg px-2 py-1 text-slate-300 outline-none cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-2xl bg-orange-600/20 flex items-center justify-center group-hover:bg-orange-600 transition-colors">
-                  <Zap className="text-orange-600 group-hover:text-white" size={20} />
-                </div>
-                <div className="text-left">
-                  <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Cliente frecuente?</p>
-                  <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén beneficios</p>
-                </div>
-              </button>
-            ) : (
-              <div className="flex items-center gap-4 bg-green-950/20 border border-green-500/30 p-4 rounded-[30px] backdrop-blur-sm">
-  {/* Icono del check verde */}
-  <div className="bg-green-600 p-3 rounded-2xl shadow-lg shadow-green-900/20">
-    <CheckCircle size={24} className="text-white" />
-  </div>
-
-  <div className="flex flex-col">
-    <span className="text-[10px] font-black text-green-500 uppercase tracking-[0.2em] leading-none mb-1">
-      Sesión Iniciada
-    </span>
-    
-    {/* CAMBIO AQUÍ: Usamos nombreUsuarioLogueado en lugar del teléfono */}
-    <h2 className="text-xl font-black text-white uppercase italic tracking-tighter leading-none">
-      {nombreUsuarioLogueado || "Cargando..."}
-    </h2>
-  </div>
-</div>
+                <option value="TODOS">Ver Todo</option>
+                <option value="PLANTA BAJA">Planta Baja</option>
+                <option value="TERRAZA">Terraza</option>
+              </select>
             )}
 
-            {/* Botón Rockola */}
-            <button 
-              onClick={() => window.open(LINK_PRINCIPAL, '_blank')} 
-              className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group"
-            >
-              <ExternalLink className="text-green-500" size={28} />
-              <div className="text-left font-bold uppercase text-[10px] text-slate-400">
-                <p>Rockola</p>
-                <p className="text-lg text-white font-black">{TEXTO_LINK}</p>
-              </div>
-            </button>
-          </div>
-
-          <button onClick={() => setView('barra')} className="opacity-10 text-[10px] uppercase font-bold tracking-widest hover:opacity-100 transition-opacity">Acceso Barra</button>
-        </div>
-      </div>
-    );
-  }
-
-  // 2. SI LA VISTA ES REGISTRO (Nueva pantalla estilo image_e6c462.png)
-  if (view === 'registro') {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-black p-4">
-        <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
-          
-          <button onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
-
-          <div className="bg-[#2d1b14] p-4 rounded-full mb-6">
-            <div className="text-[#ff4d00] text-3xl italic font-black font-sans">⚡</div>
-          </div>
-
-          <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">Únete a la Tribu</h2>
-          <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 font-bold text-center">Registra tu visita y obtén beneficios</p>
-
-          <div className="w-full space-y-5">
-            <div>
-              <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">¿Cómo te llamas?</label>
-              <input 
-                type="text" 
-                placeholder="Nombre" 
-                className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors"
-                onChange={(e) => setNombreRegistro(e.target.value)} 
-              />
+            <div className="bg-slate-900 px-3 py-1 rounded-xl text-green-500 text-[10px] font-bold animate-pulse uppercase tracking-widest border border-green-500/10 whitespace-nowrap">
+              ● En Vivo
             </div>
-            <div>
-              <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu WhatsApp</label>
-              <input 
-                type="tel" 
-                placeholder="10 dígitos" 
-                className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors"
-                onChange={(e) => setTelefonoInput(e.target.value)} 
-              />
-            </div>
-            <div>
-              <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Crea tu contraseña</label>
-              <input 
-                type="password" 
-                placeholder="Mínimo 6 caracteres" 
-                className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors"
-                onChange={(e) => setPassword(e.target.value)} 
-              />
-            </div>
-            <button 
-              onClick={registrarClienteFrecuente}
-              className="w-full bg-[#ff4d00] hover:bg-[#e64500] py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
-            >
-              Registrarme
-            </button>
-            <button onClick={() => setView('login')} className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest">Ya tengo cuenta</button>
+
+            {/* 🔥 BOTÓN DE SALIDA DE SEGURIDAD 🔥 */}
+            {/* Botón de Salir Simplificado */}
+{/* 🔥 BOTÓN DE SALIDA DE SEGURIDAD TOTAL 🔥 */}
+<button 
+  onClick={async () => {
+    try {
+      await signOut(auth);    // 🔥 Cierra la sesión real en Firebase Auth
+      setEsSuperAdmin(false); // Apaga los reportes
+      setUsuarioLogueado(null); // Limpia el usuario local
+      setView('welcome');     // Te regresa a la bienvenida del bar
+      alert("Sesión de administración cerrada con seguridad.");
+    } catch (error) {
+      console.error("Error al salir de la barra:", error);
+      // Respaldo por si falla la red, forzamos cambio de vista
+      setView('welcome');
+      setEsSuperAdmin(false);
+    }
+  }} 
+  className="bg-red-600/10 hover:bg-red-600 border border-red-500/20 text-red-500 hover:text-white p-2 rounded-xl transition-all active:scale-95 flex items-center gap-1 font-black text-[9px] uppercase tracking-wider"
+  title="Salir de Barra"
+>
+  <LogOut size={14} />
+  <span className="hidden sm:inline">Salir</span>
+</button>
           </div>
         </div>
-      </div>
-    );
-  }
-// --- VISTA DE LOGIN (Inicia sesión si ya tienes cuenta) ---
-  if (view === 'login') {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-black p-4 font-sans">
-        <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
-          
-          <button onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
 
-          <div className="bg-[#2d1b14] p-4 rounded-full mb-6">
-            <div className="text-[#ff4d00] text-3xl italic font-black">⚡</div>
-          </div>
-
-          <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">Bienvenido de nuevo</h2>
-          <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 font-bold text-center">Ingresa tus datos para continuar</p>
-
-          <div className="w-full space-y-5">
-            <div>
-              <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu WhatsApp</label>
-              <input 
-                type="tel" 
-                placeholder="10 dígitos" 
-                className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors"
-                onChange={(e) => setTelefonoInput(e.target.value)} 
-              />
-            </div>
-            <div>
-              <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu contraseña</label>
-              <input 
-                type="password" 
-                placeholder="Ingresa tu clave" 
-                className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors"
-                onChange={(e) => setPassword(e.target.value)} 
-              />
-            </div>
-            
-            <button 
-              onClick={loginClienteFrecuente}
-              className="w-full bg-[#ff4d00] hover:bg-[#e64500] py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
-            >
-              Entrar
-            </button>
-
-            <button 
-              onClick={() => setView('registro')} 
-              className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest"
-            >
-              No tengo cuenta, quiero registrarme
-            </button>
-          </div>
+        {/* Fila Media: Navegación con Scroll Horizontal */}
+        <div className="w-full overflow-x-auto no-scrollbar flex gap-3 pb-2">
+          <button 
+            onClick={() => setTabBarra('comandas')} 
+            className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-[10px] transition-all ${tabBarra === 'comandas' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}
+          >
+            <LayoutDashboard size={14}/> Comandas
+          </button>
+          <button 
+            onClick={() => setTabBarra('inventario')} 
+            className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-[10px] transition-all ${tabBarra === 'inventario' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}
+          >
+            <Boxes size={14}/> Inventario
+          </button>
+          <button 
+            onClick={() => setTabBarra('eventos')} 
+            className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-[10px] transition-all ${tabBarra === 'eventos' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}
+          >
+            <Calendar size={14}/> Eventos
+          </button>
         </div>
+
+        {/* Fila Inferior: Botones de Acción Dinámicos (¡Aquí regresaron!) */}
+        <div className="flex flex-wrap items-center gap-3">
+          {tabBarra === 'inventario' && (
+            <button 
+              onClick={() => setVerModalNuevoProd(true)} 
+              className="flex-1 md:flex-none justify-center bg-green-600 hover:bg-green-500 text-white px-4 py-3 rounded-xl font-black uppercase text-[10px] flex items-center gap-2 transition-all shadow-lg"
+            >
+              <PlusCircle size={16}/> Producto
+            </button>
+          )}
+          {tabBarra === 'eventos' && (
+            <button 
+              onClick={() => setVerModalNuevoEvento(true)} 
+              className="flex-1 md:flex-none justify-center bg-orange-600 hover:bg-orange-500 text-white px-4 py-3 rounded-xl font-black uppercase text-[10px] flex items-center gap-2 transition-all shadow-lg"
+            >
+              <PlusCircle size={16}/> Agendar
+            </button>
+          )}
+        </div>
+      </header>
+
+       <div className="flex flex-col lg:flex-row gap-6">
+         {tabBarra === 'comandas' && (
+           <div className="flex-1 no-print">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).filter(p => {
+                 if (areaStaff === 'TODOS') return true;
+                 return obtenerPlanta(p.mesa) === areaStaff; 
+               }).map(p => {
+                 const esExterno = String(p.mesa).startsWith("TEL:");
+                 const numTel = esExterno ? p.mesa.replace("TEL:", "") : "";
+                 const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está listo.\n\n*Total a pagar: $${p.total}*\n\n*Detalle del pedido:*\n${p.detalle}\n\n${DATOS_PAGO}`;
+                 return (
+                   <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl relative shadow-xl flex flex-col justify-between group transition-all">
+                     <div className={`absolute top-0 left-0 w-1.5 h-full ${esExterno ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
+                     {p.pagoInformado && (
+                       <div className="bg-blue-600 text-white text-[10px] font-black p-3 rounded-xl mb-4 flex items-center justify-center gap-2 animate-pulse shadow-lg shadow-blue-900/40 border border-blue-400/30"><CheckCircle size={14} /> PAGO INFORMADO - VERIFICAR CAJA</div>
+                     )}
+                     <div><div className="flex justify-between items-start">
+                         <div className="flex flex-col"><h3 className="text-2xl font-black italic uppercase tracking-tighter leading-none">{esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}</h3>
+                         {p.cliente && <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Atendiendo a: <span className="text-orange-500">{p.cliente}</span></span>}
+                         <span className={`text-[9px] font-black uppercase tracking-widest mt-1 ${obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}`}>{obtenerPlanta(p.mesa)}</span></div>
+                         <div className="flex gap-2">
+                           <button onClick={() => moverMesa(p)} className="p-1 text-slate-500 hover:text-sky-400 transition-colors" title="Mover Mesa"><ExternalLink size={18}/></button>
+                           <button onClick={async () => { 
+                             if(window.confirm("¿Cancelar pedido? El stock regresará.")) { 
+                               const batch = writeBatch(db); 
+                               p.detalle.split('\n').forEach(linea => { 
+                                 const m = linea.match(/(\d+)x (.*) \(\$/); 
+                                 if (m) { 
+                                   const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
+                                   if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
+                                 } 
+                               }); 
+                               batch.delete(doc(db, "pedidos", p.id)); 
+                               await batch.commit(); 
+                             } 
+                           }} className="p-1 text-slate-700 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
+                         </div>
+                     </div>
+                     {p.pinMesa && (
+                       <div className="bg-orange-600/10 border border-orange-600/20 rounded-lg p-2 mt-3 flex justify-between items-center"><span className="text-[10px] font-black uppercase text-orange-500 tracking-widest">PIN SEGURIDAD:</span><span className="text-xl font-black text-white">{p.pinMesa}</span></div>
+                     )}
+                     <div className="mt-4 space-y-1">
+                       {p.detalle.split('\n').map((linea, idx) => {
+                         const esProducto = /^\d+x/.test(linea.trim());
+                         return (
+                           <div key={idx} className="group/item flex justify-between items-center bg-black/20 p-2 rounded-lg border border-white/5">
+                             <span className={`text-lg leading-tight ${!esProducto ? 'text-orange-500 font-bold text-xs' : 'text-slate-300'}`}>{linea}</span>
+                             {esProducto && (
+                               <button onClick={() => eliminarArticuloComanda(p, idx)} className="opacity-0 group-hover/item:opacity-100 p-1 text-red-500/50 hover:text-red-500 transition-all"><X size={16}/></button>
+                             )}
+                           </div>
+                         );
+                       })}
+                     </div>
+                     {esExterno && (
+                       <button onClick={() => window.open(`https://wa.me/${numTel}?text=${encodeURIComponent(mensajeWA)}`, '_blank')} className="flex items-center justify-center gap-2 bg-green-600/10 border border-green-600/20 text-green-500 w-full py-3 rounded-xl font-black uppercase text-xs mt-4 hover:bg-green-600 hover:text-white transition-all"><Phone size={14}/> Enviar Datos Bancarios</button>
+                     )}
+                     </div>
+                     <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-4 rounded-xl font-black text-lg mt-6 active:scale-95 uppercase tracking-tighter shadow-xl">Cobrar ${p.total}</button></div>
+                 );
+               })}
+             </div>
+           </div>
+         )}
+
+         {tabBarra === 'inventario' && (
+           <div className="flex-1 no-print space-y-8">
+             <div><h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2"><div className="w-2 h-2 bg-orange-500 rounded-full"></div> HIELERA PLANTA BAJA</h2>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                 {productosMenu.filter(p => p.ubicacion === "PLANTA BAJA" || !p.ubicacion || p.ubicacion === "HIELERA BAJA").map(prod => (
+                   <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
+                     <div className="flex justify-between items-start mb-4"><div className="flex gap-3"><div className="w-16 h-16 rounded-xl border border-slate-800 bg-slate-900 flex-shrink-0 overflow-hidden"><img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/></div><div><h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4><p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p></div></div><div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div></div>
+                     <div className="grid grid-cols-2 gap-2 mt-auto"><button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button><button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
+                     <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button></div></div>
+                 ))}
+               </div>
+             </div>
+             <div><h2 className="text-sky-400 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2"><div className="w-2 h-2 bg-sky-400 rounded-full"></div> HIELERA TERRAZA</h2>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                 {productosMenu.filter(p => p.ubicacion === "TERRAZA").map(prod => (
+                   <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
+                     <div className="flex justify-between items-start mb-4"><div className="flex gap-3"><div className="w-16 h-16 rounded-xl border border-slate-800 bg-slate-900 flex-shrink-0 overflow-hidden"><img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/></div><div><h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4><p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p></div></div><div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div></div>
+                     <div className="grid grid-cols-2 gap-2 mt-auto"><button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button><button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
+                     <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button></div></div>
+                 ))}
+               </div>
+             </div>
+           </div>
+         )}
+
+         {tabBarra === 'eventos' && (
+           <div className="flex-1 no-print p-4">
+             <div className="grid gap-4">{recordatorios.map(rec => (<div key={rec.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl flex justify-between items-center shadow-xl"><div><p className="text-white font-bold uppercase tracking-tight">{rec.titulo}</p><p className="text-orange-500 text-[10px] font-black mt-1 uppercase tracking-widest">{rec.fecha} | {rec.hora} HRS</p></div><button onClick={() => deleteDoc(doc(db, "recordatorios", rec.id))} className="text-red-500/30 hover:text-red-500 transition-colors"><Trash2 size={20}/></button></div>))}</div>
+           </div>
+         )}
+
+         <div className="w-full lg:w-[350px] space-y-4 no-print">
+           <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 shadow-xl"><div className="relative"><Search className="absolute left-3 top-2.5 text-slate-600" size={16}/><input type="text" placeholder="Mesa, Tel o Fecha" value={filtroMesa} onChange={(e) => setFiltroMesa(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl pl-10 py-2 text-sm text-white focus:border-orange-500 font-bold shadow-inner" /></div></div>
+{/* --- MÓDULO DE REPORTES POR FECHA (NO-PRINT) --- */}
+{esSuperAdmin && (
+  <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-slate-800 shadow-2xl no-print">
+    <h2 className="text-sm font-black text-orange-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+      📊 Reporte de Ventas
+    </h2>
+    <div className="space-y-3">
+      <div>
+        <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Inicio</label>
+        <input 
+          type="date" 
+          value={fechaInicioRep} 
+          onChange={(e) => setFechaInicioRep(e.target.value)} 
+          className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold"
+        />
       </div>
-    );
-  }
-
-  if (view === 'menu') {
-    const ubicacionActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
-    const menuPorPlanta = productosMenu.filter(p => (ubicacionActual === "EXTERNO" || !p.ubicacion || p.ubicacion === "" || p.ubicacion === ubicacionActual));
-    const menuFiltrado = menuPorPlanta.filter(p => (catSeleccionada === "Todos" || p.categoria === catSeleccionada) && (subCatSeleccionada === "Todas" || p.subcategoria === subCatSeleccionada));
-    const subcategoriasDisponibles = Array.from(new Set(menuPorPlanta.filter(p => p.categoria === catSeleccionada && p.subcategoria).map(p => p.subcategoria)));
-
-    return (
-      <div className="min-h-screen bg-slate-900 pb-32 text-slate-100 flex flex-col items-center font-sans">
-        <header className="bg-slate-950/95 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-800 px-4 py-3"><div className="max-w-6xl mx-auto flex flex-col gap-3">
-          <div className="flex justify-between items-center"><div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none">{nombreBarDinamico}</div>
-            <div className="flex gap-2">
-              {/* PIN de Seguridad Discreto */}
-  {pinCorrectoMesa && (
-    <div className="bg-orange-600/10 px-3 py-2 rounded-xl border border-orange-500/20 flex flex-col items-center justify-center">
-      <span className="text-[7px] font-black text-orange-500 uppercase tracking-tighter leading-none mb-0.5">PIN</span>
-      <span className="text-[11px] font-black text-white leading-none tracking-widest">{pinCorrectoMesa}</span>
+      <div>
+        <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Fin</label>
+        <input 
+          type="date" 
+          value={fechaFinRep} 
+          onChange={(e) => setFechaFinRep(e.target.value)} 
+          className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold"
+        />
+      </div>
+      <button 
+        onClick={generarReporteVentas} 
+        className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95 mt-2"
+      >
+        Generar Reporte
+      </button>
     </div>
-  )}
-
-  {consumoAcumulado.length > 0 && (
-    <div className="bg-green-600/10 px-3 py-2 rounded-xl border border-green-500/20 flex items-center gap-2">
-      <History size={14} className="text-green-500" />
-      <span className="text-[10px] font-black text-green-500 leading-none">${totalAcumulado}</span>
-    </div>
-  )}
-
-<div className="flex gap-3 items-center">
-  {/* Nombre del Usuario (Nuevo) */}
- {usuarioLogueado && (
-  <div className="flex flex-col items-end mr-1 gap-[2px]">
-    <span className="text-[8px] font-black text-orange-500 uppercase tracking-tighter leading-none">
-      Miembro de la Tribu
-    </span>
-    
-    {/* Mostramos el nombre si ya cargó, de lo contrario un espacio reservado */}
-    <span className="text-[11px] font-black text-white uppercase italic leading-none min-h-[11px]">
-      {nombreUsuarioLogueado || "Cargando..."}
-    </span>
-
-    <button 
-      onClick={() => setView('mis_pedidos')}
-      className="flex items-center gap-1 text-[8px] font-black text-orange-500 uppercase tracking-widest mt-1 active:scale-95 transition-transform"
-    >
-      <History size={10} />
-      Ver mis pedidos
-    </button>
   </div>
 )}
-
-  {/* Botón Carrito */}
-  <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative border-none outline-none">
-    <ShoppingCart size={20} />
-    {carrito.length > 0 && (
-      <span className="absolute -top-1 -right-1 bg-orange-600 text-[10px] px-1.5 rounded-full font-bold">
-        {carrito.reduce((a, b) => a + b.cantidad, 0)}
-      </span>
-    )}
-  </button>
-
-  {/* Botón Salir */}
-  {usuarioLogueado && (
-    <button 
-      onClick={cerrarSesion} 
-      className="bg-red-500/10 p-2.5 rounded-full border border-red-500/20 text-red-500 active:scale-95 transition-all"
-    >
-      <LogOut size={20} />
-    </button>
-  )}
-</div>
-            </div></div>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">{CATEGORIAS.map(c => (<button key={c} onClick={() => { setCatSeleccionada(c); setSubCatSeleccionada("Todas"); }} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${catSeleccionada === c ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-400'}`}>{c}</button>))}</div>
-          {subcategoriasDisponibles.length > 0 && (<div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-800/50"><button onClick={() => setSubCatSeleccionada("Todas")} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === "Todas" ? 'text-sky-400 bg-sky-900/20' : 'text-slate-500'}`}>Todas</button>{subcategoriasDisponibles.map(sc => (<button key={sc} onClick={() => setSubCatSeleccionada(sc)} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === sc ? 'text-sky-400 bg-sky-900/20 shadow-lg' : 'text-slate-500'}`}>{sc}</button>))}</div>)}
-        </div></header>
-        <main className="p-4 w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{menuFiltrado.map(item => (<div key={item.id} className={`bg-slate-800/60 rounded-3xl p-4 flex gap-4 border border-slate-700/30 group shadow-lg transition-all ${item.stock <= 0 ? 'opacity-50 grayscale' : ''}`}><div className="w-24 h-24 rounded-2xl border border-slate-700 bg-slate-900 flex-shrink-0 overflow-hidden relative shadow-inner"><img src={item.imagen} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" alt="p" />{item.stock <= 5 && item.stock > 0 && <span className="absolute bottom-0 left-0 right-0 bg-red-600 text-[8px] font-black text-center uppercase py-0.5 shadow-lg tracking-widest animate-pulse">Últimas {item.stock}</span>}</div><div className="flex-1 flex flex-col justify-between"><div><h3 className="font-bold text-white uppercase leading-tight">{item.nombre}</h3><p className="text-slate-500 text-xs mt-1 italic leading-tight">{item.subcategoria}</p></div><div className="flex justify-between items-center mt-3"><span className="font-black text-xl text-orange-500 italic tracking-tighter">${obtenerPrecioItem(item)}</span><button disabled={item.stock <= 0} onClick={() => agregarAlCarrito(item)} className={`${item.stock <= 0 ? 'bg-slate-700' : 'bg-orange-600 active:scale-90 shadow-orange-950/20'} text-white w-10 h-10 rounded-xl font-bold transition-all shadow-lg`}>{item.stock <= 0 ? <Package size={16} className="mx-auto" /> : '+'}</button></div></div></div>))} </main>
-        {carrito.length > 0 && !verCarrito && (<div className="fixed bottom-6 left-0 right-0 px-6 z-50 flex justify-center no-print"><button onClick={() => setVerCarrito(true)} className="w-full max-w-lg bg-orange-600 text-white py-4 rounded-2xl font-black flex justify-between px-8 shadow-2xl active:scale-95 transition-all shadow-orange-950/30"><span className="text-[10px] uppercase font-bold tracking-widest text-white leading-none flex items-center gap-2"><ShoppingCart size={14}/> MI PEDIDO ({carrito.reduce((a,b)=>a+b.cantidad,0)})</span><span className="font-black text-xl italic text-white tracking-tighter leading-none">${totalCarrito}</span></button></div>)}
-        <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible opacity-100' : 'invisible opacity-0'}`}><div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} /><div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}><div className="flex justify-between items-center border-b border-slate-800 pb-4 font-black text-white italic uppercase text-xl tracking-tighter leading-none"><h2>Mi Cuenta</h2><X onClick={() => setVerCarrito(false)} className="text-slate-500 cursor-pointer" /></div><div className="flex-1 overflow-y-auto py-4 space-y-6 no-scrollbar">{carrito.length > 0 && (<div><p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ShoppingCart size={12}/> Por pedir ahora:</p><div className="space-y-3">{carrito.map(item => (<div key={item.id} className="bg-orange-600/5 p-3 rounded-2xl flex flex-col gap-2 border border-orange-600/20 shadow-sm"><div className="flex justify-between font-bold text-xs text-white uppercase tracking-tight leading-none"><span>{item.nombre}</span><button onClick={() => setCarrito(carrito.filter(x => x.id !== item.id))}><Trash2 size={14} className="text-slate-600 hover:text-red-500 transition-colors"/></button></div><div className="flex justify-between items-center"><span className="text-orange-500 font-bold italic tracking-tighter">${item.precio * item.cantidad}</span><div className="flex items-center gap-3 bg-slate-800 rounded-full px-3 py-1 shadow-inner"><Minus onClick={() => restarDelCarrito(item.id)} size={12} className="cursor-pointer"/><span className="text-xs font-bold text-white">{item.cantidad}</span><Plus onClick={() => agregarAlCarrito(item)} size={12} className="cursor-pointer"/></div></div></div>))}</div></div>)}{consumoAcumulado.length > 0 && (<div><p className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-3 flex items-center gap-2"><History size={12}/> Ya consumido:</p><div className="space-y-2">{consumoAcumulado.map((item, idx) => (<div key={idx} className="bg-slate-900/50 p-3 rounded-xl flex justify-between items-center border border-slate-800 opacity-60"><span className="text-[11px] font-bold text-slate-300 uppercase">{item.cantidad}x {item.nombre}</span><span className="text-[11px] font-black text-white">${item.precio * item.cantidad}</span></div>))}</div></div>)}</div><div className="pt-4 border-t border-slate-800 space-y-4"><div className="flex justify-between font-black text-2xl text-orange-500 italic"><span>Total Cuenta</span><span>${totalCarrito + totalAcumulado}</span></div><button disabled={carrito.length === 0} onClick={intentarEnviar} className="w-full py-4 rounded-2xl font-black text-white bg-orange-600 active:scale-95 transition-all shadow-xl uppercase tracking-widest">Confirmar Pedido</button></div></div></div>
-        {verModalTelefono && (
-          <div className="fixed inset-0 z-[200] bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
-             <div className="mb-8 text-center"><Phone size={48} className="text-orange-600 mx-auto mb-4 animate-bounce" /><h2 className="text-3xl font-black italic uppercase tracking-tighter">¿Tu Teléfono?</h2><p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Para identificar tu pedido externo</p></div>
-             <div className="w-full max-w-[300px] mb-8"><div className="bg-slate-900 border-2 border-orange-600/50 rounded-2xl p-6 text-center shadow-2xl"><span className="text-4xl font-black tracking-widest text-white">{telefonoInput || "----------"}</span></div></div>
-             <div className="grid grid-cols-3 gap-4 max-w-[280px]">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (<button key={n} onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">{n}</button>))}
-                <button onClick={() => setTelefonoInput("")} className="w-16 h-16 rounded-full flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20"><Trash2 size={24}/></button>
-                <button onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + "0")} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black">0</button>
-                <button onClick={() => setVerModalTelefono(false)} className="w-16 h-16 rounded-full flex items-center justify-center text-slate-500 border border-slate-800"><X size={24}/></button>
+           <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-orange-900/10 shadow-2xl">
+             <div className="flex justify-between items-center mb-4"><h2 className="text-lg font-black text-orange-600 uppercase italic flex items-center gap-2"><ReceiptText size={20}/> Caja Hoy</h2><button onClick={realizarCierreTurno} className="text-[9px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-lg uppercase hover:bg-red-600 transition-all">Cierre</button></div>
+             <div className="space-y-3 max-h-[550px] overflow-y-auto no-scrollbar mb-4">
+               {historialFiltradoParaCaja.map((hc) => (
+                   <div key={hc.id} onClick={() => setTicketParaReimprimir(hc)} className="group p-3 bg-[#05070a] rounded-xl border border-slate-700 flex items-center justify-between hover:border-orange-500 transition-all shadow-sm cursor-pointer"><div className="flex-1"><div className="flex justify-between font-black text-[11px] uppercase tracking-tighter"><span className="text-slate-400">Mesa {hc.mesa} - {obtenerPlanta(hc.mesa)}</span><span className="text-green-500">${hc.total}</span></div><div className="flex justify-between items-center mt-1"><p className="text-[8px] text-slate-500 uppercase font-bold">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) : 'Reciente'}</p><p className="text-[11px] text-slate-400 font-black uppercase italic tracking-tighter">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleDateString('es-MX') : ''}</p></div></div><button onClick={(e) => { e.stopPropagation(); if(window.confirm("¿Borrar?")) deleteDoc(doc(db, "historial_tickets", hc.id)); }} className="ml-2 p-1.5 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={14}/></button></div>
+                 ))}
              </div>
-             {telefonoInput.length >= 10 && (<button onClick={() => procesarEnvio()} className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse">Confirmar Pedido</button>)}
-          </div>
-        )}
-      </div>
-    );
-  }
- 
- {view === 'registro' && (
-  <div className="flex items-center justify-center min-h-screen bg-black p-4">
-    {/* Contenedor Principal estilo image_e6c462.png */}
-    <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
+             <div className="pt-3 border-t border-slate-800 flex justify-between font-black"><span className="text-slate-500 text-[10px] uppercase italic tracking-widest">Total:</span><span className="text-2xl text-green-500 tracking-tighter">${totalCajaHoy}</span></div></div>
+         </div>
+       </div>
+
+       {verModalNuevoProd && (
+         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+           <div className="bg-slate-900 border border-slate-800 w-full max-w-[420px] rounded-[2.5rem] p-8 shadow-2xl relative">
+             <button onClick={() => { setVerModalNuevoProd(false); setEsNuevaSub(false); }} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"><X/></button>
+             <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><PlusCircle/> Agregar Producto</h2>
+             
+             <form onSubmit={async (e) => { 
+                 e.preventDefault(); 
+                 const batch = writeBatch(db);
+                 
+                 if (nuevoProd.stockBaja > 0) {
+                   const refBaja = doc(collection(db, "productos"));
+                   batch.set(refBaja, {
+                     nombre: nuevoProd.nombre,
+                     stock: Number(nuevoProd.stockBaja),
+                     ubicacion: "PLANTA BAJA",
+                     precioMesa: Number(nuevoProd.precioMesa),
+                     precioDomicilio: Number(nuevoProd.precioDomicilio),
+                     categoria: nuevoProd.categoria,
+                     subcategoria: nuevoProd.subcategoria,
+                     imagen: nuevoProd.imagen
+                   });
+                 }
+
+                 if (nuevoProd.stockTerraza > 0) {
+                   const refTerraza = doc(collection(db, "productos"));
+                   batch.set(refTerraza, {
+                     nombre: nuevoProd.nombre,
+                     stock: Number(nuevoProd.stockTerraza),
+                     ubicacion: "TERRAZA",
+                     precioMesa: Number(nuevoProd.precioMesa),
+                     precioDomicilio: Number(nuevoProd.precioDomicilio),
+                     categoria: nuevoProd.categoria,
+                     subcategoria: nuevoProd.subcategoria,
+                     imagen: nuevoProd.imagen
+                   });
+                 }
+
+                 await batch.commit();
+                 setVerModalNuevoProd(false);
+                 setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", categoria: "Cerveza", subcategoria: "", imagen: "" });
+               }} className="space-y-4">
+               
+               <input required placeholder="Nombre del Producto" value={nuevoProd.nombre} onChange={e => setNuevoProd({...nuevoProd, nombre: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
+               
+               <div className="grid grid-cols-2 gap-4">
+                 <input required type="number" placeholder="Precio Mesa" value={nuevoProd.precioMesa} onChange={e => setNuevoProd({...nuevoProd, precioMesa: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
+                 <input required type="number" placeholder="Precio Domicilio" value={nuevoProd.precioDomicilio} onChange={e => setNuevoProd({...nuevoProd, precioDomicilio: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
+               </div>
+
+               <div className="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-2xl border border-white/5">
+                 <div className="space-y-1">
+                   <label className="text-[9px] font-black text-orange-500 uppercase px-1">Stock P. Baja</label>
+                   <input type="number" placeholder="0" value={nuevoProd.stockBaja} onChange={e => setNuevoProd({...nuevoProd, stockBaja: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white focus:border-orange-500" />
+                 </div>
+                 <div className="space-y-1">
+                   <label className="text-[9px] font-black text-sky-400 uppercase px-1">Stock Terraza</label>
+                   <input type="number" placeholder="0" value={nuevoProd.stockTerraza} onChange={e => setNuevoProd({...nuevoProd, stockTerraza: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white focus:border-sky-500" />
+                 </div>
+               </div>
+
+               <div className="space-y-2">
+                 <label className="text-[10px] font-black text-slate-500 uppercase ml-2 flex items-center gap-1"><Tag size={12}/> Categoría y Subcategoría</label>
+                 <div className="grid grid-cols-2 gap-2">
+                   <select value={nuevoProd.categoria} onChange={e => setNuevoProd({...nuevoProd, categoria: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner">
+                     {CATEGORIAS.filter(c => c !== "Todos").map(c => <option key={c} value={c}>{c}</option>)}
+                   </select>
+                   <input placeholder="Subcat (Media, etc)" value={nuevoProd.subcategoria} onChange={e => setNuevoProd({...nuevoProd, subcategoria: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white" />
+                 </div>
+               </div>
+
+               <input placeholder="URL Imagen" value={nuevoProd.imagen} onChange={e => setNuevoProd({...nuevoProd, imagen: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
+               
+               <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95 transition-all">Crear Producto(s)</button>
+             </form>
+           </div>
+         </div>
+       )}
+
+       {verModalNuevoEvento && (
+         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
+           <div className="bg-slate-900 border border-slate-800 w-full max-w-[350px] rounded-[2.5rem] p-8 shadow-2xl relative">
+             <button onClick={() => setVerModalNuevoEvento(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white"><X/></button>
+             <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><Calendar/> Nuevo Evento</h2>
+             <form onSubmit={guardarEvento} className="space-y-4">
+               <input required placeholder="Título" value={nuevoEvento.titulo} onChange={e => setNuevoEvento({...nuevoEvento, titulo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
+               <input required type="date" value={nuevoEvento.fecha} onChange={e => setNuevoEvento({...nuevoEvento, fecha: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
+               <input required type="time" value={nuevoEvento.hora} onChange={e => setNuevoEvento({...nuevoEvento, hora: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
+               <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95">Guardar</button>
+             </form>
+           </div>
+         </div>
+       )}
+
+       {ticketParaReimprimir && (
+         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
+           <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-orange-600 print:border-none">
+             <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
+
+             <div className="text-center mb-6">
+               <h2 className="font-black text-3xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
+               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Nota de Venta</p>
+               <div className="border-y-2 border-black py-2 my-2 space-y-1">
+                 <div className="flex justify-between text-[11px] font-bold">
+                   <span>MESA:</span>
+                   <span className="bg-black text-white px-2 uppercase">{ticketParaReimprimir.mesa.replace("TEL:", "EXT-")}</span>
+                 </div>
+                 <div className="flex justify-between text-[9px] text-gray-600">
+                   <span>FECHA:</span>
+                   <span>{ticketParaReimprimir.fecha?.seconds ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : new Date().toLocaleString('es-MX')}</span>
+                 </div>
+               </div>
+             </div>
+
+             <div className="text-[11px] mb-6">
+               <div className="flex justify-between font-black border-b border-black pb-1 mb-2">
+                 <span>DESCRIPCIÓN</span>
+                 <span>IMPORTE</span>
+               </div>
+               <div className="space-y-3 whitespace-pre-line leading-tight italic">
+                 {ticketParaReimprimir.detalle}
+               </div>
+             </div>
+
+             <div className="border-t-4 border-double border-black pt-4 mb-8">
+               <div className="flex justify-between items-end">
+                 <span className="font-bold text-sm">TOTAL:</span>
+                 <span className="font-black text-4xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
+               </div>
+             </div>
+             
+             <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors">
+               <Printer size={20}/> CONFIRMAR IMPRESIÓN
+             </button>
+           </div>
+         </div>
+       )}
+       {/* --- MODAL IMPRESIÓN DE REPORTE DE VENTAS --- */}
+{reporteFiltrado && (
+  <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
+    <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-emerald-600 print:border-none">
       
-      {/* Botón de cerrar (X) */}
+      {/* Botón Cerrar (Oculto en impresión) */}
       <button 
-        onClick={() => setView('welcome')} 
-        className="absolute top-6 right-8 text-gray-500 hover:text-white text-xl"
+        onClick={() => setReporteFiltrado(null)} 
+        className="absolute -top-12 right-0 text-white no-print"
       >
-        ✕
+        <X size={32}/>
       </button>
 
-      {/* Icono del Rayo (Branding Moapp/Tribu) */}
-      <div className="bg-[#2d1b14] p-4 rounded-full mb-6 mt-2">
-        <div className="text-[#ff4d00] text-3xl italic font-black">⚡</div>
+      <div className="text-center mb-6">
+        <h2 className="font-black text-2xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
+        <p className="text-[9px] font-black text-gray-500 uppercase tracking-[0.2em] mb-3">Reporte de Ventas</p>
+        
+        <div className="border-y-2 border-black py-2 my-2 text-[10px] space-y-0.5 font-bold">
+          <div className="flex justify-between">
+            <span>DESDE:</span>
+            <span>{reporteFiltrado.inicio}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>HASTA:</span>
+            <span>{reporteFiltrado.fin}</span>
+          </div>
+        </div>
       </div>
 
-      <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">
-        Únete a la Tribu
-      </h2>
-      <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 text-center font-bold">
-        Registra tu visita y obtén beneficios
-      </p>
-
-      <div className="w-full space-y-5">
-        {/* Campo Nombre */}
-        <div className="flex flex-col">
-          <label className="text-[10px] font-black text-gray-500 uppercase ml-1 mb-2 tracking-widest">
-            ¿Cómo te llamas?
-          </label>
-          <input 
-            type="text" 
-            placeholder="Nombre"
-            className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl text-white outline-none focus:border-[#ff4d00] transition-colors"
-            onChange={(e) => setNombreRegistro(e.target.value)}
-          />
+      {/* Desglose por áreas */}
+      <div className="text-[12px] space-y-2.5 border-b-2 border-dashed border-black pb-4 mb-4">
+        <div className="flex justify-between">
+          <span>PLANTA BAJA:</span>
+          <span className="font-bold">${reporteFiltrado.plantaBaja}</span>
         </div>
-
-        {/* Campo Teléfono / WhatsApp */}
-        <div className="flex flex-col">
-          <label className="text-[10px] font-black text-gray-500 uppercase ml-1 mb-2 tracking-widest">
-            Tu WhatsApp
-          </label>
-          <input 
-            type="tel" 
-            placeholder="10 dígitos"
-            className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl text-white outline-none focus:border-[#ff4d00] transition-colors"
-            onChange={(e) => setTelefonoInput(e.target.value)}
-          />
+        <div className="flex justify-between">
+          <span>TERRAZA:</span>
+          <span className="font-bold">${reporteFiltrado.terraza}</span>
         </div>
-
-        {/* Campo Contraseña (Clave para evitar SMS) */}
-        <div className="flex flex-col">
-          <label className="text-[10px] font-black text-gray-500 uppercase ml-1 mb-2 tracking-widest">
-            Crea tu contraseña
-          </label>
-          <input 
-            type="password" 
-            placeholder="Mínimo 6 caracteres"
-            className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl text-white outline-none focus:border-[#ff4d00] transition-colors"
-            onChange={(e) => setPassword(e.target.value)}
-          />
+        <div className="flex justify-between border-t border-gray-300 pt-1.5 italic text-gray-700">
+          <span>ENVÍOS / EXT:</span>
+          <span>${reporteFiltrado.externo}</span>
         </div>
-
-        {/* Botón de Acción Principal */}
-        <button 
-          onClick={registrarClienteFrecuente}
-          className="w-full bg-[#ff4d00] hover:bg-[#e64500] text-white py-5 rounded-2xl font-black uppercase tracking-[0.15em] transition-all mt-4 shadow-lg active:scale-95"
-        >
-          Registrarme
-        </button>
-
-        {/* Link para los que ya tienen cuenta */}
-        <button 
-          onClick={() => setView('login')} // Asegúrate de crear esta vista después
-          className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest hover:text-white transition-colors"
-        >
-          Ya tengo una cuenta
-        </button>
       </div>
+
+      {/* Totales finales */}
+      <div className="space-y-1 mb-6 text-[11px]">
+        <div className="flex justify-between text-gray-600">
+          <span>No. Cuentas:</span>
+          <span>{reporteFiltrado.cantidadTickets} u.</span>
+        </div>
+        <div className="flex justify-between items-end pt-2">
+          <span className="font-bold text-xs">TOTAL NETO:</span>
+          <span className="font-black text-3xl tracking-tighter leading-none">${reporteFiltrado.totalGlobal}</span>
+        </div>
+      </div>
+
+      {/* Botón disparador de impresión */}
+      <button 
+        onClick={() => window.print()} 
+        className="mt-6 w-full bg-black text-white py-3.5 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-emerald-600 transition-colors text-xs tracking-wider"
+      >
+        <Printer size={16}/> IMPRIMIR REPORTE
+      </button>
     </div>
   </div>
 )}
-// Este es el return final de tu función App
-  return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        {view !== 'welcome' && view !== 'registro' && view !== 'menu' && view !== 'barra' && (
-            <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
-        )}
-        <div id="recaptcha-container"></div>
-    </div>
-  );
-  {/* Colócalo al final de tu App.jsx o fuera de los condicionales de 'pasoAuth' */}
-<div id="recaptcha-container"></div>
+     </div>
+   );
+ }
+
+ if (view === 'welcome') {
+   return (
+     <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden font-sans">
+       <div className="absolute inset-0 opacity-40">
+         <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="fondo" />
+         <div className="absolute inset-0 bg-slate-950/80"></div>
+       </div>
+
+       <div className="relative z-10 space-y-12 w-full max-w-lg">
+         <div className="space-y-4">
+           <div className="flex justify-center items-center gap-2 text-orange-500 animate-pulse">
+             <h1 className="text-7xl font-black italic uppercase leading-none">{nombreBarDinamico}</h1>
+           </div>
+           <div className="space-y-2 uppercase tracking-tight">
+             <h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2>
+             <p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{obtenerPlanta(mesa)}</p>
+           </div>
+         </div>
+
+         <div className="grid gap-4">
+           <button 
+             onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} 
+             className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group"
+           >
+             <Wifi className="text-sky-400" size={28} />
+             <div className="text-left font-bold uppercase text-[10px] text-slate-400">
+               <p>Wi-Fi Gratis</p>
+               <p className="text-lg text-white font-black">tribu´s Bar</p>
+             </div>
+           </button>
+
+           <button 
+             onClick={() => setView('menu')} 
+             className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 transition-all duration-300 group"
+           >
+             <UtensilsCrossed className="text-white" size={28} />
+             <div className="text-left font-bold uppercase text-[10px] text-orange-200">
+               <p>Menú Digital</p>
+               <p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p>
+             </div>
+           </button>
+
+           {!usuarioLogueado ? (
+             <button 
+               onClick={() => setView('registro')} 
+               className="flex items-center gap-5 bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-sm active:scale-95 hover:bg-white/10 hover:border-orange-500/50 transition-all duration-300 group"
+             >
+               <div className="w-10 h-10 rounded-2xl bg-orange-600/20 flex items-center justify-center group-hover:bg-orange-600 transition-colors">
+                 <Zap className="text-orange-600 group-hover:text-white" size={20} />
+               </div>
+               <div className="text-left">
+                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Cliente frecuente?</p>
+                 <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén beneficios</p>
+               </div>
+             </button>
+           ) : (
+             <div className="flex items-center gap-4 bg-green-950/20 border border-green-500/30 p-4 rounded-[30px] backdrop-blur-sm">
+               <div className="bg-green-600 p-3 rounded-2xl shadow-lg shadow-green-900/20">
+                 <CheckCircle size={24} className="text-white" />
+               </div>
+               <div className="flex flex-col text-left">
+                 <span className="text-[10px] font-black text-green-500 uppercase tracking-[0.2em] leading-none mb-1">Sesión Iniciada</span>
+                 <h2 className="text-xl font-black text-white uppercase italic tracking-tighter leading-none">
+                   {nombreUsuarioLogueado ? nombreUsuarioLogueado : "Miembro de la Tribu"}
+                 </h2>
+               </div>
+             </div>
+           )}
+
+           <button 
+             onClick={() => window.open(LINK_PRINCIPAL, '_blank')} 
+             className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group"
+           >
+             <ExternalLink className="text-green-500" size={28} />
+             <div className="text-left font-bold uppercase text-[10px] text-slate-400">
+               <p>Rockola</p>
+               <p className="text-lg text-white font-black">{TEXTO_LINK}</p>
+             </div>
+           </button>
+         </div>
+
+         <button onClick={() => setView('login_staff')} className="opacity-10 text-[10px] uppercase font-bold tracking-widest hover:opacity-100 transition-opacity">Acceso Barra</button>
+       </div>
+     </div>
+   );
+ }
+
+ if (view === 'registro') {
+   return (
+     <div className="flex items-center justify-center min-h-screen bg-black p-4">
+       <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
+         <button onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
+         <div className="bg-[#2d1b14] p-4 rounded-full mb-6"><div className="text-[#ff4d00] text-3xl italic font-black font-sans">⚡</div></div>
+         <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">Únete a la Tribu</h2>
+         <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 font-bold text-center">Registra tu visita y obtén beneficios</p>
+         <div className="w-full space-y-5">
+           <div>
+             <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">¿Cómo te llamas?</label>
+             <input type="text" placeholder="Nombre" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setNombreRegistro(e.target.value)} />
+           </div>
+           <div>
+             <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu WhatsApp</label>
+             <input type="tel" placeholder="10 dígitos" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setTelefonoInput(e.target.value)} />
+           </div>
+           <div>
+             <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Crea tu contraseña</label>
+             <input type="password" placeholder="Mínimo 6 caracteres" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setPassword(e.target.value)} />
+           </div>
+           <button onClick={registrarClienteFrecuente} className="w-full bg-[#ff4d00] hover:bg-[#e64500] py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">Registrarme</button>
+           <button onClick={() => setView('login')} className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest">Ya tengo cuenta</button>
+         </div>
+       </div>
+     </div>
+   );
+ }
+
+ if (view === 'login') {
+   return (
+     <div className="flex items-center justify-center min-h-screen bg-black p-4 font-sans">
+       <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
+         <button onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
+         <div className="bg-[#2d1b14] p-4 rounded-full mb-6"><div className="text-[#ff4d00] text-3xl italic font-black">⚡</div></div>
+         <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">Bienvenido de nuevo</h2>
+         <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 font-bold text-center">Ingresa tus datos para continuar</p>
+         <div className="w-full space-y-5">
+           <div>
+             <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu WhatsApp</label>
+             <input type="tel" placeholder="10 dígitos" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setTelefonoInput(e.target.value)} />
+           </div>
+           <div>
+             <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu contraseña</label>
+             <input type="password" placeholder="Ingresa tu clave" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setPassword(e.target.value)} />
+           </div>
+           <button onClick={loginClienteFrecuente} className="w-full bg-[#ff4d00] hover:bg-[#e64500] py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">Entrar</button>
+           <button onClick={() => setView('registro')} className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest">No tengo cuenta, quiero registrarme</button>
+         </div>
+       </div>
+     </div>
+   );
+ }
+
+ if (view === 'menu') {
+   const ubicacionActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
+   const menuPorPlanta = productosMenu.filter(p => (ubicacionActual === "EXTERNO" || !p.ubicacion || p.ubicacion === "" || p.ubicacion === ubicacionActual));
+   const menuFiltrado = menuPorPlanta.filter(p => (catSeleccionada === "Todos" || p.categoria === catSeleccionada) && (subCatSeleccionada === "Todas" || p.subcategoria === subCatSeleccionada));
+   const subcategoriasDisponibles = Array.from(new Set(menuPorPlanta.filter(p => p.categoria === catSeleccionada && p.subcategoria).map(p => p.subcategoria)));
+
+   return (
+     <div className="min-h-screen bg-slate-900 pb-32 text-slate-100 flex flex-col items-center font-sans">
+       <header className="bg-slate-950/95 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-800 px-4 py-3"><div className="max-w-6xl mx-auto flex flex-col gap-3">
+         <div className="flex justify-between items-center"><div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none">{nombreBarDinamico}</div>
+           <div className="flex gap-2">
+             {pinCorrectoMesa && (
+               <div className="bg-orange-600/10 px-3 py-2 rounded-xl border border-orange-500/20 flex flex-col items-center justify-center">
+                 <span className="text-[7px] font-black text-orange-500 uppercase tracking-tighter leading-none mb-0.5">PIN</span>
+                 <span className="text-[11px] font-black text-white leading-none tracking-widest">{pinCorrectoMesa}</span>
+               </div>
+             )}
+             {consumoAcumulado.length > 0 && (
+               <div className="bg-green-600/10 px-3 py-2 rounded-xl border border-green-500/20 flex items-center gap-2">
+                 <History size={14} className="text-green-500" />
+                 <span className="text-[10px] font-black text-green-500 leading-none">${totalAcumulado}</span>
+               </div>
+             )}
+             <div className="flex gap-3 items-center">
+               {usuarioLogueado && (
+                 <div className="flex flex-col items-end mr-1 gap-[2px]">
+                   <span className="text-[8px] font-black text-orange-500 uppercase tracking-tighter leading-none">Miembro de la Tribu</span>
+                   <span className="text-[11px] font-black text-white uppercase italic leading-none min-h-[11px]">
+                     {nombreUsuarioLogueado ? nombreUsuarioLogueado.split(" ")[0] : "Invitado"}
+                   </span>
+                   <button onClick={() => setView('mis_pedidos')} className="flex items-center gap-1 text-[8px] font-black text-orange-500 uppercase tracking-widest mt-1 active:scale-95 transition-transform"><History size={10} /> Ver mis pedidos</button>
+                 </div>
+               )}
+               <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative border-none outline-none">
+                 <ShoppingCart size={20} />
+                 {carrito.length > 0 && (
+                   <span className="absolute -top-1 -right-1 bg-orange-600 text-[10px] px-1.5 rounded-full font-bold">{carrito.reduce((a, b) => a + b.cantidad, 0)}</span>
+                 )}
+               </button>
+               {usuarioLogueado && (
+                 <button onClick={cerrarSesion} className="bg-red-500/10 p-2.5 rounded-full border border-red-500/20 text-red-500 active:scale-95 transition-all"><LogOut size={20} /></button>
+               )}
+             </div>
+           </div></div>
+         <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">{CATEGORIAS.map(c => (<button key={c} onClick={() => { setCatSeleccionada(c); setSubCatSeleccionada("Todas"); }} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${catSeleccionada === c ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-400'}`}>{c}</button>))}</div>
+         {subcategoriasDisponibles.length > 0 && (<div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-800/50"><button onClick={() => setSubCatSeleccionada("Todas")} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === "Todas" ? 'text-sky-400 bg-sky-900/20' : 'text-slate-500'}`}>Todas</button>{subcategoriasDisponibles.map(sc => (<button key={sc} onClick={() => setSubCatSeleccionada(sc)} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === sc ? 'text-sky-400 bg-sky-900/20 shadow-lg' : 'text-slate-500'}`}>{sc}</button>))}</div>)}
+       </div></header>
+       <main className="p-4 w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{menuFiltrado.map(item => (<div key={item.id} className={`bg-slate-800/60 rounded-3xl p-4 flex gap-4 border border-slate-700/30 group shadow-lg transition-all ${item.stock <= 0 ? 'opacity-50 grayscale' : ''}`}><div className="w-24 h-24 rounded-2xl border border-slate-700 bg-slate-900 flex-shrink-0 overflow-hidden relative shadow-inner"><img src={item.imagen} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" alt="p" />{item.stock <= 5 && item.stock > 0 && <span className="absolute bottom-0 left-0 right-0 bg-red-600 text-[8px] font-black text-center uppercase py-0.5 shadow-lg tracking-widest animate-pulse">Últimas {item.stock}</span>}</div><div className="flex-1 flex flex-col justify-between"><div><h3 className="font-bold text-white uppercase leading-tight">{item.nombre}</h3><p className="text-slate-500 text-xs mt-1 italic leading-tight">{item.subcategoria}</p></div><div className="flex justify-between items-center mt-3"><span className="font-black text-xl text-orange-500 italic tracking-tighter">${obtenerPrecioItem(item)}</span><button disabled={item.stock <= 0} onClick={() => agregarAlCarrito(item)} className={`${item.stock <= 0 ? 'bg-slate-700' : 'bg-orange-600 active:scale-90 shadow-orange-950/20'} text-white w-10 h-10 rounded-xl font-bold transition-all shadow-lg`}>{item.stock <= 0 ? <Package size={16} className="mx-auto" /> : '+'}</button></div></div></div>))} </main>
+       {carrito.length > 0 && !verCarrito && (<div className="fixed bottom-6 left-0 right-0 px-6 z-50 flex justify-center no-print"><button onClick={() => setVerCarrito(true)} className="w-full max-w-lg bg-orange-600 text-white py-4 rounded-2xl font-black flex justify-between px-8 shadow-2xl active:scale-95 transition-all shadow-orange-950/30"><span className="text-[10px] uppercase font-bold tracking-widest text-white leading-none flex items-center gap-2"><ShoppingCart size={14}/> MI PEDIDO ({carrito.reduce((a,b)=>a+b.cantidad,0)})</span><span className="font-black text-xl italic text-white tracking-tighter leading-none">${totalCarrito}</span></button></div>)}
+       <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible opacity-100' : 'invisible opacity-0'}`}><div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} /><div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}><div className="flex justify-between items-center border-b border-slate-800 pb-4 font-black text-white italic uppercase text-xl tracking-tighter leading-none"><h2>Mi Cuenta</h2><X onClick={() => setVerCarrito(false)} className="text-slate-500 cursor-pointer" /></div><div className="flex-1 overflow-y-auto py-4 space-y-6 no-scrollbar">{carrito.length > 0 && (<div><p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ShoppingCart size={12}/> Por pedir ahora:</p><div className="space-y-3">{carrito.map(item => (<div key={item.id} className="bg-orange-600/5 p-3 rounded-2xl flex flex-col gap-2 border border-orange-600/20 shadow-sm"><div className="flex justify-between font-bold text-xs text-white uppercase tracking-tight leading-none"><span>{item.nombre}</span><button onClick={() => setCarrito(carrito.filter(x => x.id !== item.id))}><Trash2 size={14} className="text-slate-600 hover:text-red-500 transition-colors"/></button></div><div className="flex justify-between items-center"><span className="text-orange-500 font-bold italic tracking-tighter">${item.precio * item.cantidad}</span><div className="flex items-center gap-3 bg-slate-800 rounded-full px-3 py-1 shadow-inner"><Minus onClick={() => restarDelCarrito(item.id)} size={12} className="cursor-pointer"/><span className="text-xs font-bold text-white">{item.cantidad}</span><Plus onClick={() => agregarAlCarrito(item)} size={12} className="cursor-pointer"/></div></div></div>))}</div></div>)}{consumoAcumulado.length > 0 && (<div><p className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-3 flex items-center gap-2"><History size={12}/> Ya consumido:</p><div className="space-y-2">{consumoAcumulado.map((item, idx) => (<div key={idx} className="bg-slate-900/50 p-3 rounded-xl flex justify-between items-center border border-slate-800 opacity-60"><span className="text-[11px] font-bold text-slate-300 uppercase">{item.cantidad}x {item.nombre}</span><span className="text-[11px] font-black text-white">${item.precio * item.cantidad}</span></div>))}</div></div>)}</div><div className="pt-4 border-t border-slate-800 space-y-4"><div className="flex justify-between font-black text-2xl text-orange-500 italic"><span>Total Cuenta</span><span>${totalCarrito + totalAcumulado}</span></div><button disabled={carrito.length === 0} onClick={intentarEnviar} className="w-full py-4 rounded-2xl font-black text-white bg-orange-600 active:scale-95 transition-all shadow-xl uppercase tracking-widest">Confirmar Pedido</button></div></div></div>
+       {verModalTelefono && (
+         <div className="fixed inset-0 z-[200] bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
+            <div className="mb-8 text-center"><Phone size={48} className="text-orange-600 mx-auto mb-4 animate-bounce" /><h2 className="text-3xl font-black italic uppercase tracking-tighter">¿Tu Teléfono?</h2><p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Para identificar tu pedido externo</p></div>
+            <div className="w-full max-w-[300px] mb-8"><div className="bg-slate-900 border-2 border-orange-600/50 rounded-2xl p-6 text-center shadow-2xl"><span className="text-4xl font-black tracking-widest text-white">{telefonoInput || "----------"}</span></div></div>
+            <div className="grid grid-cols-3 gap-4 max-w-[280px]">
+               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (<button key={n} onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">{n}</button>))}
+               <button onClick={() => setTelefonoInput("")} className="w-16 h-16 rounded-full flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20"><Trash2 size={24}/></button>
+               <button onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + "0")} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black">0</button>
+               <button onClick={() => setVerModalTelefono(false)} className="w-16 h-16 rounded-full flex items-center justify-center text-slate-500 border border-slate-800"><X size={24}/></button>
+            </div>
+            {telefonoInput.length >= 10 && (<button onClick={() => procesarEnvio()} className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse">Confirmar Pedido</button>)}
+         </div>
+       )}
+     </div>
+   );
+ }
+
+ return (
+   <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+       {view !== 'welcome' && view !== 'registro' && view !== 'menu' && view !== 'barra' && (
+           <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
+       )}
+       <div id="recaptcha-container"></div>
+   </div>
+ );
 }
 
 export default App;
