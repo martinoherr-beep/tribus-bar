@@ -1,1 +1,10 @@
 @import "tailwindcss";
+/* --- OCULTAR BARRA DE SCROLL HORIZONTAL EN CATEGORÍAS --- */
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Oculta la barra en Chrome, Safari y Opera */
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;  /* Oculta la barra en Internet Explorer y Edge */
+  scrollbar-width: none;  /* Oculta la barra en Firefox */
+}

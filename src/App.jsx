@@ -89,6 +89,28 @@ const [fechaInicioRep, setFechaInicioRep] = useState("");
 const [fechaFinRep, setFechaFinRep] = useState("");
 const [reporteFiltrado, setReporteFiltrado] = useState(null);
 const [esSuperAdmin, setEsSuperAdmin] = useState(false);
+const [eventoInstalacion, setEventoInstalacion] = useState(null);
+const [esAppInstalada, setEsAppInstalada] = useState(
+  window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+);
+
+const forzarInstalacionApp = async () => {
+  if (!eventoInstalacion) {
+    // Si el navegador es iOS (Safari), beforeinstallprompt no existe, así que les damos una guía visual
+    alert("En iPhone/iPad: Pulsa el botón 'Compartir' (ios-share) abajo en tu navegador y selecciona 'Agregar a inicio' 📲");
+    return;
+  }
+  
+  // Mostrar el prompt nativo en Android / Chrome
+  eventoInstalacion.prompt();
+  const { outcome } = await eventoInstalacion.userChoice;
+  
+  if (outcome === 'accepted') {
+    setEsAppInstalada(true);
+    setEventoInstalacion(null);
+  }
+};
+
  const obtenerPlanta = (idMesa) => {
    if (!idMesa) return "EXTERNO";
    const n = parseInt(idMesa);
@@ -97,6 +119,7 @@ const [esSuperAdmin, setEsSuperAdmin] = useState(false);
    if (n >= 26 && n <= 50) return "TERRAZA";
    return "EXTERNO";
  };
+
  const generarReporteVentas = () => {
   if (!fechaInicioRep || !fechaFinRep) {
     return alert("Por favor, selecciona ambas fechas para el reporte.");
@@ -147,6 +170,7 @@ const [esSuperAdmin, setEsSuperAdmin] = useState(false);
     cantidadTickets: ticketsEnRango
   });
 };
+
  const [mispedidos, setMisPedidos] = useState([]);
 const [telefonoUsuarioLogueado, setTelefonoUsuarioLogueado] = useState("");
 
@@ -165,6 +189,29 @@ useEffect(() => {
    return () => unsub();
  }
 }, [usuarioLogueado]);
+
+useEffect(() => {
+  // Capturar el prompt nativo de instalación
+  const capturarPrompt = (e) => {
+    e.preventDefault();
+    setEventoInstalacion(e);
+  };
+
+  window.addEventListener('beforeinstallprompt', capturarPrompt);
+
+  // Detectar si el usuario cambia al modo pantalla completa (standalone)
+  const mediaQuery = window.matchMedia('(display-mode: standalone)');
+  const verificarModo = (e) => {
+    setEsAppInstalada(e.matches);
+  };
+
+  mediaQuery.addEventListener('change', verificarModo);
+
+  return () => {
+    window.removeEventListener('beforeinstallprompt', capturarPrompt);
+    mediaQuery.removeEventListener('change', verificarModo);
+  };
+}, []);
 
  // --- FUNCIÓN DE LOGIN CORREGIDA (Dentro de App) ---
  const loginClienteFrecuente = async () => {
@@ -271,13 +318,13 @@ useEffect(() => {
       // Detección automática de área por correo:
       if (usuario.email === 'baja@tribus.com') {
         setAreaStaff('PLANTA BAJA');
-        setEsSuperAdmin(false); // Por seguridad, nos aseguramos que esté apagado
+        setEsSuperAdmin(false);
       } else if (usuario.email === 'terraza@tribus.com') {
         setAreaStaff('TERRAZA');
-        setEsSuperAdmin(false); // Por seguridad, nos aseguramos que esté apagado
+        setEsSuperAdmin(false);
       } else if (usuario.email === 'admin@tribus.com') {
         setAreaStaff('TODOS');
-        setEsSuperAdmin(true);  // 🔥 ¡Activación automática de reportes para ti!
+        setEsSuperAdmin(true);  // 🔥 ¡Activación automática de reportes!
       }
     } else {
       setUsuarioLogueado(null);
@@ -291,12 +338,12 @@ const enviarCodigoSMS = async () => {
  if (telefonoInput.length !== 10) return alert("Ingresa 10 dígitos");
 
  if (window.recaptchaVerifier) {
-   try {
-       window.recaptchaVerifier.clear(); 
-       window.recaptchaVerifier = null;
-   } catch (e) {
-       console.warn("Recaptcha ya no existía");
-   }
+    try {
+        window.recaptchaVerifier.clear(); 
+        window.recaptchaVerifier = null;
+    } catch (e) {
+        console.warn("Recaptcha ya no existía");
+    }
 }
   
  const container = document.getElementById('recaptcha-container');
@@ -435,71 +482,69 @@ const verificarCodigo = async () => {
    return () => clearInterval(vigilante);
  }, [recordatorios]);
 
-// --- ESCUCHA DE ROCKOLA CORREGIDA (SIN DUPLICADOS) ---
+// --- ESCUCHA DE ROCKOLA INTERCEPTADA (COMO AGREGAR UN PRODUCTO MÁS) ---
 useEffect(() => {
-  // Escuchamos la colección de la Rockola de forma aislada
   const q = query(collection(db, "rockola_pendientes"), where("estado", "==", "pendiente"));
 
   const unsub = onSnapshot(q, async (snapshot) => {
-    // Usamos un Batch para escribir todo junto y evitar múltiples disparos en bucle
-    const batch = writeBatch(db);
-    let huboCambios = false;
-
     for (const cambio of snapshot.docChanges()) {
       if (cambio.type === "added") {
-        huboCambios = true;
         const dataRockola = cambio.doc.data();
-        const mesaRockola = String(dataRockola.mesa); 
-        const totalCreditos = Number(dataRockola.total) || 0; 
-        const detalleCreditos = dataRockola.detalle; 
+        const mesaRockola = String(dataRockola.mesa);
+        const totalCreditos = Number(dataRockola.total) || 0;
+        const detalleCreditos = dataRockola.detalle || "Créditos Rockola";
         const rockolaDocId = cambio.doc.id;
 
-        // Buscamos el pedido activo usando el snapshot actual en tiempo real de Firestore (db)
-        // para evitar depender del estado 'pedidosBarra' de React
-        const pedidoActivo = pedidosBarra.find(p => String(p.mesa) === mesaRockola);
+        try {
+          const qPedido = query(
+            collection(db, "pedidos"),
+            where("mesa", "==", "pendiente")
+          );
+          
+          const pedidoSnapshot = await getDocs(qPedido);
+          const batch = writeBatch(db);
 
-        if (pedidoActivo) {
-          // 1. Si la mesa ya tiene cuenta, le sumamos los créditos al pedido existente
-          const pedidoRef = doc(db, "pedidos", pedidoActivo.id);
-          batch.update(pedidoRef, {
-            detalle: pedidoActivo.detalle + "\n" + detalleCreditos,
-            total: Number(pedidoActivo.total) + totalCreditos
-          });
-          console.log(`🎵 Rockola: Créditos sumados a Mesa ${mesaRockola}`);
-        } else {
-          // 2. Si la mesa NO tiene cuenta abierta, creamos una NUEVA comanda única
-          const nuevoPedidoRef = doc(collection(db, "pedidos"));
-          batch.set(nuevoPedidoRef, {
-            mesa: mesaRockola,
-            detalle: detalleCreditos,
-            total: totalCreditos,
-            estado: "pendiente",
-            fecha: serverTimestamp(),
-            archivado: false,
-            cliente: "Cliente Rockola"
-          });
-          console.log(`🎵 Rockola: Comanda nueva creada para Mesa ${mesaRockola}`);
+          if (!pedidoSnapshot.empty) {
+            const pedidoDoc = pedidoSnapshot.docs[0];
+            const datosPedidoActual = pedidoDoc.data();
+
+            const detalleActualizado = datosPedidoActual.detalle 
+              ? `${datosPedidoActual.detalle}\n${detalleCreditos}`
+              : detalleCreditos;
+
+            const totalActualizado = (Number(datosPedidoActual.total) || 0) + totalCreditos;
+
+            batch.update(doc(db, "pedidos", pedidoDoc.id), {
+              detalle: detalleActualizado,
+              total: totalActualizado
+            });
+            
+          } else {
+            const nuevoPedidoRef = doc(collection(db, "pedidos"));
+            batch.set(nuevoPedidoRef, {
+              mesa: mesaRockola,
+              detalle: detalleCreditos,
+              total: totalCreditos,
+              estado: "pendiente",
+              fecha: serverTimestamp(),
+              archivado: false,
+              cliente: "Cliente Rockola"
+            });
+          }
+
+          const rockolaRef = doc(db, "rockola_pendientes", rockolaDocId);
+          batch.delete(rockolaRef);
+          await batch.commit();
+
+        } catch (error) {
+          console.error("Error crítico:", error);
         }
-
-        // 3. Eliminamos INMEDIATAMENTE el pendiente de la rockola en el mismo proceso batch
-        // para que otra ejecución no lo vuelva a leer como duplicado
-        const rockolaRef = doc(db, "rockola_pendientes", rockolaDocId);
-        batch.delete(rockolaRef);
-      }
-    }
-
-    // Si procesamos créditos, ejecutamos la escritura única en Firebase
-    if (huboCambios) {
-      try {
-        await batch.commit();
-      } catch (error) {
-        console.error("Error al procesar lote de rockola:", error);
       }
     }
   });
 
   return () => unsub();
-}, []); // ⚡ IMPORTANTE: Arreglo vacío. Solo se monta UNA vez al arrancar la app.
+}, []);
 
  useEffect(() => {
    const params = new URLSearchParams(window.location.search);
@@ -549,7 +594,7 @@ useEffect(() => {
  const restarDelCarrito = (id) => {
    const ex = carrito.find(x => x.id === id);
    if (!ex) return;
-   if (ex.cantidad === 1) setCarrito(carrito.filter(x => x.id !== id));
+   if (ex.whitespace === 1) setCarrito(carrito.filter(x => x.id !== id));
    else setCarrito(carrito.map(x => x.id === id ? { ...ex, cantidad: ex.cantidad - 1 } : x));
  };
 
@@ -664,7 +709,35 @@ const guardarEvento = async (e) => {
    setNuevoEvento({ titulo: "", fecha: "", hora: "" });
  };
 
-if (view === 'success') return (
+  return (
+    <>
+      {/* --- PWA: OBLIGAR A AGREGAR A INICIO (SOLO PARA CLIENTES) --- */}
+      {!esAppInstalada && view !== 'barra' && view !== 'login_staff' && (
+        <div className="fixed inset-0 z-[300] bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center font-sans select-none">
+          <div className="max-w-sm space-y-6 animate-fade-in">
+            <div className="w-20 h-20 bg-gradient-to-tr from-orange-600 to-amber-500 rounded-2xl flex items-center justify-center mx-auto shadow-2xl shadow-orange-600/20 transform rotate-12">
+              <span className="text-3xl font-black italic tracking-tighter text-black -rotate-12">TB</span>
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black uppercase tracking-tight italic">🔒 Acceso Seguro al Menú</h2>
+              <p className="text-xs text-slate-400 font-medium px-4 leading-relaxed">
+                Para garantizar que tus pedidos se envíen de forma correcta a la barra de tu planta, es necesario añadir la app a tu pantalla de inicio.
+              </p>
+            </div>
+            <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-4 text-left space-y-3">
+              <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Evita que tu mesa se desconfigure.</div>
+              <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Navegación más rápida sin barras molestas.</div>
+              <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Pide directo a tu mesa en Planta Baja o Terraza.</div>
+            </div>
+            <button onClick={forzarInstalacionApp} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs transition-all shadow-xl active:scale-95">
+              ✨ Agregar a Pantalla de Inicio
+            </button>
+            <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Tribu's Bar • Sistema de Seguridad de Mesas</p>
+          </div>
+        </div>
+      )}
+
+{view === 'success' && (
  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center text-white font-sans">
    <CheckCircle size={80} className="text-green-500 mb-6 animate-bounce" />
    <h1 className="text-4xl font-black italic mb-4 uppercase tracking-tighter">¡PEDIDO RECIBIDO!</h1>
@@ -676,10 +749,9 @@ if (view === 'success') return (
    )}
    <button onClick={() => setView('menu')} className="text-orange-500 font-bold border-b border-orange-500 uppercase tracking-widest">Seguir Consumiendo</button>
  </div>
-);
+)}
 
-if (view === 'mis_pedidos') {
- return (
+{view === 'mis_pedidos' && (
    <div className="min-h-screen bg-black p-6 font-sans text-white">
      <div className="flex justify-between items-center mb-8">
        <h2 className="text-2xl font-black italic uppercase tracking-tighter">Mis Órdenes</h2>
@@ -708,11 +780,9 @@ if (view === 'mis_pedidos') {
        )}
      </div>
    </div>
- );
-}
+)}
 
-if (view === 'login_staff') {
- return (
+{view === 'login_staff' && (
    <div className="min-h-screen bg-[#05070a] flex items-center justify-center p-4 text-white font-sans relative overflow-hidden">
      <div className="absolute top-[-10%] left-[-10%] w-[300px] h-[300px] bg-orange-600/10 rounded-full blur-[120px]"></div>
      <div className="absolute bottom-[-10%] right-[-10%] w-[300px] h-[300px] bg-sky-500/10 rounded-full blur-[120px]"></div>
@@ -748,10 +818,9 @@ if (view === 'login_staff') {
        <button onClick={() => setView('welcome')} className="w-full text-center text-[10px] font-bold text-slate-500 hover:text-slate-400 transition-colors mt-6 uppercase tracking-wider">Volver al Menú</button>
      </div>
    </div>
- );
-}
+)}
 
- if (mesa && !mesaValidada && pinCorrectoMesa) return (
+{mesa && !mesaValidada && pinCorrectoMesa && (
    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
      <Lock size={48} className="text-orange-600 mb-6 animate-pulse" />
      <h2 className="text-2xl font-black italic uppercase text-center tracking-tighter">Mesa con Cuenta Abierta</h2>
@@ -769,23 +838,17 @@ if (view === 'login_staff') {
        <button onClick={() => manejarPinMesa(0)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">0</button>
      </div>
    </div>
- );
+)}
 
-
-
-if (view === 'barra') {
- const subcatsExistentes = Array.from(new Set(productosMenu.map(p => p.subcategoria).filter(s => s && s !== "")));
- return (
+{view === 'barra' && (
    <div className="min-h-screen bg-[#05070a] p-4 md:p-6 text-white flex flex-col font-sans">
      <style>{estilosImpresion}</style>
      <header className="flex flex-col mb-6 border-b border-slate-800 pb-6 gap-4 no-print">
-        {/* Fila Superior: Título, Área Asignada, Status y Salir */}
         <div className="flex justify-between items-center w-full flex-wrap gap-2">
           <div className="flex flex-col">
             <h1 className="text-3xl md:text-4xl font-black text-orange-600 italic uppercase tracking-tighter leading-none">
               TRIBU'S BARRA
             </h1>
-            {/* Indicador visual de qué área está viendo el encargado logueado */}
             <span className="text-[10px] font-black tracking-widest mt-1 uppercase text-slate-400">
               ZONA: <span className={areaStaff === 'TERRAZA' ? 'text-sky-400' : areaStaff === 'PLANTA BAJA' ? 'text-orange-500' : 'text-green-500'}>
                 {areaStaff === 'TODOS' ? 'Control General (Todo)' : areaStaff}
@@ -794,7 +857,6 @@ if (view === 'barra') {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Si eres el Admin (TODOS), te dejamos este selector pequeño para saltar entre áreas manualmente si lo necesitas */}
             {usuarioLogueado?.email === 'admin@tribus.com' && (
               <select 
                 value={areaStaff} 
@@ -811,34 +873,29 @@ if (view === 'barra') {
               ● En Vivo
             </div>
 
-            {/* 🔥 BOTÓN DE SALIDA DE SEGURIDAD 🔥 */}
-            {/* Botón de Salir Simplificado */}
-{/* 🔥 BOTÓN DE SALIDA DE SEGURIDAD TOTAL 🔥 */}
-<button 
-  onClick={async () => {
-    try {
-      await signOut(auth);    // 🔥 Cierra la sesión real en Firebase Auth
-      setEsSuperAdmin(false); // Apaga los reportes
-      setUsuarioLogueado(null); // Limpia el usuario local
-      setView('welcome');     // Te regresa a la bienvenida del bar
-      alert("Sesión de administración cerrada con seguridad.");
-    } catch (error) {
-      console.error("Error al salir de la barra:", error);
-      // Respaldo por si falla la red, forzamos cambio de vista
-      setView('welcome');
-      setEsSuperAdmin(false);
-    }
-  }} 
-  className="bg-red-600/10 hover:bg-red-600 border border-red-500/20 text-red-500 hover:text-white p-2 rounded-xl transition-all active:scale-95 flex items-center gap-1 font-black text-[9px] uppercase tracking-wider"
-  title="Salir de Barra"
->
-  <LogOut size={14} />
-  <span className="hidden sm:inline">Salir</span>
-</button>
+            <button 
+              onClick={async () => {
+                try {
+                  await signOut(auth);    
+                  setEsSuperAdmin(false); 
+                  setUsuarioLogueado(null); 
+                  setView('welcome');     
+                  alert("Sesión de administración cerrada con seguridad.");
+                } catch (error) {
+                  console.error("Error al salir de la barra:", error);
+                  setView('welcome');
+                  setEsSuperAdmin(false);
+                }
+              }} 
+              className="bg-red-600/10 hover:bg-red-600 border border-red-500/20 text-red-500 hover:text-white p-2 rounded-xl transition-all active:scale-95 flex items-center gap-1 font-black text-[9px] uppercase tracking-wider"
+              title="Salir de Barra"
+            >
+              <LogOut size={14} />
+              <span className="hidden sm:inline">Salir</span>
+            </button>
           </div>
         </div>
 
-        {/* Fila Media: Navegación con Scroll Horizontal */}
         <div className="w-full overflow-x-auto no-scrollbar flex gap-3 pb-2">
           <button 
             onClick={() => setTabBarra('comandas')} 
@@ -860,7 +917,6 @@ if (view === 'barra') {
           </button>
         </div>
 
-        {/* Fila Inferior: Botones de Acción Dinámicos (¡Aquí regresaron!) */}
         <div className="flex flex-wrap items-center gap-3">
           {tabBarra === 'inventario' && (
             <button 
@@ -879,511 +935,561 @@ if (view === 'barra') {
             </button>
           )}
         </div>
-      </header>
+     </header>
 
-       <div className="flex flex-col lg:flex-row gap-6">
-         {tabBarra === 'comandas' && (
-           <div className="flex-1 no-print">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).filter(p => {
-                 if (areaStaff === 'TODOS') return true;
-                 return obtenerPlanta(p.mesa) === areaStaff; 
-               }).map(p => {
-                 const esExterno = String(p.mesa).startsWith("TEL:");
-                 const numTel = esExterno ? p.mesa.replace("TEL:", "") : "";
-                 const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está listo.\n\n*Total a pagar: $${p.total}*\n\n*Detalle del pedido:*\n${p.detalle}\n\n${DATOS_PAGO}`;
-                 return (
-                   <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl relative shadow-xl flex flex-col justify-between group transition-all">
-                     <div className={`absolute top-0 left-0 w-1.5 h-full ${esExterno ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
-                     {p.pagoInformado && (
-                       <div className="bg-blue-600 text-white text-[10px] font-black p-3 rounded-xl mb-4 flex items-center justify-center gap-2 animate-pulse shadow-lg shadow-blue-900/40 border border-blue-400/30"><CheckCircle size={14} /> PAGO INFORMADO - VERIFICAR CAJA</div>
-                     )}
-                     <div><div className="flex justify-between items-start">
-                         <div className="flex flex-col"><h3 className="text-2xl font-black italic uppercase tracking-tighter leading-none">{esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}</h3>
-                         {p.cliente && <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Atendiendo a: <span className="text-orange-500">{p.cliente}</span></span>}
-                         <span className={`text-[9px] font-black uppercase tracking-widest mt-1 ${obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}`}>{obtenerPlanta(p.mesa)}</span></div>
-                         <div className="flex gap-2">
-                           <button onClick={() => moverMesa(p)} className="p-1 text-slate-500 hover:text-sky-400 transition-colors" title="Mover Mesa"><ExternalLink size={18}/></button>
-                           <button onClick={async () => { 
-                             if(window.confirm("¿Cancelar pedido? El stock regresará.")) { 
-                               const batch = writeBatch(db); 
-                               p.detalle.split('\n').forEach(linea => { 
-                                 const m = linea.match(/(\d+)x (.*) \(\$/); 
-                                 if (m) { 
-                                   const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
-                                   if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
-                                 } 
-                               }); 
-                               batch.delete(doc(db, "pedidos", p.id)); 
-                               await batch.commit(); 
-                             } 
-                           }} className="p-1 text-slate-700 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
-                         </div>
+     <div className="flex flex-col lg:flex-row gap-6">
+       {tabBarra === 'comandas' && (
+         <div className="flex-1 no-print">
+           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
+             {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).filter(p => {
+               if (areaStaff === 'TODOS') return true;
+               return obtenerPlanta(p.mesa) === areaStaff; 
+             }).map(p => {
+               const esExterno = String(p.mesa).startsWith("TEL:");
+               const numTel = esExterno ? p.mesa.replace("TEL:", "") : "";
+               const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está listo.\n\n*Total a pagar: $${p.total}*\n\n*Detalle del pedido:*\n${p.detalle}\n\n${DATOS_PAGO}`;
+               return (
+                 <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-3.5 rounded-xl relative shadow-lg flex flex-col justify-between group transition-all text-left">
+                   <div className={`absolute top-0 left-0 w-1 h-full ${esExterno ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
+                   
+                   {p.pagoInformado && (
+                     <div className="bg-blue-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex items-center justify-center gap-1.5 animate-pulse shadow-md border border-blue-400/20">
+                       <CheckCircle size={12} /> PAGO INFORMADO - VERIFICAR CAJA
                      </div>
+                   )}
+                   
+                   <div>
+                     <div className="flex justify-between items-start">
+                       <div className="flex flex-col leading-tight">
+                         <h3 className="text-lg font-black italic uppercase tracking-tight text-white">
+                           {esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}
+                         </h3>
+                         {p.cliente && (
+                           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                             Atendiendo a: <span className="text-orange-500">{p.cliente}</span>
+                           </span>
+                         )}
+                         <span className="text-[9px] font-black uppercase tracking-widest mt-0.5 text-slate-400">
+                           ZONA: <span className={obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}>
+                             {obtenerPlanta(p.mesa)}
+                           </span>
+                         </span>
+                       </div>
+                       
+                       <div className="flex gap-1.5">
+                         <button onClick={() => moverMesa(p)} className="p-1 text-slate-500 hover:text-sky-400 transition-colors" title="Mover Mesa">
+                           <ExternalLink size={15}/>
+                         </button>
+                         <button onClick={async () => { 
+                           if(window.confirm("¿Cancelar pedido? El stock regresará.")) { 
+                             const batch = writeBatch(db); 
+                             p.detalle.split('\n').forEach(linea => { 
+                               const m = linea.match(/(\d+)x (.*) \(\$/); 
+                               if (m) { 
+                                 const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
+                                 if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
+                               } 
+                             }); 
+                             batch.delete(doc(db, "pedidos", p.id)); 
+                             await batch.commit(); 
+                           } 
+                         }} className="p-1 text-slate-700 hover:text-red-500 transition-colors">
+                           <Trash2 size={15}/>
+                         </button>
+                       </div>
+                     </div>
+
                      {p.pinMesa && (
-                       <div className="bg-orange-600/10 border border-orange-600/20 rounded-lg p-2 mt-3 flex justify-between items-center"><span className="text-[10px] font-black uppercase text-orange-500 tracking-widest">PIN SEGURIDAD:</span><span className="text-xl font-black text-white">{p.pinMesa}</span></div>
+                       <div className="bg-orange-600/5 border border-orange-600/10 rounded-md p-1.5 mt-2 flex justify-between items-center">
+                         <span className="text-[8px] font-black uppercase text-orange-500 tracking-wider">PIN SEGURIDAD:</span>
+                         <span className="text-sm font-black text-white tracking-widest">{p.pinMesa}</span>
+                       </div>
                      )}
-                     <div className="mt-4 space-y-1">
+
+                     <div className="mt-3 space-y-1 max-h-[150px] overflow-y-auto no-scrollbar">
                        {p.detalle.split('\n').map((linea, idx) => {
                          const esProducto = /^\d+x/.test(linea.trim());
                          return (
-                           <div key={idx} className="group/item flex justify-between items-center bg-black/20 p-2 rounded-lg border border-white/5">
-                             <span className={`text-lg leading-tight ${!esProducto ? 'text-orange-500 font-bold text-xs' : 'text-slate-300'}`}>{linea}</span>
+                           <div key={idx} className="group/item flex justify-between items-center bg-black/20 p-1.5 rounded-md border border-white/5">
+                             <span className={`text-sm tracking-tight leading-none ${!esProducto ? 'text-orange-500 font-bold text-[10px]' : 'text-slate-300'}`}>
+                               {linea}
+                             </span>
                              {esProducto && (
-                               <button onClick={() => eliminarArticuloComanda(p, idx)} className="opacity-0 group-hover/item:opacity-100 p-1 text-red-500/50 hover:text-red-500 transition-all"><X size={16}/></button>
+                               <button onClick={() => eliminarArticuloComanda(p, idx)} className="opacity-0 group-hover/item:opacity-100 p-0.5 text-red-500/50 hover:text-red-500 transition-all">
+                                 <X size={12}/>
+                               </button>
                              )}
                            </div>
                          );
                        })}
                      </div>
+
                      {esExterno && (
-                       <button onClick={() => window.open(`https://wa.me/${numTel}?text=${encodeURIComponent(mensajeWA)}`, '_blank')} className="flex items-center justify-center gap-2 bg-green-600/10 border border-green-600/20 text-green-500 w-full py-3 rounded-xl font-black uppercase text-xs mt-4 hover:bg-green-600 hover:text-white transition-all"><Phone size={14}/> Enviar Datos Bancarios</button>
+                       <button onClick={() => window.open(`https://wa.me/${numTel}?text=${encodeURIComponent(mensajeWA)}`, '_blank')} className="flex items-center justify-center gap-1.5 bg-green-600/10 border border-green-600/20 text-green-500 w-full py-2 rounded-lg font-black uppercase text-[10px] mt-2.5 hover:bg-green-600 hover:text-white transition-all">
+                         <Phone size={12}/> Enviar Datos Bancarios
+                       </button>
                      )}
+                   </div>
+                   
+                   <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-2.5 rounded-xl font-black text-sm mt-4 active:scale-95 uppercase tracking-tight shadow-md transition-all">
+                     Cobrar ${p.total}
+                   </button>
+                 </div>
+               );
+             })}
+           </div>
+         </div>
+       )}
+
+       {tabBarra === 'inventario' && (
+         <div className="flex-1 no-print space-y-8">
+           <div>
+             <h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2">
+               <div className="w-2 h-2 bg-orange-500 rounded-full"></div> HIELERA PLANTA BAJA
+             </h2>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+               {productosMenu.filter(p => p.ubicacion === "PLANTA BAJA" || !p.ubicacion || p.ubicacion === "HIELERA BAJA").map(prod => (
+                 <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
+                   <div className="flex justify-between items-start mb-4">
+                     <div className="flex gap-3">
+                       <div className="w-16 h-16 rounded-xl border border-slate-880 bg-slate-900 flex-shrink-0 overflow-hidden">
+                         <img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/>
+                       </div>
+                       <div>
+                         <h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4>
+                         <p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p>
+                       </div>
                      </div>
-                     <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-4 rounded-xl font-black text-lg mt-6 active:scale-95 uppercase tracking-tighter shadow-xl">Cobrar ${p.total}</button></div>
-                 );
-               })}
+                     <div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div>
+                   </div>
+                   <div className="grid grid-cols-2 gap-2 mt-auto">
+                     <button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button>
+                     <button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
+                     <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button>
+                   </div>
+                 </div>
+               ))}
              </div>
            </div>
-         )}
+           
+           <div>
+             <h2 className="text-sky-400 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2">
+               <div className="w-2 h-2 bg-sky-400 rounded-full"></div> HIELERA TERRAZA
+             </h2>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+               {productosMenu.filter(p => p.ubicacion === "TERRAZA").map(prod => (
+                 <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
+                   <div className="flex justify-between items-start mb-4">
+                     <div className="flex gap-3">
+                       <div className="w-16 h-16 rounded-xl border border-slate-800 bg-slate-900 flex-shrink-0 overflow-hidden">
+                         <img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/>
+                       </div>
+                       <div>
+                         <h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4>
+                         <p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p>
+                       </div>
+                     </div>
+                     <div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div>
+                   </div>
+                   <div className="grid grid-cols-2 gap-2 mt-auto">
+                     <button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button>
+                     <button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
+                     <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button>
+                   </div>
+                 </div>
+               ))}
+             </div>
+           </div>
+         </div>
+       )}
 
-         {tabBarra === 'inventario' && (
-           <div className="flex-1 no-print space-y-8">
-             <div><h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2"><div className="w-2 h-2 bg-orange-500 rounded-full"></div> HIELERA PLANTA BAJA</h2>
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                 {productosMenu.filter(p => p.ubicacion === "PLANTA BAJA" || !p.ubicacion || p.ubicacion === "HIELERA BAJA").map(prod => (
-                   <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
-                     <div className="flex justify-between items-start mb-4"><div className="flex gap-3"><div className="w-16 h-16 rounded-xl border border-slate-800 bg-slate-900 flex-shrink-0 overflow-hidden"><img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/></div><div><h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4><p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p></div></div><div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div></div>
-                     <div className="grid grid-cols-2 gap-2 mt-auto"><button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button><button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
-                     <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button></div></div>
-                 ))}
+       {tabBarra === 'eventos' && (
+         <div className="flex-1 no-print p-4">
+           <div className="grid gap-4">{recordatorios.map(rec => (<div key={rec.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl flex justify-between items-center shadow-xl"><div><p className="text-white font-bold uppercase tracking-tight">{rec.titulo}</p><p className="text-orange-500 text-[10px] font-black mt-1 uppercase tracking-widest">{rec.fecha} | {rec.hora} HRS</p></div><button onClick={() => deleteDoc(doc(db, "recordatorios", rec.id))} className="text-red-500/30 hover:text-red-500 transition-colors"><Trash2 size={20}/></button></div>))}</div>
+         </div>
+       )}
+
+       <div className="w-full lg:w-[350px] space-y-4 no-print">
+         <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 shadow-xl">
+           <div className="relative">
+             <Search className="absolute left-3 top-2.5 text-slate-600" size={16}/>
+             <input type="text" placeholder="Mesa, Tel o Fecha" value={filtroMesa} onChange={(e) => setFiltroMesa(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl pl-10 py-2 text-sm text-white focus:border-orange-500 font-bold shadow-inner" />
+           </div>
+         </div>
+
+         {esSuperAdmin && (
+           <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-slate-800 shadow-2xl no-print">
+             <h2 className="text-sm font-black text-orange-500 uppercase tracking-widest mb-4 flex items-center gap-2">📊 Reporte de Ventas</h2>
+             <div className="space-y-3">
+               <div>
+                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Inicio</label>
+                 <input type="date" value={fechaInicioRep} onChange={(e) => setFechaInicioRep(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold" />
                </div>
-             </div>
-             <div><h2 className="text-sky-400 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2"><div className="w-2 h-2 bg-sky-400 rounded-full"></div> HIELERA TERRAZA</h2>
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                 {productosMenu.filter(p => p.ubicacion === "TERRAZA").map(prod => (
-                   <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
-                     <div className="flex justify-between items-start mb-4"><div className="flex gap-3"><div className="w-16 h-16 rounded-xl border border-slate-800 bg-slate-900 flex-shrink-0 overflow-hidden"><img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/></div><div><h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4><p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p></div></div><div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div></div>
-                     <div className="grid grid-cols-2 gap-2 mt-auto"><button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button><button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
-                     <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button></div></div>
-                 ))}
+               <div>
+                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Fin</label>
+                 <input type="date" value={fechaFinRep} onChange={(e) => setFechaFinRep(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold" />
                </div>
+               <button onClick={generarReporteVentas} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95 mt-2">Generar Reporte</button>
              </div>
            </div>
          )}
 
-         {tabBarra === 'eventos' && (
-           <div className="flex-1 no-print p-4">
-             <div className="grid gap-4">{recordatorios.map(rec => (<div key={rec.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl flex justify-between items-center shadow-xl"><div><p className="text-white font-bold uppercase tracking-tight">{rec.titulo}</p><p className="text-orange-500 text-[10px] font-black mt-1 uppercase tracking-widest">{rec.fecha} | {rec.hora} HRS</p></div><button onClick={() => deleteDoc(doc(db, "recordatorios", rec.id))} className="text-red-500/30 hover:text-red-500 transition-colors"><Trash2 size={20}/></button></div>))}</div>
+         <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-orange-900/10 shadow-2xl">
+           <div className="flex justify-between items-center mb-4">
+             <h2 className="text-lg font-black text-orange-600 uppercase italic flex items-center gap-2"><ReceiptText size={20}/> Caja Hoy</h2>
+             <button onClick={realizarCierreTurno} className="text-[9px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-lg uppercase hover:bg-red-600 transition-all">Cierre</button>
            </div>
-         )}
-
-         <div className="w-full lg:w-[350px] space-y-4 no-print">
-           <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 shadow-xl"><div className="relative"><Search className="absolute left-3 top-2.5 text-slate-600" size={16}/><input type="text" placeholder="Mesa, Tel o Fecha" value={filtroMesa} onChange={(e) => setFiltroMesa(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl pl-10 py-2 text-sm text-white focus:border-orange-500 font-bold shadow-inner" /></div></div>
-{/* --- MÓDULO DE REPORTES POR FECHA (NO-PRINT) --- */}
-{esSuperAdmin && (
-  <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-slate-800 shadow-2xl no-print">
-    <h2 className="text-sm font-black text-orange-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-      📊 Reporte de Ventas
-    </h2>
-    <div className="space-y-3">
-      <div>
-        <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Inicio</label>
-        <input 
-          type="date" 
-          value={fechaInicioRep} 
-          onChange={(e) => setFechaInicioRep(e.target.value)} 
-          className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold"
-        />
-      </div>
-      <div>
-        <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Fin</label>
-        <input 
-          type="date" 
-          value={fechaFinRep} 
-          onChange={(e) => setFechaFinRep(e.target.value)} 
-          className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold"
-        />
-      </div>
-      <button 
-        onClick={generarReporteVentas} 
-        className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95 mt-2"
-      >
-        Generar Reporte
-      </button>
-    </div>
-  </div>
-)}
-           <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-orange-900/10 shadow-2xl">
-             <div className="flex justify-between items-center mb-4"><h2 className="text-lg font-black text-orange-600 uppercase italic flex items-center gap-2"><ReceiptText size={20}/> Caja Hoy</h2><button onClick={realizarCierreTurno} className="text-[9px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-lg uppercase hover:bg-red-600 transition-all">Cierre</button></div>
-             <div className="space-y-3 max-h-[550px] overflow-y-auto no-scrollbar mb-4">
-               {historialFiltradoParaCaja.map((hc) => (
-                   <div key={hc.id} onClick={() => setTicketParaReimprimir(hc)} className="group p-3 bg-[#05070a] rounded-xl border border-slate-700 flex items-center justify-between hover:border-orange-500 transition-all shadow-sm cursor-pointer"><div className="flex-1"><div className="flex justify-between font-black text-[11px] uppercase tracking-tighter"><span className="text-slate-400">Mesa {hc.mesa} - {obtenerPlanta(hc.mesa)}</span><span className="text-green-500">${hc.total}</span></div><div className="flex justify-between items-center mt-1"><p className="text-[8px] text-slate-500 uppercase font-bold">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) : 'Reciente'}</p><p className="text-[11px] text-slate-400 font-black uppercase italic tracking-tighter">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleDateString('es-MX') : ''}</p></div></div><button onClick={(e) => { e.stopPropagation(); if(window.confirm("¿Borrar?")) deleteDoc(doc(db, "historial_tickets", hc.id)); }} className="ml-2 p-1.5 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={14}/></button></div>
-                 ))}
-             </div>
-             <div className="pt-3 border-t border-slate-800 flex justify-between font-black"><span className="text-slate-500 text-[10px] uppercase italic tracking-widest">Total:</span><span className="text-2xl text-green-500 tracking-tighter">${totalCajaHoy}</span></div></div>
+           <div className="space-y-3 max-h-[550px] overflow-y-auto no-scrollbar mb-4">
+             {historialFiltradoParaCaja.map((hc) => (
+               <div key={hc.id} onClick={() => setTicketParaReimprimir(hc)} className="group p-3 bg-[#05070a] rounded-xl border border-slate-700 flex items-center justify-between hover:border-orange-500 transition-all shadow-sm cursor-pointer">
+                 <div className="flex-1">
+                   <div className="flex justify-between font-black text-[11px] uppercase tracking-tighter">
+                     <span className="text-slate-400">Mesa {hc.mesa} - {obtenerPlanta(hc.mesa)}</span>
+                     <span className="text-green-500">${hc.total}</span>
+                   </div>
+                   <div className="flex justify-between items-center mt-1">
+                     <p className="text-[8px] text-slate-500 uppercase font-bold">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) : 'Reciente'}</p>
+                     <p className="text-[11px] text-slate-400 font-black uppercase italic tracking-tighter">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleDateString('es-MX') : ''}</p>
+                   </div>
+                 </div>
+                 <button onClick={(e) => { e.stopPropagation(); if(window.confirm("¿Borrar?")) deleteDoc(doc(db, "historial_tickets", hc.id)); }} className="ml-2 p-1.5 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                   <Trash2 size={14}/>
+                 </button>
+               </div>
+             ))}
+           </div>
+           <div className="pt-3 border-t border-slate-800 flex justify-between font-black">
+             <span className="text-slate-500 text-[10px] uppercase italic tracking-widest">Total:</span>
+             <span className="text-2xl text-green-500 tracking-tighter">${totalCajaHoy}</span>
+           </div>
          </div>
        </div>
+     </div>
 
-       {verModalNuevoProd && (
-         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-           <div className="bg-slate-900 border border-slate-800 w-full max-w-[420px] rounded-[2.5rem] p-8 shadow-2xl relative">
-             <button onClick={() => { setVerModalNuevoProd(false); setEsNuevaSub(false); }} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"><X/></button>
-             <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><PlusCircle/> Agregar Producto</h2>
+     {verModalNuevoProd && (
+       <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+         <div className="bg-slate-900 border border-slate-800 w-full max-w-[420px] rounded-[2.5rem] p-8 shadow-2xl relative">
+           <button onClick={() => { setVerModalNuevoProd(false); setEsNuevaSub(false); }} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"><X/></button>
+           <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><PlusCircle/> Agregar Producto</h2>
+           
+           <form onSubmit={async (e) => { 
+               e.preventDefault(); 
+               const batch = writeBatch(db);
+               
+               if (nuevoProd.stockBaja > 0) {
+                 const refBaja = doc(collection(db, "productos"));
+                 batch.set(refBaja, {
+                   nombre: nuevoProd.nombre,
+                   stock: Number(nuevoProd.stockBaja),
+                   ubicacion: "PLANTA BAJA",
+                   precioMesa: Number(nuevoProd.precioMesa),
+                   precioDomicilio: Number(nuevoProd.precioDomicilio),
+                   categoria: nuevoProd.categoria,
+                   subcategoria: nuevoProd.subcategoria,
+                   imagen: nuevoProd.imagen
+                 });
+               }
+
+               if (nuevoProd.stockTerraza > 0) {
+                 const refTerraza = doc(collection(db, "productos"));
+                 batch.set(refTerraza, {
+                   nombre: nuevoProd.nombre,
+                   stock: Number(nuevoProd.stockTerraza),
+                   ubicacion: "TERRAZA",
+                   precioMesa: Number(nuevoProd.precioMesa),
+                   precioDomicilio: Number(nuevoProd.precioDomicilio),
+                   categoria: nuevoProd.categoria,
+                   subcategoria: nuevoProd.subcategoria,
+                   imagen: nuevoProd.imagen
+                 });
+               }
+
+               await batch.commit();
+               setVerModalNuevoProd(false);
+               setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", categoria: "Cerveza", subcategoria: "", imagen: "" });
+           }} className="space-y-4">
              
-             <form onSubmit={async (e) => { 
-                 e.preventDefault(); 
-                 const batch = writeBatch(db);
-                 
-                 if (nuevoProd.stockBaja > 0) {
-                   const refBaja = doc(collection(db, "productos"));
-                   batch.set(refBaja, {
-                     nombre: nuevoProd.nombre,
-                     stock: Number(nuevoProd.stockBaja),
-                     ubicacion: "PLANTA BAJA",
-                     precioMesa: Number(nuevoProd.precioMesa),
-                     precioDomicilio: Number(nuevoProd.precioDomicilio),
-                     categoria: nuevoProd.categoria,
-                     subcategoria: nuevoProd.subcategoria,
-                     imagen: nuevoProd.imagen
-                   });
-                 }
-
-                 if (nuevoProd.stockTerraza > 0) {
-                   const refTerraza = doc(collection(db, "productos"));
-                   batch.set(refTerraza, {
-                     nombre: nuevoProd.nombre,
-                     stock: Number(nuevoProd.stockTerraza),
-                     ubicacion: "TERRAZA",
-                     precioMesa: Number(nuevoProd.precioMesa),
-                     precioDomicilio: Number(nuevoProd.precioDomicilio),
-                     categoria: nuevoProd.categoria,
-                     subcategoria: nuevoProd.subcategoria,
-                     imagen: nuevoProd.imagen
-                   });
-                 }
-
-                 await batch.commit();
-                 setVerModalNuevoProd(false);
-                 setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", categoria: "Cerveza", subcategoria: "", imagen: "" });
-               }} className="space-y-4">
-               
-               <input required placeholder="Nombre del Producto" value={nuevoProd.nombre} onChange={e => setNuevoProd({...nuevoProd, nombre: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
-               
-               <div className="grid grid-cols-2 gap-4">
-                 <input required type="number" placeholder="Precio Mesa" value={nuevoProd.precioMesa} onChange={e => setNuevoProd({...nuevoProd, precioMesa: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
-                 <input required type="number" placeholder="Precio Domicilio" value={nuevoProd.precioDomicilio} onChange={e => setNuevoProd({...nuevoProd, precioDomicilio: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
-               </div>
-
-               <div className="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-2xl border border-white/5">
-                 <div className="space-y-1">
-                   <label className="text-[9px] font-black text-orange-500 uppercase px-1">Stock P. Baja</label>
-                   <input type="number" placeholder="0" value={nuevoProd.stockBaja} onChange={e => setNuevoProd({...nuevoProd, stockBaja: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white focus:border-orange-500" />
-                 </div>
-                 <div className="space-y-1">
-                   <label className="text-[9px] font-black text-sky-400 uppercase px-1">Stock Terraza</label>
-                   <input type="number" placeholder="0" value={nuevoProd.stockTerraza} onChange={e => setNuevoProd({...nuevoProd, stockTerraza: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white focus:border-sky-500" />
-                 </div>
-               </div>
-
-               <div className="space-y-2">
-                 <label className="text-[10px] font-black text-slate-500 uppercase ml-2 flex items-center gap-1"><Tag size={12}/> Categoría y Subcategoría</label>
-                 <div className="grid grid-cols-2 gap-2">
-                   <select value={nuevoProd.categoria} onChange={e => setNuevoProd({...nuevoProd, categoria: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner">
-                     {CATEGORIAS.filter(c => c !== "Todos").map(c => <option key={c} value={c}>{c}</option>)}
-                   </select>
-                   <input placeholder="Subcat (Media, etc)" value={nuevoProd.subcategoria} onChange={e => setNuevoProd({...nuevoProd, subcategoria: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white" />
-                 </div>
-               </div>
-
-               <input placeholder="URL Imagen" value={nuevoProd.imagen} onChange={e => setNuevoProd({...nuevoProd, imagen: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
-               
-               <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95 transition-all">Crear Producto(s)</button>
-             </form>
-           </div>
-         </div>
-       )}
-
-       {verModalNuevoEvento && (
-         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
-           <div className="bg-slate-900 border border-slate-800 w-full max-w-[350px] rounded-[2.5rem] p-8 shadow-2xl relative">
-             <button onClick={() => setVerModalNuevoEvento(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white"><X/></button>
-             <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><Calendar/> Nuevo Evento</h2>
-             <form onSubmit={guardarEvento} className="space-y-4">
-               <input required placeholder="Título" value={nuevoEvento.titulo} onChange={e => setNuevoEvento({...nuevoEvento, titulo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
-               <input required type="date" value={nuevoEvento.fecha} onChange={e => setNuevoEvento({...nuevoEvento, fecha: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
-               <input required type="time" value={nuevoEvento.hora} onChange={e => setNuevoEvento({...nuevoEvento, hora: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
-               <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95">Guardar</button>
-             </form>
-           </div>
-         </div>
-       )}
-
-       {ticketParaReimprimir && (
-         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
-           <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-orange-600 print:border-none">
-             <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
-
-             <div className="text-center mb-6">
-               <h2 className="font-black text-3xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
-               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Nota de Venta</p>
-               <div className="border-y-2 border-black py-2 my-2 space-y-1">
-                 <div className="flex justify-between text-[11px] font-bold">
-                   <span>MESA:</span>
-                   <span className="bg-black text-white px-2 uppercase">{ticketParaReimprimir.mesa.replace("TEL:", "EXT-")}</span>
-                 </div>
-                 <div className="flex justify-between text-[9px] text-gray-600">
-                   <span>FECHA:</span>
-                   <span>{ticketParaReimprimir.fecha?.seconds ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : new Date().toLocaleString('es-MX')}</span>
-                 </div>
-               </div>
-             </div>
-
-             <div className="text-[11px] mb-6">
-               <div className="flex justify-between font-black border-b border-black pb-1 mb-2">
-                 <span>DESCRIPCIÓN</span>
-                 <span>IMPORTE</span>
-               </div>
-               <div className="space-y-3 whitespace-pre-line leading-tight italic">
-                 {ticketParaReimprimir.detalle}
-               </div>
-             </div>
-
-             <div className="border-t-4 border-double border-black pt-4 mb-8">
-               <div className="flex justify-between items-end">
-                 <span className="font-bold text-sm">TOTAL:</span>
-                 <span className="font-black text-4xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
-               </div>
-             </div>
+             <input required placeholder="Nombre del Producto" value={nuevoProd.nombre} onChange={e => setNuevoProd({...nuevoProd, nombre: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
              
-             <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors">
-               <Printer size={20}/> CONFIRMAR IMPRESIÓN
-             </button>
-           </div>
+             <div className="grid grid-cols-2 gap-4">
+               <input required type="number" placeholder="Precio Mesa" value={nuevoProd.precioMesa} onChange={e => setNuevoProd({...nuevoProd, precioMesa: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
+               <input required type="number" placeholder="Precio Domicilio" value={nuevoProd.precioDomicilio} onChange={e => setNuevoProd({...nuevoProd, precioDomicilio: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
+             </div>
+
+             <div className="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-2xl border border-white/5">
+               <div className="space-y-1">
+                 <label className="text-[9px] font-black text-orange-500 uppercase px-1">Stock P. Baja</label>
+                 <input type="number" placeholder="0" value={nuevoProd.stockBaja} onChange={e => setNuevoProd({...nuevoProd, stockBaja: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white focus:border-orange-500" />
+               </div>
+               <div className="space-y-1">
+                 <label className="text-[9px] font-black text-sky-400 uppercase px-1">Stock Terraza</label>
+                 <input type="number" placeholder="0" value={nuevoProd.stockTerraza} onChange={e => setNuevoProd({...nuevoProd, stockTerraza: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white focus:border-sky-500" />
+               </div>
+             </div>
+
+             <div className="space-y-2">
+               <label className="text-[10px] font-black text-slate-500 uppercase ml-2 flex items-center gap-1"><Tag size={12}/> Categoría y Subcategoría</label>
+               <div className="grid grid-cols-2 gap-2">
+                 <select value={nuevoProd.categoria} onChange={e => setNuevoProd({...nuevoProd, categoria: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner">
+                   {CATEGORIAS.filter(c => c !== "Todos").map(c => <option key={c} value={c}>{c}</option>)}
+                 </select>
+                 <input placeholder="Subcat (Media, etc)" value={nuevoProd.subcategoria} onChange={e => setNuevoProd({...nuevoProd, subcategoria: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white" />
+               </div>
+             </div>
+
+             <input placeholder="URL Imagen" value={nuevoProd.imagen} onChange={e => setNuevoProd({...nuevoProd, imagen: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-white shadow-inner" />
+             
+             <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95 transition-all">Crear Producto(s)</button>
+           </form>
          </div>
-       )}
-       {/* --- MODAL IMPRESIÓN DE REPORTE DE VENTAS --- */}
-{reporteFiltrado && (
-  <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
-    <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-emerald-600 print:border-none">
-      
-      {/* Botón Cerrar (Oculto en impresión) */}
-      <button 
-        onClick={() => setReporteFiltrado(null)} 
-        className="absolute -top-12 right-0 text-white no-print"
-      >
-        <X size={32}/>
-      </button>
+       </div>
+     )}
 
-      <div className="text-center mb-6">
-        <h2 className="font-black text-2xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
-        <p className="text-[9px] font-black text-gray-500 uppercase tracking-[0.2em] mb-3">Reporte de Ventas</p>
-        
-        <div className="border-y-2 border-black py-2 my-2 text-[10px] space-y-0.5 font-bold">
-          <div className="flex justify-between">
-            <span>DESDE:</span>
-            <span>{reporteFiltrado.inicio}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>HASTA:</span>
-            <span>{reporteFiltrado.fin}</span>
-          </div>
-        </div>
-      </div>
+     {verModalNuevoEvento && (
+       <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
+         <div className="bg-slate-900 border border-slate-800 w-full max-w-[350px] rounded-[2.5rem] p-8 shadow-2xl relative">
+           <button onClick={() => setVerModalNuevoEvento(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white"><X/></button>
+           <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><Calendar/> Nuevo Evento</h2>
+           <form onSubmit={guardarEvento} className="space-y-4">
+             <input required placeholder="Título" value={nuevoEvento.titulo} onChange={e => setNuevoEvento({...nuevoEvento, titulo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
+             <input required type="date" value={nuevoEvento.fecha} onChange={e => setNuevoEvento({...nuevoEvento, fecha: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
+             <input required type="time" value={nuevoEvento.hora} onChange={e => setNuevoEvento({...nuevoEvento, hora: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
+             <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95">Guardar</button>
+           </form>
+         </div>
+       </div>
+     )}
 
-      {/* Desglose por áreas */}
-      <div className="text-[12px] space-y-2.5 border-b-2 border-dashed border-black pb-4 mb-4">
-        <div className="flex justify-between">
-          <span>PLANTA BAJA:</span>
-          <span className="font-bold">${reporteFiltrado.plantaBaja}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>TERRAZA:</span>
-          <span className="font-bold">${reporteFiltrado.terraza}</span>
-        </div>
-        <div className="flex justify-between border-t border-gray-300 pt-1.5 italic text-gray-700">
-          <span>ENVÍOS / EXT:</span>
-          <span>${reporteFiltrado.externo}</span>
-        </div>
-      </div>
+     {ticketParaReimprimir && (
+       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
+         <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-orange-600 print:border-none">
+           <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
 
-      {/* Totales finales */}
-      <div className="space-y-1 mb-6 text-[11px]">
-        <div className="flex justify-between text-gray-600">
-          <span>No. Cuentas:</span>
-          <span>{reporteFiltrado.cantidadTickets} u.</span>
-        </div>
-        <div className="flex justify-between items-end pt-2">
-          <span className="font-bold text-xs">TOTAL NETO:</span>
-          <span className="font-black text-3xl tracking-tighter leading-none">${reporteFiltrado.totalGlobal}</span>
-        </div>
-      </div>
+           <div className="text-center mb-6">
+             <h2 className="font-black text-3xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
+             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Nota de Venta</p>
+             <div className="border-y-2 border-black py-2 my-2 space-y-1">
+               <div className="flex justify-between text-[11px] font-bold">
+                 <span>MESA:</span>
+                 <span className="bg-black text-white px-2 uppercase">{ticketParaReimprimir.mesa.replace("TEL:", "EXT-")}</span>
+               </div>
+               <div className="flex justify-between text-[9px] text-gray-600">
+                 <span>FECHA:</span>
+                 <span>{ticketParaReimprimir.fecha?.seconds ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : new Date().toLocaleString('es-MX')}</span>
+               </div>
+             </div>
+           </div>
 
-      {/* Botón disparador de impresión */}
-      <button 
-        onClick={() => window.print()} 
-        className="mt-6 w-full bg-black text-white py-3.5 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-emerald-600 transition-colors text-xs tracking-wider"
-      >
-        <Printer size={16}/> IMPRIMIR REPORTE
-      </button>
-    </div>
-  </div>
+           <div className="text-[11px] mb-6">
+             <div className="flex justify-between font-black border-b border-black pb-1 mb-2">
+               <span>DESCRIPCIÓN</span>
+               <span>IMPORTE</span>
+             </div>
+             <div className="space-y-3 whitespace-pre-line leading-tight italic">
+               {ticketParaReimprimir.detalle}
+             </div>
+           </div>
+
+           <div className="border-t-4 border-double border-black pt-4 mb-8">
+             <div className="flex justify-between items-end">
+               <span className="font-bold text-sm">TOTAL:</span>
+               <span className="font-black text-4xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
+             </div>
+           </div>
+           
+           <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors">
+             <Printer size={20}/> CONFIRMAR IMPRESIÓN
+           </button>
+         </div>
+       </div>
+     )}
+
+     {reporteFiltrado && (
+       <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
+         <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-emerald-600 print:border-none">
+           
+           <button onClick={() => setReporteFiltrado(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
+
+           <div className="text-center mb-6">
+             <h2 className="font-black text-2xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
+             <p className="text-[9px] font-black text-gray-500 uppercase tracking-[0.2em] mb-3">Reporte de Ventas</p>
+             
+             <div className="border-y-2 border-black py-2 my-2 text-[10px] space-y-0.5 font-bold">
+               <div className="flex justify-between">
+                 <span>DESDE:</span>
+                 <span>{reporteFiltrado.inicio}</span>
+               </div>
+               <div className="flex justify-between">
+                 <span>HASTA:</span>
+                 <span>{reporteFiltrado.fin}</span>
+               </div>
+             </div>
+           </div>
+
+           <div className="text-[12px] space-y-2.5 border-b-2 border-dashed border-black pb-4 mb-4">
+             <div className="flex justify-between">
+               <span>PLANTA BAJA:</span>
+               <span className="font-bold">${reporteFiltrado.plantaBaja}</span>
+             </div>
+             <div className="flex justify-between">
+               <span>TERRAZA:</span>
+               <span className="font-bold">${reporteFiltrado.terraza}</span>
+             </div>
+             <div className="flex justify-between border-t border-gray-300 pt-1.5 italic text-gray-700">
+               <span>ENVÍOS / EXT:</span>
+               <span>${reporteFiltrado.externo}</span>
+             </div>
+           </div>
+
+           <div className="space-y-1 mb-6 text-[11px]">
+             <div className="flex justify-between text-gray-600">
+               <span>No. Cuentas:</span>
+               <span>{reporteFiltrado.cantidadTickets} u.</span>
+             </div>
+             <div className="flex justify-between items-end pt-2">
+               <span className="font-bold text-xs">TOTAL NETO:</span>
+               <span className="font-black text-3xl tracking-tighter leading-none">${reporteFiltrado.totalGlobal}</span>
+             </div>
+           </div>
+
+           <button onClick={() => window.print()} className="mt-6 w-full bg-black text-white py-3.5 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-emerald-600 transition-colors text-xs tracking-wider">
+             <Printer size={16}/> IMPRIMIR REPORTE
+           </button>
+         </div>
+       </div>
+     )}
+   </div>
 )}
-     </div>
-   );
- }
 
- if (view === 'welcome') {
-   return (
-     <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden font-sans">
-       <div className="absolute inset-0 opacity-40">
-         <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="fondo" />
-         <div className="absolute inset-0 bg-slate-950/80"></div>
+{view === 'welcome' && (
+   <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden font-sans">
+     <div className="absolute inset-0 opacity-40">
+       <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="fondo" />
+       <div className="absolute inset-0 bg-slate-950/80"></div>
+     </div>
+
+     <div className="relative z-10 space-y-12 w-full max-w-lg">
+       <div className="space-y-4">
+         <div className="flex justify-center items-center gap-2 text-orange-500 animate-pulse">
+           <h1 className="text-7xl font-black italic uppercase leading-none">{nombreBarDinamico}</h1>
+         </div>
+         <div className="space-y-2 uppercase tracking-tight">
+           <h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2>
+           <p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{obtenerPlanta(mesa)}</p>
+         </div>
        </div>
 
-       <div className="relative z-10 space-y-12 w-full max-w-lg">
-         <div className="space-y-4">
-           <div className="flex justify-center items-center gap-2 text-orange-500 animate-pulse">
-             <h1 className="text-7xl font-black italic uppercase leading-none">{nombreBarDinamico}</h1>
+       <div className="grid gap-4">
+         <button onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group">
+           <Wifi className="text-sky-400" size={28} />
+           <div className="text-left font-bold uppercase text-[10px] text-slate-400">
+             <p>Wi-Fi Gratis</p>
+             <p className="text-lg text-white font-black">tribu´s Bar</p>
            </div>
-           <div className="space-y-2 uppercase tracking-tight">
-             <h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2>
-             <p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{obtenerPlanta(mesa)}</p>
-           </div>
-         </div>
+         </button>
 
-         <div className="grid gap-4">
-           <button 
-             onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} 
-             className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group"
-           >
-             <Wifi className="text-sky-400" size={28} />
-             <div className="text-left font-bold uppercase text-[10px] text-slate-400">
-               <p>Wi-Fi Gratis</p>
-               <p className="text-lg text-white font-black">tribu´s Bar</p>
+         <button onClick={() => setView('menu')} className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 transition-all duration-300 group">
+           <UtensilsCrossed className="text-white" size={28} />
+           <div className="text-left font-bold uppercase text-[10px] text-orange-200">
+             <p>Menú Digital</p>
+             <p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p>
+           </div>
+         </button>
+
+         {!usuarioLogueado ? (
+           <button onClick={() => setView('registro')} className="flex items-center gap-5 bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-sm active:scale-95 hover:bg-white/10 hover:border-orange-500/50 transition-all duration-300 group">
+             <div className="w-10 h-10 rounded-2xl bg-orange-600/20 flex items-center justify-center group-hover:bg-orange-600 transition-colors">
+               <Zap className="text-orange-600 group-hover:text-white" size={20} />
+             </div>
+             <div className="text-left">
+               <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Cliente frecuente?</p>
+               <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén beneficios</p>
              </div>
            </button>
-
-           <button 
-             onClick={() => setView('menu')} 
-             className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 transition-all duration-300 group"
-           >
-             <UtensilsCrossed className="text-white" size={28} />
-             <div className="text-left font-bold uppercase text-[10px] text-orange-200">
-               <p>Menú Digital</p>
-               <p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p>
+         ) : (
+           <div className="flex items-center gap-4 bg-green-950/20 border border-green-500/30 p-4 rounded-[30px] backdrop-blur-sm">
+             <div className="bg-green-600 p-3 rounded-2xl shadow-lg shadow-green-900/20">
+               <CheckCircle size={24} className="text-white" />
              </div>
-           </button>
-
-           {!usuarioLogueado ? (
-             <button 
-               onClick={() => setView('registro')} 
-               className="flex items-center gap-5 bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-sm active:scale-95 hover:bg-white/10 hover:border-orange-500/50 transition-all duration-300 group"
-             >
-               <div className="w-10 h-10 rounded-2xl bg-orange-600/20 flex items-center justify-center group-hover:bg-orange-600 transition-colors">
-                 <Zap className="text-orange-600 group-hover:text-white" size={20} />
-               </div>
-               <div className="text-left">
-                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Cliente frecuente?</p>
-                 <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén beneficios</p>
-               </div>
-             </button>
-           ) : (
-             <div className="flex items-center gap-4 bg-green-950/20 border border-green-500/30 p-4 rounded-[30px] backdrop-blur-sm">
-               <div className="bg-green-600 p-3 rounded-2xl shadow-lg shadow-green-900/20">
-                 <CheckCircle size={24} className="text-white" />
-               </div>
-               <div className="flex flex-col text-left">
-                 <span className="text-[10px] font-black text-green-500 uppercase tracking-[0.2em] leading-none mb-1">Sesión Iniciada</span>
-                 <h2 className="text-xl font-black text-white uppercase italic tracking-tighter leading-none">
-                   {nombreUsuarioLogueado ? nombreUsuarioLogueado : "Miembro de la Tribu"}
-                 </h2>
-               </div>
+             <div className="flex flex-col text-left">
+               <span className="text-[10px] font-black text-green-500 uppercase tracking-[0.2em] leading-none mb-1">Sesión Iniciada</span>
+               <h2 className="text-xl font-black text-white uppercase italic tracking-tighter leading-none">
+                 {nombreUsuarioLogueado ? nombreUsuarioLogueado : "Miembro de la Tribu"}
+               </h2>
              </div>
-           )}
+           </div>
+         )}
 
-           <button 
-             onClick={() => window.open(LINK_PRINCIPAL, '_blank')} 
-             className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group"
-           >
-             <ExternalLink className="text-green-500" size={28} />
-             <div className="text-left font-bold uppercase text-[10px] text-slate-400">
-               <p>Rockola</p>
-               <p className="text-lg text-white font-black">{TEXTO_LINK}</p>
-             </div>
-           </button>
+         <button onClick={() => window.open(LINK_PRINCIPAL, '_blank')} className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group">
+           <ExternalLink className="text-green-500" size={28} />
+           <div className="text-left font-bold uppercase text-[10px] text-slate-400">
+             <p>Rockola</p>
+             <p className="text-lg text-white font-black">{TEXTO_LINK}</p>
+           </div>
+         </button>
+       </div>
+
+       <button onClick={() => setView('login_staff')} className="opacity-10 text-[10px] uppercase font-bold tracking-widest hover:opacity-100 transition-opacity">Acceso Barra</button>
+     </div>
+   </div>
+)}
+
+{view === 'registro' && (
+   <div className="flex items-center justify-center min-h-screen bg-black p-4">
+     <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
+       <button onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
+       <div className="bg-[#2d1b14] p-4 rounded-full mb-6"><div className="text-[#ff4d00] text-3xl italic font-black font-sans">⚡</div></div>
+       <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">Únete a la Tribu</h2>
+       <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 font-bold text-center">Registra tu visita y obtén beneficios</p>
+       <div className="w-full space-y-5">
+         <div>
+           <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">¿Cómo te llamas?</label>
+           <input type="text" placeholder="Nombre" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setNombreRegistro(e.target.value)} />
          </div>
-
-         <button onClick={() => setView('login_staff')} className="opacity-10 text-[10px] uppercase font-bold tracking-widest hover:opacity-100 transition-opacity">Acceso Barra</button>
+         <div>
+           <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu WhatsApp</label>
+           <input type="tel" placeholder="10 dígitos" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setTelefonoInput(e.target.value)} />
+         </div>
+         <div>
+           <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Crea tu contraseña</label>
+           <input type="password" placeholder="Mínimo 6 caracteres" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setPassword(e.target.value)} />
+         </div>
+         <button onClick={registrarClienteFrecuente} className="w-full bg-[#ff4d00] hover:bg-[#e64500] py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">Registrarme</button>
+         <button onClick={() => setView('login')} className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest">Ya tengo cuenta</button>
        </div>
      </div>
-   );
- }
+   </div>
+)}
 
- if (view === 'registro') {
-   return (
-     <div className="flex items-center justify-center min-h-screen bg-black p-4">
-       <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
-         <button onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
-         <div className="bg-[#2d1b14] p-4 rounded-full mb-6"><div className="text-[#ff4d00] text-3xl italic font-black font-sans">⚡</div></div>
-         <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">Únete a la Tribu</h2>
-         <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 font-bold text-center">Registra tu visita y obtén beneficios</p>
-         <div className="w-full space-y-5">
-           <div>
-             <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">¿Cómo te llamas?</label>
-             <input type="text" placeholder="Nombre" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setNombreRegistro(e.target.value)} />
-           </div>
-           <div>
-             <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu WhatsApp</label>
-             <input type="tel" placeholder="10 dígitos" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setTelefonoInput(e.target.value)} />
-           </div>
-           <div>
-             <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Crea tu contraseña</label>
-             <input type="password" placeholder="Mínimo 6 caracteres" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setPassword(e.target.value)} />
-           </div>
-           <button onClick={registrarClienteFrecuente} className="w-full bg-[#ff4d00] hover:bg-[#e64500] py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">Registrarme</button>
-           <button onClick={() => setView('login')} className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest">Ya tengo cuenta</button>
+{view === 'login' && (
+   <div className="flex items-center justify-center min-h-screen bg-black p-4 font-sans">
+     <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
+       <button onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
+       <div className="bg-[#2d1b14] p-4 rounded-full mb-6"><div className="text-[#ff4d00] text-3xl italic font-black">⚡</div></div>
+       <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">Bienvenido de nuevo</h2>
+       <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 font-bold text-center">Ingresa tus datos para continuar</p>
+       <div className="w-full space-y-5">
+         <div>
+           <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu WhatsApp</label>
+           <input type="tel" placeholder="10 dígitos" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setTelefonoInput(e.target.value)} />
          </div>
+         <div>
+           <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu contraseña</label>
+           <input type="password" placeholder="Ingresa tu clave" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setPassword(e.target.value)} />
+         </div>
+         <button onClick={loginClienteFrecuente} className="w-full bg-[#ff4d00] hover:bg-[#e64500] py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">Entrar</button>
+         <button onClick={() => setView('registro')} className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest">No tengo cuenta, quiero registrarme</button>
        </div>
      </div>
-   );
- }
+   </div>
+)}
 
- if (view === 'login') {
-   return (
-     <div className="flex items-center justify-center min-h-screen bg-black p-4 font-sans">
-       <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
-         <button onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
-         <div className="bg-[#2d1b14] p-4 rounded-full mb-6"><div className="text-[#ff4d00] text-3xl italic font-black">⚡</div></div>
-         <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">Bienvenido de nuevo</h2>
-         <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 font-bold text-center">Ingresa tus datos para continuar</p>
-         <div className="w-full space-y-5">
-           <div>
-             <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu WhatsApp</label>
-             <input type="tel" placeholder="10 dígitos" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setTelefonoInput(e.target.value)} />
-           </div>
-           <div>
-             <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu contraseña</label>
-             <input type="password" placeholder="Ingresa tu clave" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setPassword(e.target.value)} />
-           </div>
-           <button onClick={loginClienteFrecuente} className="w-full bg-[#ff4d00] hover:bg-[#e64500] py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">Entrar</button>
-           <button onClick={() => setView('registro')} className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest">No tengo cuenta, quiero registrarme</button>
-         </div>
-       </div>
-     </div>
-   );
- }
-
- if (view === 'menu') {
-   const ubicacionActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
-   const menuPorPlanta = productosMenu.filter(p => (ubicacionActual === "EXTERNO" || !p.ubicacion || p.ubicacion === "" || p.ubicacion === ubicacionActual));
-   const menuFiltrado = menuPorPlanta.filter(p => (catSeleccionada === "Todos" || p.categoria === catSeleccionada) && (subCatSeleccionada === "Todas" || p.subcategoria === subCatSeleccionada));
-   const subcategoriasDisponibles = Array.from(new Set(menuPorPlanta.filter(p => p.categoria === catSeleccionada && p.subcategoria).map(p => p.subcategoria)));
-
-   return (
-     <div className="min-h-screen bg-slate-900 pb-32 text-slate-100 flex flex-col items-center font-sans">
-       <header className="bg-slate-950/95 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-800 px-4 py-3"><div className="max-w-6xl mx-auto flex flex-col gap-3">
-         <div className="flex justify-between items-center"><div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none">{nombreBarDinamico}</div>
+{view === 'menu' && (
+   <div className="min-h-screen bg-slate-900 pb-32 text-slate-100 flex flex-col items-center font-sans">
+     <header className="bg-slate-950/95 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-800 px-4 py-3">
+       <div className="max-w-6xl mx-auto flex flex-col gap-3">
+         <div className="flex justify-between items-center">
+           <div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none">{nombreBarDinamico}</div>
            <div className="flex gap-2">
              {pinCorrectoMesa && (
                <div className="bg-orange-600/10 px-3 py-2 rounded-xl border border-orange-500/20 flex flex-col items-center justify-center">
@@ -1417,38 +1523,55 @@ if (view === 'barra') {
                  <button onClick={cerrarSesion} className="bg-red-500/10 p-2.5 rounded-full border border-red-500/20 text-red-500 active:scale-95 transition-all"><LogOut size={20} /></button>
                )}
              </div>
-           </div></div>
+           </div>
+         </div>
          <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">{CATEGORIAS.map(c => (<button key={c} onClick={() => { setCatSeleccionada(c); setSubCatSeleccionada("Todas"); }} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${catSeleccionada === c ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-400'}`}>{c}</button>))}</div>
          {subcategoriasDisponibles.length > 0 && (<div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-800/50"><button onClick={() => setSubCatSeleccionada("Todas")} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === "Todas" ? 'text-sky-400 bg-sky-900/20' : 'text-slate-500'}`}>Todas</button>{subcategoriasDisponibles.map(sc => (<button key={sc} onClick={() => setSubCatSeleccionada(sc)} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === sc ? 'text-sky-400 bg-sky-900/20 shadow-lg' : 'text-slate-500'}`}>{sc}</button>))}</div>)}
-       </div></header>
-       <main className="p-4 w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{menuFiltrado.map(item => (<div key={item.id} className={`bg-slate-800/60 rounded-3xl p-4 flex gap-4 border border-slate-700/30 group shadow-lg transition-all ${item.stock <= 0 ? 'opacity-50 grayscale' : ''}`}><div className="w-24 h-24 rounded-2xl border border-slate-700 bg-slate-900 flex-shrink-0 overflow-hidden relative shadow-inner"><img src={item.imagen} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" alt="p" />{item.stock <= 5 && item.stock > 0 && <span className="absolute bottom-0 left-0 right-0 bg-red-600 text-[8px] font-black text-center uppercase py-0.5 shadow-lg tracking-widest animate-pulse">Últimas {item.stock}</span>}</div><div className="flex-1 flex flex-col justify-between"><div><h3 className="font-bold text-white uppercase leading-tight">{item.nombre}</h3><p className="text-slate-500 text-xs mt-1 italic leading-tight">{item.subcategoria}</p></div><div className="flex justify-between items-center mt-3"><span className="font-black text-xl text-orange-500 italic tracking-tighter">${obtenerPrecioItem(item)}</span><button disabled={item.stock <= 0} onClick={() => agregarAlCarrito(item)} className={`${item.stock <= 0 ? 'bg-slate-700' : 'bg-orange-600 active:scale-90 shadow-orange-950/20'} text-white w-10 h-10 rounded-xl font-bold transition-all shadow-lg`}>{item.stock <= 0 ? <Package size={16} className="mx-auto" /> : '+'}</button></div></div></div>))} </main>
-       {carrito.length > 0 && !verCarrito && (<div className="fixed bottom-6 left-0 right-0 px-6 z-50 flex justify-center no-print"><button onClick={() => setVerCarrito(true)} className="w-full max-w-lg bg-orange-600 text-white py-4 rounded-2xl font-black flex justify-between px-8 shadow-2xl active:scale-95 transition-all shadow-orange-950/30"><span className="text-[10px] uppercase font-bold tracking-widest text-white leading-none flex items-center gap-2"><ShoppingCart size={14}/> MI PEDIDO ({carrito.reduce((a,b)=>a+b.cantidad,0)})</span><span className="font-black text-xl italic text-white tracking-tighter leading-none">${totalCarrito}</span></button></div>)}
-       <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible opacity-100' : 'invisible opacity-0'}`}><div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} /><div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}><div className="flex justify-between items-center border-b border-slate-800 pb-4 font-black text-white italic uppercase text-xl tracking-tighter leading-none"><h2>Mi Cuenta</h2><X onClick={() => setVerCarrito(false)} className="text-slate-500 cursor-pointer" /></div><div className="flex-1 overflow-y-auto py-4 space-y-6 no-scrollbar">{carrito.length > 0 && (<div><p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ShoppingCart size={12}/> Por pedir ahora:</p><div className="space-y-3">{carrito.map(item => (<div key={item.id} className="bg-orange-600/5 p-3 rounded-2xl flex flex-col gap-2 border border-orange-600/20 shadow-sm"><div className="flex justify-between font-bold text-xs text-white uppercase tracking-tight leading-none"><span>{item.nombre}</span><button onClick={() => setCarrito(carrito.filter(x => x.id !== item.id))}><Trash2 size={14} className="text-slate-600 hover:text-red-500 transition-colors"/></button></div><div className="flex justify-between items-center"><span className="text-orange-500 font-bold italic tracking-tighter">${item.precio * item.cantidad}</span><div className="flex items-center gap-3 bg-slate-800 rounded-full px-3 py-1 shadow-inner"><Minus onClick={() => restarDelCarrito(item.id)} size={12} className="cursor-pointer"/><span className="text-xs font-bold text-white">{item.cantidad}</span><Plus onClick={() => agregarAlCarrito(item)} size={12} className="cursor-pointer"/></div></div></div>))}</div></div>)}{consumoAcumulado.length > 0 && (<div><p className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-3 flex items-center gap-2"><History size={12}/> Ya consumido:</p><div className="space-y-2">{consumoAcumulado.map((item, idx) => (<div key={idx} className="bg-slate-900/50 p-3 rounded-xl flex justify-between items-center border border-slate-800 opacity-60"><span className="text-[11px] font-bold text-slate-300 uppercase">{item.cantidad}x {item.nombre}</span><span className="text-[11px] font-black text-white">${item.precio * item.cantidad}</span></div>))}</div></div>)}</div><div className="pt-4 border-t border-slate-800 space-y-4"><div className="flex justify-between font-black text-2xl text-orange-500 italic"><span>Total Cuenta</span><span>${totalCarrito + totalAcumulado}</span></div><button disabled={carrito.length === 0} onClick={intentarEnviar} className="w-full py-4 rounded-2xl font-black text-white bg-orange-600 active:scale-95 transition-all shadow-xl uppercase tracking-widest">Confirmar Pedido</button></div></div></div>
-       {verModalTelefono && (
-         <div className="fixed inset-0 z-[200] bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
-            <div className="mb-8 text-center"><Phone size={48} className="text-orange-600 mx-auto mb-4 animate-bounce" /><h2 className="text-3xl font-black italic uppercase tracking-tighter">¿Tu Teléfono?</h2><p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Para identificar tu pedido externo</p></div>
-            <div className="w-full max-w-[300px] mb-8"><div className="bg-slate-900 border-2 border-orange-600/50 rounded-2xl p-6 text-center shadow-2xl"><span className="text-4xl font-black tracking-widest text-white">{telefonoInput || "----------"}</span></div></div>
-            <div className="grid grid-cols-3 gap-4 max-w-[280px]">
-               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (<button key={n} onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">{n}</button>))}
-               <button onClick={() => setTelefonoInput("")} className="w-16 h-16 rounded-full flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20"><Trash2 size={24}/></button>
-               <button onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + "0")} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black">0</button>
-               <button onClick={() => setVerModalTelefono(false)} className="w-16 h-16 rounded-full flex items-center justify-center text-slate-500 border border-slate-800"><X size={24}/></button>
-            </div>
-            {telefonoInput.length >= 10 && (<button onClick={() => procesarEnvio()} className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse">Confirmar Pedido</button>)}
+       </div>
+     </header>
+     <main className="p-4 w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+       {productosMenu.filter(p => (mesa ? obtenerPlanta(mesa) === "EXTERNO" || !p.ubicacion || p.ubicacion === "" || p.ubicacion === obtenerPlanta(mesa) : true)).filter(p => (catSeleccionada === "Todos" || p.categoria === catSeleccionada) && (subCatSeleccionada === "Todas" || p.subcategoria === subCatSeleccionada)).map(item => (
+         <div key={item.id} className={`bg-slate-800/60 rounded-3xl p-4 flex gap-4 border border-slate-700/30 group shadow-lg transition-all ${item.stock <= 0 ? 'opacity-50 grayscale' : ''}`}>
+           <div className="w-24 h-24 rounded-2xl border border-slate-700 bg-slate-900 flex-shrink-0 overflow-hidden relative shadow-inner">
+             <img src={item.imagen} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" alt="p" />
+             {item.stock <= 5 && item.stock > 0 && <span className="absolute bottom-0 left-0 right-0 bg-red-600 text-[8px] font-black text-center uppercase py-0.5 shadow-lg tracking-widest animate-pulse">Últimas {item.stock}</span>}
+           </div>
+           <div className="flex-1 flex flex-col justify-between">
+             <div>
+               <h3 className="font-bold text-white uppercase leading-tight">{item.nombre}</h3>
+               <p className="text-slate-500 text-xs mt-1 italic leading-tight">{item.subcategoria}</p>
+             </div>
+             <div className="flex justify-between items-center mt-3"><span className="font-black text-xl text-orange-500 italic tracking-tighter">${obtenerPrecioItem(item)}</span><button disabled={item.stock <= 0} onClick={() => agregarAlCarrito(item)} className={`${item.stock <= 0 ? 'bg-slate-700' : 'bg-orange-600 active:scale-90 shadow-orange-950/20'} text-white w-10 h-10 rounded-xl font-bold transition-all shadow-lg`}>{item.stock <= 0 ? <Package size={16} className="mx-auto" /> : '+'}</button></div>
+           </div>
          </div>
-       )}
-     </div>
-   );
- }
-
- return (
-   <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-       {view !== 'welcome' && view !== 'registro' && view !== 'menu' && view !== 'barra' && (
-           <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
-       )}
-       <div id="recaptcha-container"></div>
+       ))} 
+     </main>
+     {carrito.length > 0 && !verCarrito && (<div className="fixed bottom-6 left-0 right-0 px-6 z-50 flex justify-center no-print"><button onClick={() => setVerCarrito(true)} className="w-full max-w-lg bg-orange-600 text-white py-4 rounded-2xl font-black flex justify-between px-8 shadow-2xl active:scale-95 transition-all shadow-orange-950/30"><span className="text-[10px] uppercase font-bold tracking-widest text-white leading-none flex items-center gap-2"><ShoppingCart size={14}/> MI PEDIDO ({carrito.reduce((a,b)=>a+b.cantidad,0)})</span><span className="font-black text-xl italic text-white tracking-tighter leading-none">${totalCarrito}</span></button></div>)}
+     <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible opacity-100' : 'invisible opacity-0'}`}><div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} /><div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}><div className="flex justify-between items-center border-b border-slate-800 pb-4 font-black text-white italic uppercase text-xl tracking-tighter leading-none"><h2>Mi Cuenta</h2><X onClick={() => setVerCarrito(false)} className="text-slate-500 cursor-pointer" /></div><div className="flex-1 overflow-y-auto py-4 space-y-6 no-scrollbar">{carrito.length > 0 && (<div><p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ShoppingCart size={12}/> Por pedir ahora:</p><div className="space-y-3">{carrito.map(item => (<div key={item.id} className="bg-orange-600/5 p-3 rounded-2xl flex flex-col gap-2 border border-orange-600/20 shadow-sm"><div className="flex justify-between font-bold text-xs text-white uppercase tracking-tight leading-none"><span>{item.nombre}</span><button onClick={() => setCarrito(carrito.filter(x => x.id !== item.id))}><Trash2 size={14} className="text-slate-600 hover:text-red-500 transition-colors"/></button></div><div className="flex justify-between items-center"><span className="text-orange-500 font-bold italic tracking-tighter">${item.precio * item.cantidad}</span><div className="flex items-center gap-3 bg-slate-800 rounded-full px-3 py-1 shadow-inner"><Minus onClick={() => restarDelCarrito(item.id)} size={12} className="cursor-pointer"/><span className="text-xs font-bold text-white">{item.cantidad}</span><Plus onClick={() => agregarAlCarrito(item)} size={12} className="cursor-pointer"/></div></div></div>))}</div></div>)}{consumoAcumulado.length > 0 && (<div><p className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-3 flex items-center gap-2"><History size={12}/> Ya consumido:</p><div className="space-y-2">{consumoAcumulado.map((item, idx) => (<div key={idx} className="bg-slate-900/50 p-3 rounded-xl flex justify-between items-center border border-slate-800 opacity-60"><span className="text-[11px] font-bold text-slate-300 uppercase">{item.cantidad}x {item.nombre}</span><span className="text-[11px] font-black text-white">${item.precio * item.cantidad}</span></div>))}</div></div>)}</div><div className="pt-4 border-t border-slate-800 space-y-4"><div className="flex justify-between font-black text-2xl text-orange-500 italic"><span>Total Cuenta</span><span>${totalCarrito + totalAcumulado}</span></div><button disabled={carrito.length === 0} onClick={intentarEnviar} className="w-full py-4 rounded-2xl font-black text-white bg-orange-600 active:scale-95 transition-all shadow-xl uppercase tracking-widest">Confirmar Pedido</button></div></div></div>
+     {verModalTelefono && (
+       <div className="fixed inset-0 z-[200] bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
+          <div className="mb-8 text-center"><Phone size={48} className="text-orange-600 mx-auto mb-4 animate-bounce" /><h2 className="text-3xl font-black italic uppercase tracking-tighter">¿Tu Teléfono?</h2><p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Para identificar tu pedido externo</p></div>
+          <div className="w-full max-w-[300px] mb-8"><div className="bg-slate-900 border-2 border-orange-600/50 rounded-2xl p-6 text-center shadow-2xl"><span className="text-4xl font-black tracking-widest text-white">{telefonoInput || "----------"}</span></div></div>
+          <div className="grid grid-cols-3 gap-4 max-w-[280px]">
+             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (<button key={n} onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">{n}</button>))}
+             <button onClick={() => setTelefonoInput("")} className="w-16 h-16 rounded-full flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20"><Trash2 size={24}/></button>
+             <button onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + "0")} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black">0</button>
+             <button onClick={() => setVerModalTelefono(false)} className="w-16 h-16 rounded-full flex items-center justify-center text-slate-500 border border-slate-800"><X size={24}/></button>
+          </div>
+          {telefonoInput.length >= 10 && (<button onClick={() => procesarEnvio()} className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse">Confirmar Pedido</button>)}
+       </div>
+     )}
    </div>
- );
+)}
+
+      {view !== 'welcome' && view !== 'registro' && view !== 'login' && view !== 'menu' && view !== 'barra' && view !== 'login_staff' && view !== 'mis_pedidos' && (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+          <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
+        </div>
+      )}
+      <div id="recaptcha-container"></div>
+    </>
+  );
 }
 
 export default App;
