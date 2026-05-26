@@ -1763,16 +1763,6 @@ const guardarEvento = async (e) => {
             <div className="mb-8 text-center"><Phone size={48} className="text-orange-600 mx-auto mb-4 animate-bounce" /><h2 className="text-3xl font-black italic uppercase tracking-tighter">¿Tu Teléfono?</h2><p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Para identificar tu pedido externo</p></div>
             <div className="w-full max-w-[300px] mb-8"><div className="bg-slate-900 border-2 border-orange-600/50 rounded-2xl p-6 text-center shadow-2xl"><span className="text-4xl font-black tracking-widest text-white">{telefonoInput || "----------"}</span></div></div>
             {/* ... Aquí termina tu cuadrícula de botones del teclado telefónico nativo ... */}
-            <button 
-  type="button"
-  onClick={() => {
-    alert("¿ZXing cargado?: " + (window.ZXing ? "SÍ, TODO BIEN" : "NO, ESTÁ NULL"));
-    alert("¿Cámara activa?: " + (streamRef.current ? "SÍ" : "NO"));
-  }}
-  className="bg-blue-600 text-white text-[10px] p-2 rounded-xl mt-2 w-full font-bold"
->
-  ⚙️ Probar Lector Tras Bambalinas
-</button>
            <div className="grid grid-cols-3 gap-4 max-w-[280px]">
                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (<button key={n} onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">{n}</button>))}
                <button onClick={() => setTelefonoInput("")} className="w-16 h-16 rounded-full flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20"><Trash2 size={24}/></button>
@@ -1821,7 +1811,16 @@ const guardarEvento = async (e) => {
                  <span className="text-xs font-black uppercase text-slate-500 tracking-widest block mb-1">Mesa Seleccionada</span>
                  <span className="text-4xl font-black tracking-widest text-white">{mesaEscaneadaInput || "---"}</span>
                </div>
-
+<button 
+  type="button"
+  onClick={() => {
+    alert("¿ZXing cargado?: " + (window.ZXing ? "SÍ, TODO BIEN" : "NO, ESTÁ NULL"));
+    alert("¿Cámara activa?: " + (streamRef.current ? "SÍ" : "NO"));
+  }}
+  className="bg-blue-600 text-white text-[10px] p-2 rounded-xl mt-2 w-full font-bold"
+>
+  ⚙️ Probar Lector Tras Bambalinas
+</button>
                <div className="grid grid-cols-3 gap-3 max-w-[260px] mx-auto">
                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
                    <button key={n} type="button" onClick={() => mesaEscaneadaInput.length < 2 && setMesaEscaneadaInput(mesaEscaneadaInput + n)} className="w-14 h-14 rounded-full bg-slate-900 border border-slate-800 text-xl font-black active:scale-90 transition-all">{n}</button>
