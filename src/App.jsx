@@ -97,7 +97,7 @@ const streamRef = useRef(null);
 // --- LECTOR DE QR NATIVO EN TIEMPO REAL ---
   const intervalorRef = useRef(null);
 
-  const encenderCamaraPWA = async () => {
+const encenderCamaraPWA = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } 
@@ -106,41 +106,43 @@ const streamRef = useRef(null);
       if (videoRef.current) { 
         videoRef.current.srcObject = stream; 
         streamRef.current = stream;
-        
-     // Inicializamos el detector nativo o el parche inyectado
-        if ('BarcodeDetector' in window || window.BarcodeDetector) {
-          const DetectorClase = window.BarcodeDetector;
-          const detector = new DetectorClase({ formats: ['qr_code'] });
-          
-          intervalorRef.current = setInterval(async () => {
-            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_CURRENT_DATA) {
+
+        // Validamos que la librería Zxing se haya cargado correctamente en el navegador
+        if (window.ZXing) {
+          const codeReader = new window.ZXing.BrowserQRCodeReader();
+          console.log("Motor Zxing inicializado correctamente.");
+
+          // Zxing toma el control de tu elemento <video> y busca QRs de forma automática
+          codeReader.decodeFromVideoElement(videoRef.current, (result, err) => {
+            if (result) {
+              const urlDetectada = result.text;
+              console.log("¡QR Detectado con Zxing!", urlDetectada);
+              
+              // Apagamos el lector para que no repita el escaneo cíclicamente
+              codeReader.reset();
+              apagarCamaraPWA();
+
+              // Procesamos lo leído (Manejamos si es URL completa o el número de mesa directo)
               try {
-                const qrs = await detector.detect(videoRef.current);
-                if (qrs.length > 0) {
-                  const urlDetectada = qrs[0].rawValue;
-                  console.log("QR Detectado con éxito:", urlDetectada);
-                  
-                  // Intentamos leerlo como URL, si falla (porque solo es un número), lo asignamos directo
-                  try {
-                    const urlObj = new URL(urlDetectada);
-                    const mesaIdUrl = urlObj.searchParams.get("mesa");
-                    if (mesaIdUrl) {
-                      clearInterval(intervalorRef.current);
-                      procesarEscaneoMesa(mesaIdUrl); 
-                    }
-                  } catch (e) {
-                    // Si el QR no es una URL y solo contiene el número de mesa directo (ej: "14")
-                    if (urlDetectada && urlDetectada.trim() !== "") {
-                      clearInterval(intervalorRef.current);
-                      procesarEscaneoMesa(urlDetectada.trim());
-                    }
-                  }
+                const urlObj = new URL(urlDetectada);
+                const mesaIdUrl = urlObj.searchParams.get("mesa");
+                if (mesaIdUrl) {
+                  procesarEscaneoMesa(mesaIdUrl);
+                } else {
+                  procesarEscaneoMesa(urlDetectada.trim());
                 }
-              } catch (err) { console.error("Error al escanear cuadro:", err); }
+              } catch (e) {
+                if (urlDetectada && urlDetectada.trim() !== "") {
+                  procesarEscaneoMesa(urlDetectada.trim());
+                }
+              }
             }
-          }, 300);
+            if (err && !(err instanceof window.ZXing.NotFoundException)) {
+              console.error("Error del lector QR:", err);
+            }
+          });
         } else {
-          console.warn("No hay soporte de lectura de códigos disponible.");
+          console.warn("La librería ZXing no se ha cargado en el HTML.");
         }
       }
     } catch (err) { console.warn("Permiso de cámara denegado o no disponible:", err); }
