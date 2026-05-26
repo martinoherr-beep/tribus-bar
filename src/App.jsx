@@ -107,33 +107,40 @@ const streamRef = useRef(null);
         videoRef.current.srcObject = stream; 
         streamRef.current = stream;
         
-        // Inicializamos el detector nativo del celular si está disponible
-        if ('BarcodeDetector' in window) {
-          const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+     // Inicializamos el detector nativo o el parche inyectado
+        if ('BarcodeDetector' in window || window.BarcodeDetector) {
+          const DetectorClase = window.BarcodeDetector;
+          const detector = new DetectorClase({ formats: ['qr_code'] });
           
-          // Creamos un bucle que revisa el video cada 300 milisegundos buscando un QR
           intervalorRef.current = setInterval(async () => {
             if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_CURRENT_DATA) {
               try {
                 const qrs = await detector.detect(videoRef.current);
                 if (qrs.length > 0) {
                   const urlDetectada = qrs[0].rawValue;
-                  console.log("QR Detectado:", urlDetectada);
+                  console.log("QR Detectado con éxito:", urlDetectada);
                   
-                  // Extraemos el número de la mesa de tu URL (ej: ?mesa=12 o /?mesa=12)
-                  const urlObj = new URL(urlDetectada);
-                  const mesaIdUrl = urlObj.searchParams.get("mesa");
-                  
-                  if (mesaIdUrl) {
-                    clearInterval(intervalorRef.current); // Detenemos el buscador
-                    procesarEscaneoMesa(mesaIdUrl); // ¡Asignamos la mesa!
+                  // Intentamos leerlo como URL, si falla (porque solo es un número), lo asignamos directo
+                  try {
+                    const urlObj = new URL(urlDetectada);
+                    const mesaIdUrl = urlObj.searchParams.get("mesa");
+                    if (mesaIdUrl) {
+                      clearInterval(intervalorRef.current);
+                      procesarEscaneoMesa(mesaIdUrl); 
+                    }
+                  } catch (e) {
+                    // Si el QR no es una URL y solo contiene el número de mesa directo (ej: "14")
+                    if (urlDetectada && urlDetectada.trim() !== "") {
+                      clearInterval(intervalorRef.current);
+                      procesarEscaneoMesa(urlDetectada.trim());
+                    }
                   }
                 }
               } catch (err) { console.error("Error al escanear cuadro:", err); }
             }
           }, 300);
         } else {
-          console.warn("Este dispositivo no soporta BarcodeDetector nativo (se usará el teclado de respaldo).");
+          console.warn("No hay soporte de lectura de códigos disponible.");
         }
       }
     } catch (err) { console.warn("Permiso de cámara denegado o no disponible:", err); }
