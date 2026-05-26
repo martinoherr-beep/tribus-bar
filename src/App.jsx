@@ -1776,6 +1776,7 @@ const guardarEvento = async (e) => {
        {/* ========================================================================= */}
        {/* 🔥 CORRECCIÓN: EL MODAL VA EXACTAMENTE AQUÍ (ADENTRO DEL BLOQUE DEL MENU) */}
        {/* ========================================================================= */}
+       {/* --- MODAL DE ESCANEO / ASIGNACIÓN DE MESA DESDE PWA --- */}
        {verModalEscaner && (
          <div className="fixed inset-0 z-[250] bg-slate-950/95 backdrop-blur-md text-white flex flex-col items-center justify-center p-6 font-sans">
            <div className="w-full max-w-sm space-y-6 text-center animate-fade-in">
@@ -1788,7 +1789,7 @@ const guardarEvento = async (e) => {
                <button onClick={() => setVerModalEscaner(false)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><X size={18}/></button>
              </div>
 
-             {/* 🎥 RECUADRO DE VIDEO NATIVO (Agregado para que use tus referencias useRef de cámara) */}
+             {/* 🎥 RECUADRO DE VIDEO NATIVO */}
              <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                <div className="absolute inset-0 border-2 border-orange-500/20 rounded-2xl pointer-events-none flex items-center justify-center">
@@ -1796,6 +1797,7 @@ const guardarEvento = async (e) => {
                </div>
              </div>
 
+             {/* Zona de Instrucción Dinámica según el estado del cliente */}
              <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-4 text-left space-y-1.5">
                <p className="text-[10px] font-black uppercase text-orange-500 tracking-widest">⚠️ Estado de Cuenta:</p>
                <p className="text-xs font-semibold text-slate-200">
@@ -1806,21 +1808,25 @@ const guardarEvento = async (e) => {
                </p>
              </div>
 
+             {/* Teclado Numérico Elegante de Respaldo Rápido */}
              <div className="space-y-4">
                <div className="bg-slate-900 border-2 border-orange-500/30 rounded-2xl p-4 text-center shadow-inner">
                  <span className="text-xs font-black uppercase text-slate-500 tracking-widest block mb-1">Mesa Seleccionada</span>
                  <span className="text-4xl font-black tracking-widest text-white">{mesaEscaneadaInput || "---"}</span>
                </div>
-<button 
-  type="button"
-  onClick={() => {
-    alert("¿ZXing cargado?: " + (window.ZXing ? "SÍ, TODO BIEN" : "NO, ESTÁ NULL"));
-    alert("¿Cámara activa?: " + (streamRef.current ? "SÍ" : "NO"));
-  }}
-  className="bg-blue-600 text-white text-[10px] p-2 rounded-xl mt-2 w-full font-bold"
->
-  ⚙️ Probar Lector Tras Bambalinas
-</button>
+
+               {/* ⚙️ BOTÓN DE DIAGNÓSTICO EN EL LUGAR CORRECTO */}
+               <button 
+                 type="button"
+                 onClick={() => {
+                   alert("¿ZXing cargado?: " + (window.ZXing ? "SÍ, TODO BIEN" : "NO, ESTÁ NULL"));
+                   alert("¿Cámara activa?: " + (streamRef.current ? "SÍ" : "NO"));
+                 }}
+                 className="bg-blue-600 text-white text-[10px] p-2 rounded-xl mt-1 w-full font-bold"
+               >
+                 ⚙️ Probar Lector Tras Bambalinas
+               </button>
+
                <div className="grid grid-cols-3 gap-3 max-w-[260px] mx-auto">
                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
                    <button key={n} type="button" onClick={() => mesaEscaneadaInput.length < 2 && setMesaEscaneadaInput(mesaEscaneadaInput + n)} className="w-14 h-14 rounded-full bg-slate-900 border border-slate-800 text-xl font-black active:scale-90 transition-all">{n}</button>
