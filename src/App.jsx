@@ -94,12 +94,60 @@ const [verModalEscaner, setVerModalEscaner] = useState(false);
 const videoRef = useRef(null);
 const streamRef = useRef(null);
 
-const encenderCamaraPWA = async () => {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    if (videoRef.current) { videoRef.current.srcObject = stream; streamRef.current = stream; }
-  } catch (err) { console.warn("Permiso de cámara denegado o no disponible."); }
-};
+// --- LECTOR DE QR NATIVO EN TIEMPO REAL ---
+  const intervalorRef = useRef(null);
+
+  const encenderCamaraPWA = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } 
+      });
+      
+      if (videoRef.current) { 
+        videoRef.current.srcObject = stream; 
+        streamRef.current = stream;
+        
+        // Inicializamos el detector nativo del celular si está disponible
+        if ('BarcodeDetector' in window) {
+          const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+          
+          // Creamos un bucle que revisa el video cada 300 milisegundos buscando un QR
+          intervalorRef.current = setInterval(async () => {
+            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_CURRENT_DATA) {
+              try {
+                const qrs = await detector.detect(videoRef.current);
+                if (qrs.length > 0) {
+                  const urlDetectada = qrs[0].rawValue;
+                  console.log("QR Detectado:", urlDetectada);
+                  
+                  // Extraemos el número de la mesa de tu URL (ej: ?mesa=12 o /?mesa=12)
+                  const urlObj = new URL(urlDetectada);
+                  const mesaIdUrl = urlObj.searchParams.get("mesa");
+                  
+                  if (mesaIdUrl) {
+                    clearInterval(intervalorRef.current); // Detenemos el buscador
+                    procesarEscaneoMesa(mesaIdUrl); // ¡Asignamos la mesa!
+                  }
+                }
+              } catch (err) { console.error("Error al escanear cuadro:", err); }
+            }
+          }, 300);
+        } else {
+          console.warn("Este dispositivo no soporta BarcodeDetector nativo (se usará el teclado de respaldo).");
+        }
+      }
+    } catch (err) { console.warn("Permiso de cámara denegado o no disponible:", err); }
+  };
+
+  const apagarCamaraPWA = () => {
+    if (intervalorRef.current) { clearInterval(intervalorRef.current); intervalorRef.current = null; }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; }
+  };
+
+  useEffect(() => {
+    if (verModalEscaner) { encenderCamaraPWA(); } else { apagarCamaraPWA(); }
+    return () => apagarCamaraPWA();
+  }, [verModalEscaner]);
 
 const apagarCamaraPWA = () => {
   if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; }
