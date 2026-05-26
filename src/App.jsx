@@ -90,6 +90,9 @@ const [fechaFinRep, setFechaFinRep] = useState("");
 const [reporteFiltrado, setReporteFiltrado] = useState(null);
 const [esSuperAdmin, setEsSuperAdmin] = useState(false);
 const [eventoInstalacion, setEventoInstalacion] = useState(null);
+const [verModalEscaner, setVerModalEscaner] = useState(false);
+const [errorCamara, setErrorCamara] = useState(false);
+const [mesaEscaneadaInput, setMesaEscaneadaInput] = useState(""); // Teclado de respaldo
 const [esAppInstalada, setEsAppInstalada] = useState(
   window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
 );
@@ -100,6 +103,46 @@ const forzarInstalacionApp = async () => {
     alert("En iPhone/iPad: Pulsa el botón 'Compartir' (ios-share) abajo en tu navegador y selecciona 'Agregar a inicio' 📲");
     return;
   }
+  const procesarEscaneoMesa = async (nuevaMesa) => {
+   const idMesaLimpia = String(nuevaMesa).trim();
+   if (!idMesaLimpia || idMesaLimpia === "") return;
+
+   // ESCENARIO A: Cuenta en $0 (Mesa libre o cliente nuevo)
+   if (consumoAcumulado.length === 0 && carrito.length === 0) {
+     localStorage.setItem("tribu_mesa", idMesaLimpia);
+     setMesa(idMesaLimpia);
+     setVerModalEscaner(false);
+     alert(`📍 Te has ubicado en la Mesa ${idMesaLimpia} (${obtenerPlanta(idMesaLimpia)})`);
+     return;
+   }
+
+   // ESCENARIO B: Cuenta Activa (Intento de cambio físico de mesa)
+   if (String(mesa) === idMesaLimpia) {
+     setVerModalEscaner(false);
+     return; // Ya está en esta mesa
+   }
+
+   // Buscamos el pedido activo en la barra para meter la solicitud de traslado
+   const pedidoActivo = pedidosBarra.find(p => String(p.mesa) === String(mesa));
+   if (pedidoActivo) {
+     try {
+       await updateDoc(doc(db, "pedidos", pedidoActivo.id), {
+         solicitudTraslado: idMesaLimpia,
+         pideTraslado: true
+       });
+       setVerModalEscaner(false);
+       alert(`⏳ Solicitud enviada. La barra está trasladando tu cuenta de la Mesa ${mesa} a la Mesa ${idMesaLimpia}.`);
+     } catch (e) {
+       console.error(e);
+       alert("Error al solicitar traslado.");
+     }
+   } else {
+     // Si no hay pedido en barra pero tiene carrito local
+     localStorage.setItem("tribu_mesa", idMesaLimpia);
+     setMesa(idMesaLimpia);
+     setVerModalEscaner(false);
+   }
+ };
   
   // Mostrar el prompt nativo en Android / Chrome
   eventoInstalacion.prompt();
@@ -965,7 +1008,13 @@ const guardarEvento = async (e) => {
                        <CheckCircle size={12} /> PAGO INFORMADO - VERIFICAR CAJA
                      </div>
                    )}
-                   
+                   {/* 🔥 ALERTA DE TRASLADO: Si el cliente escaneó otra mesa desde la PWA */}
+   {p.pideTraslado && (
+     <div className="bg-red-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex flex-col items-center justify-center gap-1 animate-pulse shadow-md border border-red-400/20 text-center uppercase">
+       <span>⚠️ CLIENTE SOLICITA TRASLADO</span>
+       <span className="text-xs font-black bg-black/40 px-2 py-0.5 rounded mt-0.5">MOVER A MESA {p.solicitudTraslado}</span>
+     </div>
+   )}
                    <div>
                      <div className="flex justify-between items-start">
                        <div className="flex flex-col leading-tight">
@@ -1505,6 +1554,20 @@ const guardarEvento = async (e) => {
          <div className="max-w-6xl mx-auto flex flex-col gap-3">
            <div className="flex justify-between items-center">
              <div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none">{nombreBarDinamico}</div>
+             <div className="flex items-center gap-2">
+   <div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none">{nombreBarDinamico}</div>
+   
+   {/* 🔥 NUEVO: Botón de Escaneo Interno PWA */}
+   <button 
+     onClick={() => {
+       setMesaEscaneadaInput("");
+       setVerModalEscaner(true);
+     }} 
+     className="bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-xl transition-all active:scale-95 flex items-center gap-1 shadow-lg shadow-orange-600/20"
+   >
+     📷 {mesa ? `Mesa ${mesa}` : "Asignar Mesa"}
+   </button>
+ </div>
              <div className="flex gap-2">
                {pinCorrectoMesa && (
                  <div className="bg-orange-600/10 px-3 py-2 rounded-xl border border-orange-500/20 flex flex-col items-center justify-center">
@@ -1586,6 +1649,57 @@ const guardarEvento = async (e) => {
         </div>
       )}
       <div id="recaptcha-container"></div>
+    {/* --- MODAL DE ESCANEO / ASIGNACIÓN DE MESA DESDE PWA --- */}
+     {verModalEscaner && (
+       <div className="fixed inset-0 z-[250] bg-slate-950/95 backdrop-blur-md text-white flex flex-col items-center justify-center p-6 font-sans">
+         <div className="w-full max-w-sm space-y-6 text-center animate-fade-in">
+           
+           <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+             <div className="text-left">
+               <h3 className="text-xl font-black italic uppercase text-orange-500 tracking-tight">Escanear o Cambiar Mesa</h3>
+               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Control de ubicación de la Tribu</p>
+             </div>
+             <button onClick={() => setVerModalEscaner(false)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><X size={18}/></button>
+           </div>
+
+           {/* Zona de Instrucción Dinámica según el estado del cliente */}
+           <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-4 text-left space-y-1.5">
+             <p className="text-[10px] font-black uppercase text-orange-500 tracking-widest">⚠️ Estado de Cuenta:</p>
+             <p className="text-xs font-semibold text-slate-200">
+               {consumoAcumulado.length > 0 
+                 ? `Te encuentras en la Mesa ${mesa}. Si escaneas otra mesa, tu cuenta acumulada de $${totalAcumulado} solicitará traslado automático en la barra.`
+                 : "Tu cuenta está limpia ($0). Puedes asignarte a cualquier mesa libre escaneando o digitando su número."
+               }
+             </p>
+           </div>
+
+           {/* Teclado Numérico Elegante de Respaldo Rápido */}
+           <div className="space-y-4">
+             <div className="bg-slate-900 border-2 border-orange-500/30 rounded-2xl p-4 text-center shadow-inner">
+               <span className="text-xs font-black uppercase text-slate-500 tracking-widest block mb-1">Mesa Seleccionada</span>
+               <span className="text-4xl font-black tracking-widest text-white">{mesaEscaneadaInput || "---"}</span>
+             </div>
+
+             <div className="grid grid-cols-3 gap-3 max-w-[260px] mx-auto">
+               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                 <button key={n} onClick={() => mesaEscaneadaInput.length < 2 && setMesaEscaneadaInput(mesaEscaneadaInput + n)} className="w-14 h-14 rounded-full bg-slate-900 border border-slate-800 text-xl font-black active:scale-90 transition-all">{n}</button>
+               ))}
+               <button onClick={() => setMesaEscaneadaInput("")} className="w-14 h-14 rounded-full flex items-center justify-center text-red-500 bg-red-500/10 border border-slate-800"><Trash2 size={18}/></button>
+               <button onClick={() => mesaEscaneadaInput.length < 2 && setMesaEscaneadaInput(mesaEscaneadaInput + "0")} className="w-14 h-14 rounded-full bg-slate-900 border border-slate-800 text-xl font-black">0</button>
+               <button 
+                 disabled={!mesaEscaneadaInput}
+                 onClick={() => procesarEscaneoMesa(mesaEscaneadaInput)} 
+                 className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${mesaEscaneadaInput ? 'bg-green-600 text-white animate-pulse' : 'bg-slate-900 text-slate-700 border border-slate-800'}`}
+               >
+                 <CheckCircle size={22}/>
+               </button>
+             </div>
+           </div>
+
+           <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Tribu's Bar • SincronizaciónStandalone Interna</p>
+         </div>
+       </div>
+     )}
     </>
   );
 }
