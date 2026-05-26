@@ -1569,7 +1569,23 @@ const guardarEvento = async (e) => {
      <div className="min-h-screen bg-slate-900 pb-32 text-slate-100 flex flex-col items-center font-sans">
        <header className="bg-slate-950/95 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-800 px-4 py-3">
          <div className="max-w-6xl mx-auto flex flex-col gap-3">
-          {/* Renglón 2: Estado de Cuenta, Usuario y Carrito (Compactado en Menú para Celular) */}
+          {/* --- CABECERA MEJORADA CON LOGO Y BOTÓN DE ESCANEO QR INTEGRADOS --- */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 w-full">
+              
+              {/* Renglón 1: Identidad del Bar y Botón de Escaneo (Visible en todo momento) */}
+              <div className="flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto">
+                <div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none whitespace-nowrap">
+                  {nombreBarDinamico}
+                </div>
+                <button 
+                  onClick={() => { setMesaEscaneadaInput(""); setVerModalEscaner(true); }}
+                  className="bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-lg shadow-orange-600/10 active:scale-95 transition-transform"
+                >
+                  📷 {mesa ? `Mesa ${mesa}` : "Escanear QR / Mesa"}
+                </button>
+              </div>
+
+              {/* Renglón 2: Estado de Cuenta, Usuario y Carrito (Compactado en Menú para Celular) */}
               <div className="flex items-center justify-end gap-3 w-full sm:w-auto border-t border-slate-800/50 pt-2 sm:pt-0 sm:border-none">
                 
                 {/* 📱 VISTA SOLO EN CELULARES/TABLETS (Menu Desplegable Rápido) */}
@@ -1589,7 +1605,7 @@ const guardarEvento = async (e) => {
                     onChange={(e) => {
                       if (e.target.value === 'mis_pedidos') setView('mis_pedidos');
                       if (e.target.value === 'cerrar_sesion') cerrarSesion();
-                      e.target.value = 'default'; // Resetea el selector
+                      e.target.value = 'default'; 
                     }}
                     className="bg-slate-900 border border-slate-800 text-[10px] font-black uppercase rounded-xl px-3 py-2 text-slate-300 outline-none cursor-pointer max-w-[180px]"
                   >
@@ -1661,6 +1677,7 @@ const guardarEvento = async (e) => {
                 </div>
 
               </div>
+            </div>
            <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">{CATEGORIAS.map(c => (<button key={c} onClick={() => { setCatSeleccionada(c); setSubCatSeleccionada("Todas"); }} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${catSeleccionada === c ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-400'}`}>{c}</button>))}</div>
            {subcategoriasDisponibles.length > 0 && (<div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-800/50"><button onClick={() => setSubCatSeleccionada("Todas")} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === "Todas" ? 'text-sky-400 bg-sky-900/20' : 'text-slate-500'}`}>Todas</button>{subcategoriasDisponibles.map(sc => (<button key={sc} onClick={() => setSubCatSeleccionada(sc)} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === sc ? 'text-sky-400 bg-sky-900/20 shadow-lg' : 'text-slate-500'}`}>{sc}</button>))}</div>)}
          </div>
