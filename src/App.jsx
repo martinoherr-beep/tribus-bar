@@ -31,7 +31,7 @@ const TEXTO_LINK = "Rockola";
 
 // --- CONFIGURACIÓN TELEGRAM ---
 const TELEGRAM_TOKEN = "8571689799:AAGl_SNWiQXUc1GHXrTjub-Ke0KoDrUt-k4";
-const TELEGRAM_CHAT_ID = "8712410394";
+const TELEGRAM_CHAT_ID = "8781675036";
 
 // --- ESTILOS DE IMPRESIÓN ---
 const estilosImpresion = `
@@ -1569,57 +1569,98 @@ const guardarEvento = async (e) => {
      <div className="min-h-screen bg-slate-900 pb-32 text-slate-100 flex flex-col items-center font-sans">
        <header className="bg-slate-950/95 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-800 px-4 py-3">
          <div className="max-w-6xl mx-auto flex flex-col gap-3">
-           <div className="flex justify-between items-center">
-             <div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none">{nombreBarDinamico}</div>
-             <div className="flex items-center gap-2">
-   <div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none">{nombreBarDinamico}</div>
-   
-   {/* 🔥 NUEVO: Botón de Escaneo Interno PWA */}
-   <button 
-     onClick={() => {
-       setMesaEscaneadaInput("");
-       setVerModalEscaner(true);
-     }} 
-     className="bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-xl transition-all active:scale-95 flex items-center gap-1 shadow-lg shadow-orange-600/20"
-   >
-     📷 {mesa ? `Mesa ${mesa}` : "Asignar Mesa"}
-   </button>
- </div>
-             <div className="flex gap-2">
-               {pinCorrectoMesa && (
-                 <div className="bg-orange-600/10 px-3 py-2 rounded-xl border border-orange-500/20 flex flex-col items-center justify-center">
-                   <span className="text-[7px] font-black text-orange-500 uppercase tracking-tighter leading-none mb-0.5">PIN</span>
-                   <span className="text-[11px] font-black text-white leading-none tracking-widest">{pinCorrectoMesa}</span>
-                 </div>
-               )}
-               {consumoAcumulado.length > 0 && (
-                 <div className="bg-green-600/10 px-3 py-2 rounded-xl border border-green-500/20 flex items-center gap-2">
-                   <History size={14} className="text-green-500" />
-                   <span className="text-[10px] font-black text-green-500 leading-none">${totalAcumulado}</span>
-                 </div>
-               )}
-               <div className="flex gap-3 items-center">
-                 {usuarioLogueado && (
-                   <div className="flex flex-col items-end mr-1 gap-[2px]">
-                     <span className="text-[8px] font-black text-orange-500 uppercase tracking-tighter leading-none">Miembro de la Tribu</span>
-                     <span className="text-[11px] font-black text-white uppercase italic leading-none min-h-[11px]">
-                       {nombreUsuarioLogueado ? nombreUsuarioLogueado.split(" ")[0] : "Invitado"}
-                     </span>
-                     <button onClick={() => setView('mis_pedidos')} className="flex items-center gap-1 text-[8px] font-black text-orange-500 uppercase tracking-widest mt-1 active:scale-95 transition-transform"><History size={10} /> Ver mis pedidos</button>
-                   </div>
-                 )}
-                 <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative border-none outline-none">
-                   <ShoppingCart size={20} />
-                   {carrito.length > 0 && (
-                     <span className="absolute -top-1 -right-1 bg-orange-600 text-[10px] px-1.5 rounded-full font-bold">{carrito.reduce((a, b) => a + b.cantidad, 0)}</span>
-                   )}
-                 </button>
-                 {usuarioLogueado && (
-                   <button onClick={cerrarSesion} className="bg-red-500/10 p-2.5 rounded-full border border-red-500/20 text-red-500 active:scale-95 transition-all"><LogOut size={20} /></button>
-                 )}
-               </div>
-             </div>
-           </div>
+          {/* Renglón 2: Estado de Cuenta, Usuario y Carrito (Compactado en Menú para Celular) */}
+              <div className="flex items-center justify-end gap-3 w-full sm:w-auto border-t border-slate-800/50 pt-2 sm:pt-0 sm:border-none">
+                
+                {/* 📱 VISTA SOLO EN CELULARES/TABLETS (Menu Desplegable Rápido) */}
+                <div className="flex sm:hidden items-center justify-between w-full">
+                  {/* El carrito siempre se queda a la vista por comodidad del cliente */}
+                  <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative border-none outline-none active:scale-95">
+                    <ShoppingCart size={18} />
+                    {carrito.length > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-orange-600 text-[8px] px-1.5 py-0.5 rounded-full font-bold">
+                        {carrito.reduce((a, b) => a + b.cantidad, 0)}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Selector/Menú que engloba tus datos actuales */}
+                  <select 
+                    onChange={(e) => {
+                      if (e.target.value === 'mis_pedidos') setView('mis_pedidos');
+                      if (e.target.value === 'cerrar_sesion') cerrarSesion();
+                      e.target.value = 'default'; // Resetea el selector
+                    }}
+                    className="bg-slate-900 border border-slate-800 text-[10px] font-black uppercase rounded-xl px-3 py-2 text-slate-300 outline-none cursor-pointer max-w-[180px]"
+                  >
+                    <option value="default">
+                      👤 {usuarioLogueado ? (nombreUsuarioLogueado ? nombreUsuarioLogueado.split(" ")[0] : "Mi Cuenta") : "Invitado"} 
+                      {consumoAcumulado.length > 0 ? ` ($${totalAcumulado})` : ''}
+                    </option>
+                    
+                    {pinCorrectoMesa && (
+                      <option disabled>🔑 PIN de Mesa: {pinCorrectoMesa}</option>
+                    )}
+                    
+                    {consumoAcumulado.length > 0 && (
+                      <option disabled>💰 Ya consumido: ${totalAcumulado}</option>
+                    )}
+                    
+                    {usuarioLogueado && (
+                      <>
+                        <option value="mis_pedidos">📋 Ver mis órdenes</option>
+                        <option value="cerrar_sesion" className="text-red-500">❌ Cerrar Sesión</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+
+                {/* 💻 VISTA SOLO EN COMPUTADORAS (Tu diseño original extendido) */}
+                <div className="hidden sm:flex items-center gap-2">
+                  {pinCorrectoMesa && (
+                    <div className="bg-orange-600/10 px-2 py-1 rounded-xl border border-orange-500/20 flex flex-col items-center justify-center min-w-[40px]">
+                      <span className="text-[6px] font-black text-orange-500 uppercase tracking-tighter leading-none mb-0.5">PIN</span>
+                      <span className="text-[10px] font-black text-white leading-none tracking-widest">{pinCorrectoMesa}</span>
+                    </div>
+                  )}
+                  
+                  {consumoAcumulado.length > 0 && (
+                    <div className="bg-green-600/10 px-2 py-1 rounded-xl border border-green-500/20 flex items-center gap-1">
+                      <History size={12} className="text-green-500" />
+                      <span className="text-[10px] font-black text-green-500 leading-none">${totalAcumulado}</span>
+                    </div>
+                  )}
+
+                  {usuarioLogueado && (
+                    <div className="flex flex-col items-end mr-1 gap-[1px]">
+                      <span className="text-[7px] font-black text-orange-500 uppercase tracking-tighter leading-none">Tribu</span>
+                      <span className="text-[10px] font-black text-white uppercase italic leading-none truncate max-w-[70px]">
+                        {nombreUsuarioLogueado ? nombreUsuarioLogueado.split(" ")[0] : "Invitado"}
+                      </span>
+                      <button onClick={() => setView('mis_pedidos')} className="text-[7px] font-black text-orange-400 uppercase tracking-wider underline mt-0.5">
+                        Mis Órdenes
+                      </button>
+                    </div>
+                  )}
+
+                  <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2 rounded-full relative border-none outline-none active:scale-95 flex-shrink-0">
+                    <ShoppingCart size={16} />
+                    {carrito.length > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-orange-600 text-[8px] px-1.5 py-0.5 rounded-full font-bold leading-none">
+                        {carrito.reduce((a, b) => a + b.cantidad, 0)}
+                      </span>
+                    )}
+                  </button>
+
+                  {usuarioLogueado && (
+                    <button onClick={cerrarSesion} className="bg-red-500/10 p-2 rounded-full border border-red-500/20 text-red-500 active:scale-95 transition-all flex-shrink-0">
+                      <LogOut size={16} />
+                    </button>
+                  )}
+                </div>
+
+              </div>
            <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">{CATEGORIAS.map(c => (<button key={c} onClick={() => { setCatSeleccionada(c); setSubCatSeleccionada("Todas"); }} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${catSeleccionada === c ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-400'}`}>{c}</button>))}</div>
            {subcategoriasDisponibles.length > 0 && (<div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-800/50"><button onClick={() => setSubCatSeleccionada("Todas")} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === "Todas" ? 'text-sky-400 bg-sky-900/20' : 'text-slate-500'}`}>Todas</button>{subcategoriasDisponibles.map(sc => (<button key={sc} onClick={() => setSubCatSeleccionada(sc)} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === sc ? 'text-sky-400 bg-sky-900/20 shadow-lg' : 'text-slate-500'}`}>{sc}</button>))}</div>)}
          </div>
