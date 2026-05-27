@@ -99,8 +99,13 @@ const streamRef = useRef(null);
 
 const encenderCamaraPWA = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } 
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: "environment", 
+          width: { ideal: 480 }, 
+          height: { ideal: 480 },
+          advanced: [{ focusMode: "continuous" }] // Forzar autofoco en Android nativo
+        } 
       });
       
       if (videoRef.current) { 
