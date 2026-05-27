@@ -98,7 +98,10 @@ const streamRef = useRef(null);
   const intervalorRef = useRef(null);
 
 const encenderCamaraPWA = async () => {
-    try {
+  // 🔥 ALERTA INYECTADA DIRECTA:
+    alert("¡LA FUNCIÓN ENCENDER CAMARA SE ESTÁ EJECUTANDO!");
+    alert("¿ZXing está vivo?: " + (window.ZXing ? "SÍ" : "NO, ESTÁ NULL"));  
+  try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } 
       });
