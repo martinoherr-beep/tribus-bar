@@ -97,40 +97,49 @@ const streamRef = useRef(null);
 // --- LECTOR DE QR NATIVO EN TIEMPO REAL ---
   const intervalorRef = useRef(null);
 
-const encenderCamaraPWA = async () => {
-    // Levantamos el modal visual de inmediato para que el elemento <video> esté listo en el DOM
+// --- LECTOR DE QR NATIVO OPTIMIZADO PARA ONEPLUS ---
+  const encenderCamaraPWA = async () => {
     setVerModalEscaner(true);
 
     try {
-      // Pedimos acceso a la cámara trasera con resolución optimizada para QR
+      // Pedimos la cámara con la configuración que mejor procesa OxygenOS en web
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } 
+        video: { 
+          facingMode: "environment", 
+          width: { ideal: 1280 }, // Mayor resolución para los lentes del OnePlus
+          height: { ideal: 720 } 
+        } 
       });
       
       if (videoRef.current) { 
         videoRef.current.srcObject = stream; 
         streamRef.current = stream;
 
-        // Si el Android soporta el Detector Nativo del sistema de Google
+        // Forzamos la reproducción nativa del video
+        videoRef.current.setAttribute("playsinline", true);
+        videoRef.current.setAttribute("autoplay", true);
+        await videoRef.current.play().catch(e => console.log("Auto-reproducción activa"));
+
         if ('BarcodeDetector' in window) {
           const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-          console.log("Detector nativo de Google enlazado al video.");
+          let activo = true;
 
-          // Creamos un ciclo veloz que analiza directamente el flujo de video en vivo
-          intervalorRef.current = setInterval(async () => {
+          // Función cíclica nativa sincronizada con el procesador del cel
+          const escanearCuadro = async () => {
+            if (!activo) return;
+
             if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_CURRENT_DATA) {
               try {
-                // Le pasamos el elemento de video directo al procesador de Google
                 const qrs = await detector.detect(videoRef.current);
                 if (qrs.length > 0) {
+                  activo = false; // Frenamos el bucle inmediatamente
                   const urlDetectada = qrs[0].rawValue;
-                  console.log("¡QR Detectado por Google!", urlDetectada);
+                  console.log("¡QR Detectado en OnePlus!", urlDetectada);
                   
-                  // Detenemos los procesos en caliente para liberar la cámara
-                  clearInterval(intervalorRef.current);
                   apagarCamaraPWA();
+                  setVerModalEscaner(false);
 
-                  // Extraemos el número de mesa
+                  // Extraemos el número de mesa de la Tribu
                   try {
                     const urlObj = new URL(urlDetectada);
                     const mesaIdUrl = urlObj.searchParams.get("mesa");
@@ -138,20 +147,30 @@ const encenderCamaraPWA = async () => {
                   } catch (e) {
                     procesarEscaneoMesa(urlDetectada.trim());
                   }
+                  return;
                 }
-              } catch (err) { /* Ignorar errores de muestreo rápido */ }
+              } catch (err) { /* Ignorar errores de tracking */ }
             }
-          }, 250); // Revisa 4 veces por segundo directo del flujo del lente
+            // Solicita el siguiente cuadro de video de forma nativa
+            if (verModalEscaner) {
+              requestAnimationFrame(escanearCuadro);
+            }
+          };
+
+          // Arrancamos el bucle
+          requestAnimationFrame(escanearCuadro);
         }
       }
     } catch (err) { 
-      console.warn("La cámara nativa no pudo inicializarse:", err);
+      console.warn("Error al conectar la cámara del OnePlus:", err); 
     }
   };
 
   const apagarCamaraPWA = () => {
-    if (intervalorRef.current) { clearInterval(intervalorRef.current); intervalorRef.current = null; }
-    if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; }
+    if (streamRef.current) { 
+      streamRef.current.getTracks().forEach(track => track.stop()); 
+      streamRef.current = null; 
+    }
   };
 
   useEffect(() => {
