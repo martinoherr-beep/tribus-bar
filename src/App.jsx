@@ -98,40 +98,55 @@ const streamRef = useRef(null);
   const intervalorRef = useRef(null);
 
 const encenderCamaraPWA = async () => {
-    // 1. Intentamos usar el escáner nativo del sistema operativo (Android / Google)
-    if (window.BarcodeDetector) {
-      try {
-        const barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
-        // Creamos una captura de imagen invisible para que el sistema procese el QR nativamente
-        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        const videoTrack = mediaStream.getVideoTracks()[0];
-        const imageCapture = new ImageCapture(videoTrack);
-        const bitmap = await imageCapture.grabFrame();
-        
-        const barcodes = await barcodeDetector.detect(bitmap);
-        videoTrack.stop(); // Apagamos la cámara de inmediato
-
-        if (barcodes.length > 0) {
-          const urlDetectada = barcodes[0].rawValue;
-          console.log("¡QR Nativo Detectado!", urlDetectada);
-          
-          // Procesamos el contenido del QR
-          try {
-            const urlObj = new URL(urlDetectada);
-            const mesaIdUrl = urlObj.searchParams.get("mesa");
-            procesarEscaneoMesa(mesaIdUrl ? mesaIdUrl : urlDetectada.trim());
-          } catch (e) {
-            procesarEscaneoMesa(urlDetectada.trim());
-          }
-          return; // Éxito completo, salimos de la función
-        }
-      } catch (err) {
-        console.log("El escáner nativo falló o fue cancelado, usando respaldo...", err);
-      }
-    }
-
-    // 2. PLAN DE RESPALDO: Si el sistema no es compatible o falla, abre tu modal con el teclado
+    // Levantamos el modal visual de inmediato para que el elemento <video> esté listo en el DOM
     setVerModalEscaner(true);
+
+    try {
+      // Pedimos acceso a la cámara trasera con resolución optimizada para QR
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } 
+      });
+      
+      if (videoRef.current) { 
+        videoRef.current.srcObject = stream; 
+        streamRef.current = stream;
+
+        // Si el Android soporta el Detector Nativo del sistema de Google
+        if ('BarcodeDetector' in window) {
+          const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+          console.log("Detector nativo de Google enlazado al video.");
+
+          // Creamos un ciclo veloz que analiza directamente el flujo de video en vivo
+          intervalorRef.current = setInterval(async () => {
+            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_CURRENT_DATA) {
+              try {
+                // Le pasamos el elemento de video directo al procesador de Google
+                const qrs = await detector.detect(videoRef.current);
+                if (qrs.length > 0) {
+                  const urlDetectada = qrs[0].rawValue;
+                  console.log("¡QR Detectado por Google!", urlDetectada);
+                  
+                  // Detenemos los procesos en caliente para liberar la cámara
+                  clearInterval(intervalorRef.current);
+                  apagarCamaraPWA();
+
+                  // Extraemos el número de mesa
+                  try {
+                    const urlObj = new URL(urlDetectada);
+                    const mesaIdUrl = urlObj.searchParams.get("mesa");
+                    procesarEscaneoMesa(mesaIdUrl ? mesaIdUrl : urlDetectada.trim());
+                  } catch (e) {
+                    procesarEscaneoMesa(urlDetectada.trim());
+                  }
+                }
+              } catch (err) { /* Ignorar errores de muestreo rápido */ }
+            }
+          }, 250); // Revisa 4 veces por segundo directo del flujo del lente
+        }
+      }
+    } catch (err) { 
+      console.warn("La cámara nativa no pudo inicializarse:", err);
+    }
   };
 
   const apagarCamaraPWA = () => {
