@@ -98,59 +98,40 @@ const streamRef = useRef(null);
   const intervalorRef = useRef(null);
 
 const encenderCamaraPWA = async () => {
-    try {
-    const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: "environment", 
-          width: { ideal: 480 }, 
-          height: { ideal: 480 },
-          advanced: [{ focusMode: "continuous" }] // Forzar autofoco en Android nativo
-        } 
-      });
-      
-      if (videoRef.current) { 
-        videoRef.current.srcObject = stream; 
-        streamRef.current = stream;
+    // 1. Intentamos usar el escáner nativo del sistema operativo (Android / Google)
+    if (window.BarcodeDetector) {
+      try {
+        const barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        // Creamos una captura de imagen invisible para que el sistema procese el QR nativamente
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        const videoTrack = mediaStream.getVideoTracks()[0];
+        const imageCapture = new ImageCapture(videoTrack);
+        const bitmap = await imageCapture.grabFrame();
+        
+        const barcodes = await barcodeDetector.detect(bitmap);
+        videoTrack.stop(); // Apagamos la cámara de inmediato
 
-        // Validamos que la librería Zxing se haya cargado correctamente en el navegador
-        if (window.ZXing) {
-          const codeReader = new window.ZXing.BrowserQRCodeReader();
-          console.log("Motor Zxing inicializado correctamente.");
-
-          // Zxing toma el control de tu elemento <video> y busca QRs de forma automática
-          codeReader.decodeFromVideoElement(videoRef.current, (result, err) => {
-            if (result) {
-              const urlDetectada = result.text;
-              console.log("¡QR Detectado con Zxing!", urlDetectada);
-              
-              // Apagamos el lector para que no repita el escaneo cíclicamente
-              codeReader.reset();
-              apagarCamaraPWA();
-
-              // Procesamos lo leído (Manejamos si es URL completa o el número de mesa directo)
-              try {
-                const urlObj = new URL(urlDetectada);
-                const mesaIdUrl = urlObj.searchParams.get("mesa");
-                if (mesaIdUrl) {
-                  procesarEscaneoMesa(mesaIdUrl);
-                } else {
-                  procesarEscaneoMesa(urlDetectada.trim());
-                }
-              } catch (e) {
-                if (urlDetectada && urlDetectada.trim() !== "") {
-                  procesarEscaneoMesa(urlDetectada.trim());
-                }
-              }
-            }
-            if (err && !(err instanceof window.ZXing.NotFoundException)) {
-              console.error("Error del lector QR:", err);
-            }
-          });
-        } else {
-          console.warn("La librería ZXing no se ha cargado en el HTML.");
+        if (barcodes.length > 0) {
+          const urlDetectada = barcodes[0].rawValue;
+          console.log("¡QR Nativo Detectado!", urlDetectada);
+          
+          // Procesamos el contenido del QR
+          try {
+            const urlObj = new URL(urlDetectada);
+            const mesaIdUrl = urlObj.searchParams.get("mesa");
+            procesarEscaneoMesa(mesaIdUrl ? mesaIdUrl : urlDetectada.trim());
+          } catch (e) {
+            procesarEscaneoMesa(urlDetectada.trim());
+          }
+          return; // Éxito completo, salimos de la función
         }
+      } catch (err) {
+        console.log("El escáner nativo falló o fue cancelado, usando respaldo...", err);
       }
-    } catch (err) { console.warn("Permiso de cámara denegado o no disponible:", err); }
+    }
+
+    // 2. PLAN DE RESPALDO: Si el sistema no es compatible o falla, abre tu modal con el teclado
+    setVerModalEscaner(true);
   };
 
   const apagarCamaraPWA = () => {
@@ -1633,7 +1614,7 @@ const guardarEvento = async (e) => {
                   {nombreBarDinamico}
                 </div>
                 <button 
-                  onClick={() => { setMesaEscaneadaInput(""); setVerModalEscaner(true); }}
+                 onClick={() => { setMesaEscaneadaInput(""); encenderCamaraPWA(); }}
                   className="bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-lg shadow-orange-600/10 active:scale-95 transition-transform"
                 >
                   📷 {mesa ? `Mesa ${mesa}` : "Escanear QR / Mesa"}
