@@ -1806,11 +1806,21 @@ const guardarEvento = async (e) => {
                </div>
 <button 
   type="button"
-  onClick={() => {
+  onClick={async () => {
     alert("¿ZXing cargado?: " + (window.ZXing ? "SÍ, TODO BIEN" : "NO, ESTÁ NULL"));
-    alert("¿Cámara activa?: " + (streamRef.current ? "SÍ" : "NO"));
+    
+    if (window.ZXing && videoRef.current) {
+      try {
+        const reader = new window.ZXing.BrowserQRCodeReader();
+        alert("Enfoca el QR ahora... buscando coincidencia...");
+        const result = await reader.decodeFromVideoElement(videoRef.current);
+        alert("¡LA CÁMARA LEYÓ ESTO!: " + result.text);
+      } catch (err) {
+        alert("No se detectó ningún QR en este cuadro. Intenta enfocarlo más de cerca.");
+      }
+    }
   }}
-  className="bg-blue-600 text-white text-[10px] p-2 rounded-xl mt-2 w-full font-bold"
+  className="bg-blue-600 text-white text-[10px] p-2 rounded-xl mt-1 w-full font-bold"
 >
   ⚙️ Probar Lector Tras Bambalinas
 </button>
