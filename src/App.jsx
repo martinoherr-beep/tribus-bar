@@ -1824,26 +1824,7 @@ const guardarEvento = async (e) => {
                  <span className="text-xs font-black uppercase text-slate-500 tracking-widest block mb-1">Mesa Seleccionada</span>
                  <span className="text-4xl font-black tracking-widest text-white">{mesaEscaneadaInput || "---"}</span>
                </div>
-<button 
-  type="button"
-  onClick={async () => {
-    alert("¿ZXing cargado?: " + (window.ZXing ? "SÍ, TODO BIEN" : "NO, ESTÁ NULL"));
-    
-    if (window.ZXing && videoRef.current) {
-      try {
-        const reader = new window.ZXing.BrowserQRCodeReader();
-        alert("Enfoca el QR ahora... buscando coincidencia...");
-        const result = await reader.decodeFromVideoElement(videoRef.current);
-        alert("¡LA CÁMARA LEYÓ ESTO!: " + result.text);
-      } catch (err) {
-        alert("No se detectó ningún QR en este cuadro. Intenta enfocarlo más de cerca.");
-      }
-    }
-  }}
-  className="bg-blue-600 text-white text-[10px] p-2 rounded-xl mt-1 w-full font-bold"
->
-  ⚙️ Probar Lector Tras Bambalinas
-</button>
+
                <div className="grid grid-cols-3 gap-3 max-w-[260px] mx-auto">
                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
                    <button key={n} type="button" onClick={() => mesaEscaneadaInput.length < 2 && setMesaEscaneadaInput(mesaEscaneadaInput + n)} className="w-14 h-14 rounded-full bg-slate-900 border border-slate-800 text-xl font-black active:scale-90 transition-all">{n}</button>
