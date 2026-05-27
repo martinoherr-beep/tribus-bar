@@ -111,18 +111,13 @@ const encenderCamaraPWA = () => {
           fps: 10,
           qrbox: { width: 220, height: 220 }
         },
-        (decodedText) => {
+       (decodedText) => {
           console.log("¡QR Detectado!", decodedText);
           apagarCamaraPWA();
           setVerModalEscaner(false);
 
-          try {
-            const urlObj = new URL(decodedText);
-            const mesaIdUrl = urlObj.searchParams.get("mesa");
-            procesarEscaneoMesa(mesaIdUrl ? mesaIdUrl : decodedText.trim());
-          } catch (e) {
-            procesarEscaneoMesa(decodedText.trim());
-          }
+          // Mandamos el texto directo sin filtros previos para que el traductor haga su trabajo
+          procesarEscaneoMesa(decodedText.trim());
         },
         (errorMessage) => { /* Silenciar escaneos vacíos */ }
       ).catch((err) => {
@@ -173,19 +168,27 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
    if (!idMesaLimpia || idMesaLimpia === "") return;
 
    // 🗺️ DICCIONARIO TRADUCTOR DE ENLACES ME-QR
-   // Aquí vas a ir emparejando cada enlace con el número de mesa real del bar:
    const traductorQRs = {
-     "https://q.me-qr.com/oskw04hm": "5",  // <-- Si lee este link, asigna la Mesa 5
-     "https://q.me-qr.com/OTRO_LINK": "6", // <-- Aquí agregas los demás links cuando los conozcas
+     "https://q.me-qr.com/oskw04hm": "5",  // Si lee el link completo
+     "oskw04hm": "5"                       // Si solo lee el código final
    };
 
-   // Si lo que leyó la cámara está en nuestro diccionario, lo cambiamos por el número real
+   // Si lo que llegó coincide con el diccionario, lo convertimos a número de mesa
    if (traductorQRs[idMesaLimpia]) {
-     console.log(`🔗 Enlace traducido con éxito: Mesa ${traductorQRs[idMesaLimpia]}`);
      idMesaLimpia = traductorQRs[idMesaLimpia];
    }
 
-   // [DE AQUÍ EN ADELANTE TU LÓGICA SIGUE EXACTAMENTE IGUAL]
+   // Si por alguna razón sigue llegando la URL completa y no se tradujo, 
+   // extraemos solo los últimos caracteres para que no guarde el link en Firebase
+   if (idMesaLimpia.includes("me-qr.com/")) {
+     const partes = idMesaLimpia.split("me-qr.com/");
+     const codigoFinal = partes[partes.length - 1];
+     if (traductorQRs[codigoFinal]) {
+       idMesaLimpia = traductorQRs[codigoFinal];
+     }
+   }
+
+   // [A PARTIR DE AQUÍ TU LÓGICA ORIGINAL SIGUE IGUAL]
    if (consumoAcumulado.length === 0 && carrito.length === 0) {
      localStorage.setItem("tribu_mesa", idMesaLimpia);
      setMesa(idMesaLimpia);
