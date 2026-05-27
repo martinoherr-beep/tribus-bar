@@ -168,10 +168,24 @@ const forzarInstalacionApp = async () => {
  }
 };
 
- const procesarEscaneoMesa = async (nuevaMesa) => {
-   const idMesaLimpia = String(nuevaMesa).trim();
+const procesarEscaneoMesa = async (nuevaMesa) => {
+   let idMesaLimpia = String(nuevaMesa).trim();
    if (!idMesaLimpia || idMesaLimpia === "") return;
 
+   // 🗺️ DICCIONARIO TRADUCTOR DE ENLACES ME-QR
+   // Aquí vas a ir emparejando cada enlace con el número de mesa real del bar:
+   const traductorQRs = {
+     "https://q.me-qr.com/oskw04hm": "5",  // <-- Si lee este link, asigna la Mesa 5
+     "https://q.me-qr.com/OTRO_LINK": "6", // <-- Aquí agregas los demás links cuando los conozcas
+   };
+
+   // Si lo que leyó la cámara está en nuestro diccionario, lo cambiamos por el número real
+   if (traductorQRs[idMesaLimpia]) {
+     console.log(`🔗 Enlace traducido con éxito: Mesa ${traductorQRs[idMesaLimpia]}`);
+     idMesaLimpia = traductorQRs[idMesaLimpia];
+   }
+
+   // [DE AQUÍ EN ADELANTE TU LÓGICA SIGUE EXACTAMENTE IGUAL]
    if (consumoAcumulado.length === 0 && carrito.length === 0) {
      localStorage.setItem("tribu_mesa", idMesaLimpia);
      setMesa(idMesaLimpia);
@@ -189,7 +203,7 @@ const forzarInstalacionApp = async () => {
    if (pedidoActivo) {
      try {
        await updateDoc(doc(db, "pedidos", pedidoActivo.id), {
-         solicitudTraslado: idMesaLinteria || idMesaLimpia,
+         solicitudTraslado: idMesaLimpia,
          pideTraslado: true
        });
        setVerModalEscaner(false);
