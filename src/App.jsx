@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db } from './firebase'; 
 import { 
  collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, 
- query, where, orderBy, serverTimestamp, writeBatch, increment, setDoc, getDoc 
+ query, where, orderBy, serverTimestamp, writeBatch, increment, setDoc, getDoc, getDocs 
 } from "firebase/firestore";
 
 import { auth } from './firebase';
@@ -91,121 +91,87 @@ const [reporteFiltrado, setReporteFiltrado] = useState(null);
 const [esSuperAdmin, setEsSuperAdmin] = useState(false);
 const [eventoInstalacion, setEventoInstalacion] = useState(null);
 const [verModalEscaner, setVerModalEscaner] = useState(false);
-const videoRef = useRef(null);
-const streamRef = useRef(null);
+const html5QrCodeRef = useRef(null);
 
-// --- LECTOR DE QR NATIVO EN TIEMPO REAL ---
-  const intervalorRef = useRef(null);
+// --- LECTOR DE QR NATIVO OPTIMIZADO CON HTML5-QRCODE ---
+const encenderCamaraPWA = () => {
+  setVerModalEscaner(true);
 
-// --- LECTOR DE QR NATIVO OPTIMIZADO PARA ONEPLUS ---
-  const encenderCamaraPWA = async () => {
-    setVerModalEscaner(true);
+  setTimeout(() => {
+    const contenedor = document.getElementById("lector-qr-tribu");
+    if (!contenedor) return;
 
-    try {
-      // Pedimos la cámara con la configuración que mejor procesa OxygenOS en web
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: "environment", 
-          width: { ideal: 1280 }, // Mayor resolución para los lentes del OnePlus
-          height: { ideal: 720 } 
-        } 
+    if (window.Html5Qrcode) {
+      const html5QrCode = new window.Html5Qrcode("lector-qr-tribu");
+      html5QrCodeRef.current = html5QrCode;
+
+      html5QrCode.start(
+        { facingMode: "environment" }, 
+        {
+          fps: 10,
+          qrbox: { width: 220, height: 220 }
+        },
+        (decodedText) => {
+          console.log("¡QR Detectado!", decodedText);
+          apagarCamaraPWA();
+          setVerModalEscaner(false);
+
+          try {
+            const urlObj = new URL(decodedText);
+            const mesaIdUrl = urlObj.searchParams.get("mesa");
+            procesarEscaneoMesa(mesaIdUrl ? mesaIdUrl : decodedText.trim());
+          } catch (e) {
+            procesarEscaneoMesa(decodedText.trim());
+          }
+        },
+        (errorMessage) => { /* Silenciar escaneos vacíos */ }
+      ).catch((err) => {
+        console.warn("Fallo cámara en vivo, usando modo archivo de respaldo:", err);
       });
-      
-      if (videoRef.current) { 
-        videoRef.current.srcObject = stream; 
-        streamRef.current = stream;
-
-        // Forzamos la reproducción nativa del video
-        videoRef.current.setAttribute("playsinline", true);
-        videoRef.current.setAttribute("autoplay", true);
-        await videoRef.current.play().catch(e => console.log("Auto-reproducción activa"));
-
-        if ('BarcodeDetector' in window) {
-          const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-          let activo = true;
-
-          // Función cíclica nativa sincronizada con el procesador del cel
-          const escanearCuadro = async () => {
-            if (!activo) return;
-
-            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_CURRENT_DATA) {
-              try {
-                const qrs = await detector.detect(videoRef.current);
-                if (qrs.length > 0) {
-                  activo = false; // Frenamos el bucle inmediatamente
-                  const urlDetectada = qrs[0].rawValue;
-                  console.log("¡QR Detectado en OnePlus!", urlDetectada);
-                  
-                  apagarCamaraPWA();
-                  setVerModalEscaner(false);
-
-                  // Extraemos el número de mesa de la Tribu
-                  try {
-                    const urlObj = new URL(urlDetectada);
-                    const mesaIdUrl = urlObj.searchParams.get("mesa");
-                    procesarEscaneoMesa(mesaIdUrl ? mesaIdUrl : urlDetectada.trim());
-                  } catch (e) {
-                    procesarEscaneoMesa(urlDetectada.trim());
-                  }
-                  return;
-                }
-              } catch (err) { /* Ignorar errores de tracking */ }
-            }
-            // Solicita el siguiente cuadro de video de forma nativa
-            if (verModalEscaner) {
-              requestAnimationFrame(escanearCuadro);
-            }
-          };
-
-          // Arrancamos el bucle
-          requestAnimationFrame(escanearCuadro);
-        }
-      }
-    } catch (err) { 
-      console.warn("Error al conectar la cámara del OnePlus:", err); 
     }
-  };
+  }, 600);
+};
 
-  const apagarCamaraPWA = () => {
-    if (streamRef.current) { 
-      streamRef.current.getTracks().forEach(track => track.stop()); 
-      streamRef.current = null; 
-    }
-  };
+const apagarCamaraPWA = () => {
+  if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+    html5QrCodeRef.current.stop().then(() => {
+      html5QrCodeRef.current.clear();
+      html5QrCodeRef.current = null;
+    }).catch(err => console.log("Error al detener escáner:", err));
+  }
+};
 
-  useEffect(() => {
-    if (verModalEscaner) { encenderCamaraPWA(); } else { apagarCamaraPWA(); }
-    return () => apagarCamaraPWA();
-  }, [verModalEscaner]);
+useEffect(() => {
+  if (!verModalEscaner) {
+    apagarCamaraPWA();
+  }
+}, [verModalEscaner]);
 
 
 const [errorCamara, setErrorCamara] = useState(false);
 const [mesaEscaneadaInput, setMesaEscaneadaInput] = useState(""); // Teclado de respaldo
 const [esAppInstalada, setEsAppInstalada] = useState(
-  window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+ window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
 );
 
 const forzarInstalacionApp = async () => {
-  if (!eventoInstalacion) {
-    // Si el navegador es iOS (Safari), beforeinstallprompt no existe, así que les damos una guía visual
-    alert("En iPhone/iPad: Pulsa el botón 'Compartir' (ios-share) abajo en tu navegador y selecciona 'Agregar a inicio' 📲");
-    return;
-  }
- // Mostrar el prompt nativo en Android / Chrome
-  eventoInstalacion.prompt();
-  const { outcome } = await eventoInstalacion.userChoice;
-  
-  if (outcome === 'accepted') {
-    setEsAppInstalada(true);
-    setEventoInstalacion(null);
-  }
+ if (!eventoInstalacion) {
+   alert("En iPhone/iPad: Pulsa el botón 'Compartir' abajo en tu navegador y selecciona 'Agregar a inicio' 📲");
+   return;
+ }
+ eventoInstalacion.prompt();
+ const { outcome } = await eventoInstalacion.userChoice;
+ 
+ if (outcome === 'accepted') {
+   setEsAppInstalada(true);
+   setEventoInstalacion(null);
+ }
 };
 
  const procesarEscaneoMesa = async (nuevaMesa) => {
    const idMesaLimpia = String(nuevaMesa).trim();
    if (!idMesaLimpia || idMesaLimpia === "") return;
 
-   // ESCENARIO A: Cuenta en $0 (Mesa libre o cliente nuevo)
    if (consumoAcumulado.length === 0 && carrito.length === 0) {
      localStorage.setItem("tribu_mesa", idMesaLimpia);
      setMesa(idMesaLimpia);
@@ -214,18 +180,16 @@ const forzarInstalacionApp = async () => {
      return;
    }
 
-   // ESCENARIO B: Cuenta Activa (Intento de cambio físico de mesa)
    if (String(mesa) === idMesaLimpia) {
      setVerModalEscaner(false);
-     return; // Ya está en esta mesa
+     return;
    }
 
-   // Buscamos el pedido activo en la barra para meter la solicitud de traslado
    const pedidoActivo = pedidosBarra.find(p => String(p.mesa) === String(mesa));
    if (pedidoActivo) {
      try {
        await updateDoc(doc(db, "pedidos", pedidoActivo.id), {
-         solicitudTraslado: idMesaLimpia,
+         solicitudTraslado: idMesaLinteria || idMesaLimpia,
          pideTraslado: true
        });
        setVerModalEscaner(false);
@@ -235,12 +199,12 @@ const forzarInstalacionApp = async () => {
        alert("Error al solicitar traslado.");
      }
    } else {
-     // Si no hay pedido en barra pero tiene carrito local
      localStorage.setItem("tribu_mesa", idMesaLimpia);
      setMesa(idMesaLimpia);
      setVerModalEscaner(false);
    }
  };
+
  const obtenerPlanta = (idMesa) => {
    if (!idMesa) return "EXTERNO";
    const n = parseInt(idMesa);
@@ -255,7 +219,6 @@ const forzarInstalacionApp = async () => {
     return alert("Por favor, selecciona ambas fechas para el reporte.");
   }
 
-  // Convertir strings de input (YYYY-MM-DD) a objetos Date para comparar
   const inicio = new Date(fechaInicioRep + "T00:00:00");
   const fin = new Date(fechaFinRep + "T23:59:59");
 
@@ -297,14 +260,13 @@ const forzarInstalacionApp = async () => {
     terraza: totalTerraza,
     externo: totalExterno,
     totalGlobal: totalBaja + totalTerraza + totalExterno,
-    capacityTickets: ticketsEnRango
+    cantidadTickets: ticketsEnRango // CORREGIDO AQUÍ PARA COINCIDIR CON EL HTML
   });
 };
 
- const [mispedidos, setMisPedidos] = useState([]);
+const [mispedidos, setMisPedidos] = useState([]);
 const [telefonoUsuarioLogueado, setTelefonoUsuarioLogueado] = useState("");
 
-// Función para escuchar solo los pedidos de este usuario
 useEffect(() => {
  if (usuarioLogueado) {
    const q = query(
@@ -321,15 +283,12 @@ useEffect(() => {
 }, [usuarioLogueado]);
 
 useEffect(() => {
-  // Capturar el prompt nativo de instalación
   const capturarPrompt = (e) => {
     e.preventDefault();
     setEventoInstalacion(e);
   };
 
   window.addEventListener('beforeinstallprompt', capturarPrompt);
-
-  // Detectar si el usuario cambia al modo pantalla completa (standalone)
   const mediaQuery = window.matchMedia('(display-mode: standalone)');
   const verificarModo = (e) => {
     setEsAppInstalada(e.matches);
@@ -343,7 +302,6 @@ useEffect(() => {
   };
 }, []);
 
- // --- FUNCIÓN DE LOGIN CORREGIDA (Dentro de App) ---
  const loginClienteFrecuente = async () => {
    if (!telefonoInput || !password) {
      return alert("Por favor, ingresa tu teléfono y contraseña.");
@@ -378,7 +336,6 @@ useEffect(() => {
  }
 };
 
- // --- FUNCIONES DE AUTENTICACIÓN (Dentro de App) ---
 const registrarClienteFrecuente = async () => {
  if (!nombreRegistro || telefonoInput.length < 10 || password.length < 6) {
    return alert("Por favor, completa todos los campos (Mínimo 6 caracteres para contraseña).");
@@ -445,7 +402,6 @@ useEffect(() => {
     if (usuario) {
       setUsuarioLogueado(usuario);
       
-      // Detección automática de área por correo:
       if (usuario.email === 'baja@tribus.com') {
         setAreaStaff('PLANTA BAJA');
         setEsSuperAdmin(false);
@@ -454,7 +410,7 @@ useEffect(() => {
         setEsSuperAdmin(false);
       } else if (usuario.email === 'admin@tribus.com') {
         setAreaStaff('TODOS');
-        setEsSuperAdmin(true);  // 🔥 ¡Activación automática de reportes!
+        setEsSuperAdmin(true);  
       }
     } else {
       setUsuarioLogueado(null);
@@ -556,7 +512,6 @@ const verificarCodigo = async () => {
  });
 
  const totalCajaHoy = historialFiltradoParaCaja.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
-
  const ultimoMinutoEnviado = useRef("");
 
  const moverMesa = async (pedido) => {
@@ -612,7 +567,7 @@ const verificarCodigo = async () => {
    return () => clearInterval(vigilante);
  }, [recordatorios]);
 
-// --- ESCUCHA DE ROCKOLA INTERCEPTADA (COMO AGREGAR UN PRODUCTO MÁS) ---
+// --- ESCUCHA DE ROCKOLA INTERCEPTADA ---
 useEffect(() => {
   const q = query(collection(db, "rockola_pendientes"), where("estado", "==", "pendiente"));
 
@@ -631,7 +586,7 @@ useEffect(() => {
             where("mesa", "==", "pendiente")
           );
           
-          const pedidoSnapshot = await getDocs(qPedido);
+          const pedidoSnapshot = await getDocs(qPedido); // AHORA SÍ CONECTADO BIEN ARRIBA
           const batch = writeBatch(db);
 
           if (!pedidoSnapshot.empty) {
@@ -680,7 +635,6 @@ useEffect(() => {
    const params = new URLSearchParams(window.location.search);
    let mesaId = params.get("mesa");
    
-   // 🔥 PARCHE DE MEMORIA: Si viene en la URL, la guarda. Si no viene (al abrir la PWA), la recupera.
    if (mesaId) {
      localStorage.setItem("tribu_mesa", mesaId);
    } else {
@@ -725,23 +679,23 @@ useEffect(() => {
    const itemStock = productosMenu.find(x => x.id === item.id);
    const ex = carrito.find(x => x.id === item.id);
    if (itemStock && itemStock.stock <= (ex ? ex.cantidad : 0)) return alert("Sin stock.");
-   if (ex) setCarrito(carrito.map(x => x.id === item.id ? { ...ex, crystalline: ex.cantidad + 1 } : x));
+   if (ex) setCarrito(carrito.map(x => x.id === item.id ? { ...ex, cantidad: ex.cantidad + 1 } : x)); // CORREGIDO ADELANTE EL "CRYSTALLINE"
    else setCarrito([...carrito, { ...item, precio: p, cantidad: 1 }]);
  };
 
  const restarDelCarrito = (id) => {
    const ex = carrito.find(x => x.id === id);
    if (!ex) return;
-   if (ex.whitespace === 1) setCarrito(carrito.filter(x => x.id !== id));
+   if (ex.cantidad === 1) setCarrito(carrito.filter(x => x.id !== id)); // CORREGIDO EL WHITESPACE ADELANTE
    else setCarrito(carrito.map(x => x.id === id ? { ...ex, cantidad: ex.cantidad - 1 } : x));
  };
 
 const intentarEnviar = () => {
  if (carrito.length === 0) return;
  if (mesa || usuarioLogueado) {
-   procesarEnvio(mesa || null);
+    procesarEnvio(mesa || null);
  } else {
-   setVerModalTelefono(true);
+    setVerModalTelefono(true);
  }
 };
 
@@ -776,7 +730,7 @@ const procesarEnvio = async (idDestino) => {
      };
 
      if (idDestino && !String(idDestino).startsWith("TEL:")) {
-       datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
+        datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
      }
      batch.set(nuevoPedidoRef, datosNuevoPedido);
    }
@@ -847,33 +801,33 @@ const guardarEvento = async (e) => {
    setNuevoEvento({ titulo: "", fecha: "", hora: "" });
  };
 
-  return (
-    <>
-      {/* --- PWA: OBLIGAR A AGREGAR A INICIO (SOLO PARA CLIENTES) --- */}
-      {!esAppInstalada && view !== 'barra' && view !== 'login_staff' && (
-        <div className="fixed inset-0 z-[300] bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center font-sans select-none">
-          <div className="max-w-sm space-y-6 animate-fade-in">
-            <div className="w-20 h-20 bg-gradient-to-tr from-orange-600 to-amber-500 rounded-2xl flex items-center justify-center mx-auto shadow-2xl shadow-orange-600/20 transform rotate-12">
-              <span className="text-3xl font-black italic tracking-tighter text-black -rotate-12">TB</span>
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-2xl font-black uppercase tracking-tight italic">🔒 Acceso Seguro al Menú</h2>
-              <p className="text-xs text-slate-400 font-medium px-4 leading-relaxed">
-                Para garantizar que tus pedidos se envíen de forma correcta a la barra de tu planta, es necesario añadir la app a tu pantalla de inicio.
-              </p>
-            </div>
-            <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-4 text-left space-y-3">
-              <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Evita que tu mesa se desconfigure.</div>
-              <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Navegación más rápida sin barras molestas.</div>
-              <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Pide directo a tu mesa en Planta Baja o Terraza.</div>
-            </div>
-            <button onClick={forzarInstalacionApp} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs transition-all shadow-xl active:scale-95">
-              ✨ Agregar a Pantalla de Inicio
-            </button>
-            <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Tribu's Bar • Sistema de Seguridad de Mesas</p>
-          </div>
-        </div>
-      )}
+ return (
+   <>
+     {/* --- PWA: OBLIGAR A AGREGAR A INICIO (SOLO PARA CLIENTES) --- */}
+     {!esAppInstalada && view !== 'barra' && view !== 'login_staff' && (
+       <div className="fixed inset-0 z-[300] bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center font-sans select-none">
+         <div className="max-w-sm space-y-6 animate-fade-in">
+           <div className="w-20 h-20 bg-gradient-to-tr from-orange-600 to-amber-500 rounded-2xl flex items-center justify-center mx-auto shadow-2xl shadow-orange-600/20 transform rotate-12">
+             <span className="text-3xl font-black italic tracking-tighter text-black -rotate-12">TB</span>
+           </div>
+           <div className="space-y-2">
+             <h2 className="text-2xl font-black uppercase tracking-tight italic">🔒 Acceso Seguro al Menú</h2>
+             <p className="text-xs text-slate-400 font-medium px-4 leading-relaxed">
+               Para garantizar que tus pedidos se envíen de forma correcta a la barra de tu planta, es necesario añadir la app a tu pantalla de inicio.
+             </p>
+           </div>
+           <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-4 text-left space-y-3">
+             <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Evita que tu mesa se desconfigure.</div>
+             <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Navegación más rápida sin barras molestas.</div>
+             <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Pide directo a tu mesa en Planta Baja o Terraza.</div>
+           </div>
+           <button onClick={forzarInstalacionApp} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs transition-all shadow-xl active:scale-95">
+             ✨ Agregar a Pantalla de Inicio
+           </button>
+           <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Tribu's Bar • Sistema de Seguridad de Mesas</p>
+         </div>
+       </div>
+     )}
 
 {view === 'success' && (
  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center text-white font-sans">
@@ -1076,238 +1030,237 @@ const guardarEvento = async (e) => {
      </header>
 
      <div className="flex flex-col lg:flex-row gap-6">
-       {tabBarra === 'comandas' && (
-         <div className="flex-1 no-print">
-           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
-             {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).filter(p => {
-               if (areaStaff === 'TODOS') return true;
-               return obtenerPlanta(p.mesa) === areaStaff; 
-             }).map(p => {
-               const esExterno = String(p.mesa).startsWith("TEL:");
-               const numTel = esExterno ? p.mesa.replace("TEL:", "") : "";
-               const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está listo.\n\n*Total a pagar: $${p.total}*\n\n*Detalle del pedido:*\n${p.detalle}\n\n${DATOS_PAGO}`;
-               return (
-                 <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-3.5 rounded-xl relative shadow-lg flex flex-col justify-between group transition-all text-left">
-                   <div className={`absolute top-0 left-0 w-1 h-full ${esExterno ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
-                   
-                   {p.pagoInformado && (
-                     <div className="bg-blue-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex items-center justify-center gap-1.5 animate-pulse shadow-md border border-blue-400/20">
-                       <CheckCircle size={12} /> PAGO INFORMADO - VERIFICAR CAJA
-                     </div>
-                   )}
-                   {/* 🔥 ALERTA DE TRASLADO: Si el cliente escaneó otra mesa desde la PWA */}
-   {p.pideTraslado && (
-     <div className="bg-red-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex flex-col items-center justify-center gap-1 animate-pulse shadow-md border border-red-400/20 text-center uppercase">
-       <span>⚠️ CLIENTE SOLICITA TRASLADO</span>
-       <span className="text-xs font-black bg-black/40 px-2 py-0.5 rounded mt-0.5">MOVER A MESA {p.solicitudTraslado}</span>
-     </div>
-   )}
-                   <div>
-                     <div className="flex justify-between items-start">
-                       <div className="flex flex-col leading-tight">
-                         <h3 className="text-lg font-black italic uppercase tracking-tight text-white">
-                           {esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}
-                         </h3>
-                         {p.cliente && (
-                           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
-                             Atendiendo a: <span className="text-orange-500">{p.cliente}</span>
-                           </span>
-                         )}
-                         <span className="text-[9px] font-black uppercase tracking-widest mt-0.5 text-slate-400">
-                           ZONA: <span className={obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}>
-                             {obtenerPlanta(p.mesa)}
-                           </span>
-                         </span>
-                       </div>
-                       
-                       <div className="flex gap-1.5">
-                         <button onClick={() => moverMesa(p)} className="p-1 text-slate-500 hover:text-sky-400 transition-colors" title="Mover Mesa">
-                           <ExternalLink size={15}/>
-                         </button>
-                         <button onClick={async () => { 
-                           if(window.confirm("¿Cancelar pedido? El stock regresará.")) { 
-                             const batch = writeBatch(db); 
-                             p.detalle.split('\n').forEach(linea => { 
-                               const m = linea.match(/(\d+)x (.*) \(\$/); 
-                               if (m) { 
-                                 const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
-                                 if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
-                               } 
-                             }); 
-                             batch.delete(doc(db, "pedidos", p.id)); 
-                             await batch.commit(); 
-                           } 
-                         }} className="p-1 text-slate-700 hover:text-red-500 transition-colors">
-                           <Trash2 size={15}/>
-                         </button>
-                       </div>
-                     </div>
+        {tabBarra === 'comandas' && (
+          <div className="flex-1 no-print">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).filter(p => {
+                if (areaStaff === 'TODOS') return true;
+                return obtenerPlanta(p.mesa) === areaStaff; 
+              }).map(p => {
+                const esExterno = String(p.mesa).startsWith("TEL:");
+                const numTel = esExterno ? p.mesa.replace("TEL:", "") : "";
+                const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está listo.\n\n*Total a pagar: $${p.total}*\n\n*Detalle del pedido:*\n${p.detalle}\n\n${DATOS_PAGO}`;
+                return (
+                  <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-3.5 rounded-xl relative shadow-lg flex flex-col justify-between group transition-all text-left">
+                    <div className={`absolute top-0 left-0 w-1 h-full ${esExterno ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
+                    
+                    {p.pagoInformado && (
+                      <div className="bg-blue-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex items-center justify-center gap-1.5 animate-pulse shadow-md border border-blue-400/20">
+                        <CheckCircle size={12} /> PAGO INFORMADO - VERIFICAR CAJA
+                      </div>
+                    )}
+                    {p.pideTraslado && (
+                      <div className="bg-red-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex flex-col items-center justify-center gap-1 animate-pulse shadow-md border border-red-400/20 text-center uppercase">
+                        <span>⚠️ CLIENTE SOLICITA TRASLADO</span>
+                        <span className="text-xs font-black bg-black/40 px-2 py-0.5 rounded mt-0.5">MOVER A MESA {p.solicitudTraslado}</span>
+                      </div>
+                    )}
+                    <div>
+                      <div className="flex justify-between items-start">
+                        <div className="flex flex-col leading-tight">
+                          <h3 className="text-lg font-black italic uppercase tracking-tight text-white">
+                            {esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}
+                          </h3>
+                          {p.cliente && (
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                              Atendiendo a: <span className="text-orange-500">{p.cliente}</span>
+                            </span>
+                          )}
+                          <span className="text-[9px] font-black uppercase tracking-widest mt-0.5 text-slate-400">
+                            ZONA: <span className={obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}>
+                              {obtenerPlanta(p.mesa)}
+                            </span>
+                          </span>
+                        </div>
+                        
+                        <div className="flex gap-1.5">
+                          <button onClick={() => moverMesa(p)} className="p-1 text-slate-500 hover:text-sky-400 transition-colors" title="Mover Mesa">
+                            <ExternalLink size={15}/>
+                          </button>
+                          <button onClick={async () => { 
+                            if(window.confirm("¿Cancelar pedido? El stock regresará.")) { 
+                              const batch = writeBatch(db); 
+                              p.detalle.split('\n').forEach(linea => { 
+                                const m = linea.match(/(\d+)x (.*) \(\$/); 
+                                if (m) { 
+                                  const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
+                                  if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
+                                } 
+                              }); 
+                              batch.delete(doc(db, "pedidos", p.id)); 
+                              await batch.commit(); 
+                            } 
+                          }} className="p-1 text-slate-700 hover:text-red-500 transition-colors">
+                            <Trash2 size={15}/>
+                          </button>
+                        </div>
+                      </div>
 
-                     {p.pinMesa && (
-                       <div className="bg-orange-600/5 border border-orange-600/10 rounded-md p-1.5 mt-2 flex justify-between items-center">
-                         <span className="text-[8px] font-black uppercase text-orange-500 tracking-wider">PIN SEGURIDAD:</span>
-                         <span className="text-sm font-black text-white tracking-widest">{p.pinMesa}</span>
-                       </div>
-                     )}
+                      {p.pinMesa && (
+                        <div className="bg-orange-600/5 border border-orange-600/10 rounded-md p-1.5 mt-2 flex justify-between items-center">
+                          <span className="text-[8px] font-black uppercase text-orange-500 tracking-wider">PIN SEGURIDAD:</span>
+                          <span className="text-sm font-black text-white tracking-widest">{p.pinMesa}</span>
+                        </div>
+                      )}
 
-                     <div className="mt-3 space-y-1 max-h-[150px] overflow-y-auto no-scrollbar">
-                       {p.detalle.split('\n').map((linea, idx) => {
-                         const esProducto = /^\d+x/.test(linea.trim());
-                         return (
-                           <div key={idx} className="group/item flex justify-between items-center bg-black/20 p-1.5 rounded-md border border-white/5">
-                             <span className={`text-sm tracking-tight leading-none ${!esProducto ? 'text-orange-500 font-bold text-[10px]' : 'text-slate-300'}`}>
-                               {linea}
-                             </span>
-                             {esProducto && (
-                               <button onClick={() => eliminarArticuloComanda(p, idx)} className="opacity-0 group-hover/item:opacity-100 p-0.5 text-red-500/50 hover:text-red-500 transition-all">
-                                 <X size={12}/>
-                               </button>
-                             )}
-                           </div>
-                         );
-                       })}
-                     </div>
+                      <div className="mt-3 space-y-1 max-h-[150px] overflow-y-auto no-scrollbar">
+                        {p.detalle.split('\n').map((linea, idx) => {
+                          const esProducto = /^\d+x/.test(linea.trim());
+                          return (
+                            <div key={idx} className="group/item flex justify-between items-center bg-black/20 p-1.5 rounded-md border border-white/5">
+                              <span className={`text-sm tracking-tight leading-none ${!esProducto ? 'text-orange-500 font-bold text-[10px]' : 'text-slate-300'}`}>
+                                {linea}
+                              </span>
+                              {esProducto && (
+                                <button onClick={() => eliminarArticuloComanda(p, idx)} className="opacity-0 group-hover/item:opacity-100 p-0.5 text-red-500/50 hover:text-red-500 transition-all">
+                                  <X size={12}/>
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
 
-                     {esExterno && (
-                       <button onClick={() => window.open(`https://wa.me/${numTel}?text=${encodeURIComponent(mensajeWA)}`, '_blank')} className="flex items-center justify-center gap-1.5 bg-green-600/10 border border-green-600/20 text-green-500 w-full py-2 rounded-lg font-black uppercase text-[10px] mt-2.5 hover:bg-green-600 hover:text-white transition-all">
-                         <Phone size={12}/> Enviar Datos Bancarios
-                       </button>
-                     )}
-                   </div>
-                   
-                   <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-2.5 rounded-xl font-black text-sm mt-4 active:scale-95 uppercase tracking-tight shadow-md transition-all">
-                     Cobrar ${p.total}
-                   </button>
-                 </div>
-               );
-             })}
-           </div>
-         </div>
-       )}
+                      {esExterno && (
+                        <button onClick={() => window.open(`https://wa.me/${numTel}?text=${encodeURIComponent(mensajeWA)}`, '_blank')} className="flex items-center justify-center gap-1.5 bg-green-600/10 border border-green-600/20 text-green-500 w-full py-2 rounded-lg font-black uppercase text-[10px] mt-2.5 hover:bg-green-600 hover:text-white transition-all">
+                          <Phone size={12}/> Enviar Datos Bancarios
+                        </button>
+                      )}
+                    </div>
+                    
+                    <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-2.5 rounded-xl font-black text-sm mt-4 active:scale-95 uppercase tracking-tight shadow-md transition-all">
+                      Cobrar ${p.total}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
-       {tabBarra === 'inventario' && (
-         <div className="flex-1 no-print space-y-8">
-           <div>
-             <h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2">
-               <div className="w-2 h-2 bg-orange-500 rounded-full"></div> HIELERA PLANTA BAJA
-             </h2>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-               {productosMenu.filter(p => p.ubicacion === "PLANTA BAJA" || !p.ubicacion || p.ubicacion === "HIELERA BAJA").map(prod => (
-                 <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
-                   <div className="flex justify-between items-start mb-4">
-                     <div className="flex gap-3">
-                       <div className="w-16 h-16 rounded-xl border border-slate-880 bg-slate-900 flex-shrink-0 overflow-hidden">
-                         <img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/>
-                       </div>
-                       <div>
-                         <h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4>
-                         <p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p>
-                       </div>
-                     </div>
-                     <div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div>
-                   </div>
-                   <div className="grid grid-cols-2 gap-2 mt-auto">
-                     <button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button>
-                     <button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
-                     <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button>
-                   </div>
-                 </div>
-               ))}
-             </div>
-           </div>
-           
-           <div>
-             <h2 className="text-sky-400 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2">
-               <div className="w-2 h-2 bg-sky-400 rounded-full"></div> HIELERA TERRAZA
-             </h2>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-               {productosMenu.filter(p => p.ubicacion === "TERRAZA").map(prod => (
-                 <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
-                   <div className="flex justify-between items-start mb-4">
-                     <div className="flex gap-3">
-                       <div className="w-16 h-16 rounded-xl border border-slate-800 bg-slate-900 flex-shrink-0 overflow-hidden">
-                         <img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/>
-                       </div>
-                       <div>
-                         <h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4>
-                         <p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p>
-                       </div>
-                     </div>
-                     <div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div>
-                   </div>
-                   <div className="grid grid-cols-2 gap-2 mt-auto">
-                     <button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button>
-                     <button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
-                     <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button>
-                   </div>
-                 </div>
-               ))}
-             </div>
-           </div>
-         </div>
-       )}
+        {tabBarra === 'inventario' && (
+          <div className="flex-1 no-print space-y-8">
+            <div>
+              <h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2">
+                <div className="w-2 h-2 bg-orange-500 rounded-full"></div> HIELERA PLANTA BAJA
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {productosMenu.filter(p => p.ubicacion === "PLANTA BAJA" || !p.ubicacion || p.ubicacion === "HIELERA BAJA").map(prod => (
+                  <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex gap-3">
+                        <div className="w-16 h-16 rounded-xl border border-slate-880 bg-slate-900 flex-shrink-0 overflow-hidden">
+                          <img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/>
+                        </div>
+                        <div>
+                          <h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4>
+                          <p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p>
+                        </div>
+                      </div>
+                      <div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-auto">
+                      <button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button>
+                      <button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
+                      <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div>
+              <h2 className="text-sky-400 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2">
+                <div className="w-2 h-2 bg-sky-400 rounded-full"></div> HIELERA TERRAZA
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {productosMenu.filter(p => p.ubicacion === "TERRAZA").map(prod => (
+                  <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex gap-3">
+                        <div className="w-16 h-16 rounded-xl border border-slate-800 bg-slate-900 flex-shrink-0 overflow-hidden">
+                          <img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/>
+                        </div>
+                        <div>
+                          <h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4>
+                          <p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p>
+                        </div>
+                      </div>
+                      <div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-auto">
+                      <button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button>
+                      <button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
+                      <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
-       {tabBarra === 'eventos' && (
-         <div className="flex-1 no-print p-4">
-           <div className="grid gap-4">{recordatorios.map(rec => (<div key={rec.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl flex justify-between items-center shadow-xl"><div><p className="text-white font-bold uppercase tracking-tight">{rec.titulo}</p><p className="text-orange-500 text-[10px] font-black mt-1 uppercase tracking-widest">{rec.fecha} | {rec.hora} HRS</p></div><button onClick={() => deleteDoc(doc(db, "recordatorios", rec.id))} className="text-red-500/30 hover:text-red-500 transition-colors"><Trash2 size={20}/></button></div>))}</div>
-         </div>
-       )}
+        {tabBarra === 'eventos' && (
+          <div className="flex-1 no-print p-4">
+            <div className="grid gap-4">{recordatorios.map(rec => (<div key={rec.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl flex justify-between items-center shadow-xl"><div><p className="text-white font-bold uppercase tracking-tight">{rec.titulo}</p><p className="text-orange-500 text-[10px] font-black mt-1 uppercase tracking-widest">{rec.fecha} | {rec.hora} HRS</p></div><button onClick={() => deleteDoc(doc(db, "recordatorios", rec.id))} className="text-red-500/30 hover:text-red-500 transition-colors"><Trash2 size={20}/></button></div>))}</div>
+          </div>
+        )}
 
-       <div className="w-full lg:w-[350px] space-y-4 no-print">
-         <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 shadow-xl">
-           <div className="relative">
-             <Search className="absolute left-3 top-2.5 text-slate-600" size={16}/>
-             <input type="text" placeholder="Mesa, Tel o Fecha" value={filtroMesa} onChange={(e) => setFiltroMesa(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl pl-10 py-2 text-sm text-white focus:border-orange-500 font-bold shadow-inner" />
-           </div>
-         </div>
+        <div className="w-full lg:w-[350px] space-y-4 no-print">
+          <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 shadow-xl">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 text-slate-600" size={16}/>
+              <input type="text" placeholder="Mesa, Tel o Fecha" value={filtroMesa} onChange={(e) => setFiltroMesa(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl pl-10 py-2 text-sm text-white focus:border-orange-500 font-bold shadow-inner" />
+            </div>
+          </div>
 
-         {esSuperAdmin && (
-           <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-slate-800 shadow-2xl no-print">
-             <h2 className="text-sm font-black text-orange-500 uppercase tracking-widest mb-4 flex items-center gap-2">📊 Reporte de Ventas</h2>
-             <div className="space-y-3">
-               <div>
-                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Inicio</label>
-                 <input type="date" value={fechaInicioRep} onChange={(e) => setFechaInicioRep(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold" />
-               </div>
-               <div>
-                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Fin</label>
-                 <input type="date" value={fechaFinRep} onChange={(e) => setFechaFinRep(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold" />
-               </div>
-               <button onClick={generarReporteVentas} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95 mt-2">Generar Reporte</button>
-             </div>
-           </div>
-         )}
+          {esSuperAdmin && (
+            <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-slate-800 shadow-2xl no-print">
+              <h2 className="text-sm font-black text-orange-500 uppercase tracking-widest mb-4 flex items-center gap-2">📊 Reporte de Ventas</h2>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Inicio</label>
+                  <input type="date" value={fechaInicioRep} onChange={(e) => setFechaInicioRep(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold" />
+                </div>
+                <div>
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Fin</label>
+                  <input type="date" value={fechaFinRep} onChange={(e) => setFechaFinRep(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold" />
+                </div>
+                <button onClick={generarReporteVentas} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95 mt-2">Generar Reporte</button>
+              </div>
+            </div>
+          )}
 
-         <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-orange-900/10 shadow-2xl">
-           <div className="flex justify-between items-center mb-4">
-             <h2 className="text-lg font-black text-orange-600 uppercase italic flex items-center gap-2"><ReceiptText size={20}/> Caja Hoy</h2>
-             <button onClick={realizarCierreTurno} className="text-[9px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-lg uppercase hover:bg-red-600 transition-all">Cierre</button>
-           </div>
-           <div className="space-y-3 max-h-[550px] overflow-y-auto no-scrollbar mb-4">
-             {historialFiltradoParaCaja.map((hc) => (
-               <div key={hc.id} onClick={() => setTicketParaReimprimir(hc)} className="group p-3 bg-[#05070a] rounded-xl border border-slate-700 flex items-center justify-between hover:border-orange-500 transition-all shadow-sm cursor-pointer">
-                 <div className="flex-1">
-                   <div className="flex justify-between font-black text-[11px] uppercase tracking-tighter">
-                     <span className="text-slate-400">Mesa {hc.mesa} - {obtenerPlanta(hc.mesa)}</span>
-                     <span className="text-green-500">${hc.total}</span>
-                   </div>
-                   <div className="flex justify-between items-center mt-1">
-                     <p className="text-[8px] text-slate-500 uppercase font-bold">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) : 'Reciente'}</p>
-                     <p className="text-[11px] text-slate-400 font-black uppercase italic tracking-tighter">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleDateString('es-MX') : ''}</p>
-                   </div>
-                 </div>
-                 <button onClick={(e) => { e.stopPropagation(); if(window.confirm("¿Borrar?")) deleteDoc(doc(db, "historial_tickets", hc.id)); }} className="ml-2 p-1.5 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
-                   <Trash2 size={14}/>
-                 </button>
-               </div>
-             ))}
-           </div>
-           <div className="pt-3 border-t border-slate-800 flex justify-between font-black">
-             <span className="text-slate-500 text-[10px] uppercase italic tracking-widest">Total:</span>
-             <span className="text-2xl text-green-500 tracking-tighter">${totalCajaHoy}</span>
-           </div>
-         </div>
-       </div>
+          <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-orange-900/10 shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-black text-orange-600 uppercase italic flex items-center gap-2"><ReceiptText size={20}/> Caja Hoy</h2>
+              <button onClick={realizarCierreTurno} className="text-[9px] font-black text-red-500 border border-red-500/20 px-2 py-0.5 rounded-lg uppercase hover:bg-red-600 transition-all">Cierre</button>
+            </div>
+            <div className="space-y-3 max-h-[550px] overflow-y-auto no-scrollbar mb-4">
+              {historialFiltradoParaCaja.map((hc) => (
+                <div key={hc.id} onClick={() => setTicketParaReimprimir(hc)} className="group p-3 bg-[#05070a] rounded-xl border border-slate-700 flex items-center justify-between hover:border-orange-500 transition-all shadow-sm cursor-pointer">
+                  <div className="flex-1">
+                    <div className="flex justify-between font-black text-[11px] uppercase tracking-tighter">
+                      <span className="text-slate-400">Mesa {hc.mesa} - {obtenerPlanta(hc.mesa)}</span>
+                      <span className="text-green-500">${hc.total}</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <p className="text-[8px] text-slate-500 uppercase font-bold">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) : 'Reciente'}</p>
+                      <p className="text-[11px] text-slate-400 font-black uppercase italic tracking-tighter">{hc.fecha?.seconds ? new Date(hc.fecha.seconds * 1000).toLocaleDateString('es-MX') : ''}</p>
+                    </div>
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); if(window.confirm("¿Borrar?")) deleteDoc(doc(db, "historial_tickets", hc.id)); }} className="ml-2 p-1.5 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                    <Trash2 size={14}/>
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="pt-3 border-t border-slate-800 flex justify-between font-black">
+              <span className="text-slate-500 text-[10px] uppercase italic tracking-widest">Total:</span>
+              <span className="text-2xl text-green-500 tracking-tighter">${totalCajaHoy}</span>
+            </div>
+          </div>
+        </div>
      </div>
 
      {verModalNuevoProd && (
@@ -1547,7 +1500,7 @@ const guardarEvento = async (e) => {
              </div>
              <div className="text-left">
                <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Cliente frecuente?</p>
-               <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén beneficios</p>
+               <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén benefits</p>
              </div>
            </button>
          ) : (
@@ -1629,7 +1582,6 @@ const guardarEvento = async (e) => {
 )}
 
 {view === 'menu' && (() => {
-   // 🔥 PARCHE DE PROTECCIÓN: Evitamos la pantalla en blanco forzando "EXTERNO" si mesa se vuelve null en PWA
    const ubicacionActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
    const menuPorPlanta = productosMenu.filter(p => (ubicacionActual === "EXTERNO" || !p.ubicacion || p.ubicacion === "" || p.ubicacion === ubicacionActual));
    const menuFiltrado = menuPorPlanta.filter(p => (catSeleccionada === "Todos" || p.categoria === catSeleccionada) && (subCatSeleccionada === "Todas" || p.subcategoria === subCatSeleccionada));
@@ -1639,10 +1591,8 @@ const guardarEvento = async (e) => {
      <div className="min-h-screen bg-slate-900 pb-32 text-slate-100 flex flex-col items-center font-sans">
        <header className="bg-slate-950/95 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-800 px-4 py-3">
          <div className="max-w-6xl mx-auto flex flex-col gap-3">
-          {/* --- CABECERA MEJORADA CON LOGO Y BOTÓN DE ESCANEO QR INTEGRADOS --- */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 w-full">
               
-              {/* Renglón 1: Identidad del Bar y Botón de Escaneo (Visible en todo momento) */}
               <div className="flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto">
                 <div onClick={() => setView('welcome')} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none whitespace-nowrap">
                   {nombreBarDinamico}
@@ -1655,12 +1605,9 @@ const guardarEvento = async (e) => {
                 </button>
               </div>
 
-              {/* Renglón 2: Estado de Cuenta, Usuario y Carrito (Compactado en Menú para Celular) */}
               <div className="flex items-center justify-end gap-3 w-full sm:w-auto border-t border-slate-800/50 pt-2 sm:pt-0 sm:border-none">
                 
-                {/* 📱 VISTA SOLO EN CELULARES/TABLETS (Menu Desplegable Rápido) */}
                 <div className="flex sm:hidden items-center justify-between w-full">
-                  {/* El carrito siempre se queda a la vista por comodidad del cliente */}
                   <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative border-none outline-none active:scale-95">
                     <ShoppingCart size={18} />
                     {carrito.length > 0 && (
@@ -1670,7 +1617,6 @@ const guardarEvento = async (e) => {
                     )}
                   </button>
 
-                  {/* Selector/Menú que engloba tus datos actuales */}
                   <select 
                     onChange={(e) => {
                       if (e.target.value === 'mis_pedidos') setView('mis_pedidos');
@@ -1702,7 +1648,6 @@ const guardarEvento = async (e) => {
                 </div>
 
 
-                {/* 💻 VISTA SOLO EN COMPUTADORAS (Tu diseño original extendido) */}
                 <div className="hidden sm:flex items-center gap-2">
                   {pinCorrectoMesa && (
                     <div className="bg-orange-600/10 px-2 py-1 rounded-xl border border-orange-500/20 flex flex-col items-center justify-center min-w-[40px]">
@@ -1748,8 +1693,8 @@ const guardarEvento = async (e) => {
 
               </div>
             </div>
-           <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">{CATEGORIAS.map(c => (<button key={c} onClick={() => { setCatSeleccionada(c); setSubCatSeleccionada("Todas"); }} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${catSeleccionada === c ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-400'}`}>{c}</button>))}</div>
-           {subcategoriasDisponibles.length > 0 && (<div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-800/50"><button onClick={() => setSubCatSeleccionada("Todas")} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === "Todas" ? 'text-sky-400 bg-sky-900/20' : 'text-slate-500'}`}>Todas</button>{subcategoriasDisponibles.map(sc => (<button key={sc} onClick={() => setSubCatSeleccionada(sc)} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === sc ? 'text-sky-400 bg-sky-900/20 shadow-lg' : 'text-slate-500'}`}>{sc}</button>))}</div>)}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">{CATEGORIAS.map(c => (<button key={c} onClick={() => { setCatSeleccionada(c); setSubCatSeleccionada("Todas"); }} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${catSeleccionada === c ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-400'}`}>{c}</button>))}</div>
+            {subcategoriasDisponibles.length > 0 && (<div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-800/50"><button onClick={() => setSubCatSeleccionada("Todas")} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === "Todas" ? 'text-sky-400 bg-sky-900/20' : 'text-slate-500'}`}>Todas</button>{subcategoriasDisponibles.map(sc => (<button key={sc} onClick={() => setSubCatSeleccionada(sc)} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === sc ? 'text-sky-400 bg-sky-900/20 shadow-lg' : 'text-slate-500'}`}>{sc}</button>))}</div>)}
          </div>
        </header>
        <main className="p-4 w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1771,11 +1716,9 @@ const guardarEvento = async (e) => {
        </main>
        {carrito.length > 0 && !verCarrito && (<div className="fixed bottom-6 left-0 right-0 px-6 z-50 flex justify-center no-print"><button onClick={() => setVerCarrito(true)} className="w-full max-w-lg bg-orange-600 text-white py-4 rounded-2xl font-black flex justify-between px-8 shadow-2xl active:scale-95 transition-all shadow-orange-950/30"><span className="text-[10px] uppercase font-bold tracking-widest text-white leading-none flex items-center gap-2"><ShoppingCart size={14}/> MI PEDIDO ({carrito.reduce((a,b)=>a+b.cantidad,0)})</span><span className="font-black text-xl italic text-white tracking-tighter leading-none">${totalCarrito}</span></button></div>)}
        <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible opacity-100' : 'invisible opacity-0'}`}><div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} /><div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}><div className="flex justify-between items-center border-b border-slate-800 pb-4 font-black text-white italic uppercase text-xl tracking-tighter leading-none"><h2>Mi Cuenta</h2><X onClick={() => setVerCarrito(false)} className="text-slate-500 cursor-pointer" /></div><div className="flex-1 overflow-y-auto py-4 space-y-6 no-scrollbar">{carrito.length > 0 && (<div><p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ShoppingCart size={12}/> Por pedir ahora:</p><div className="space-y-3">{carrito.map(item => (<div key={item.id} className="bg-orange-600/5 p-3 rounded-2xl flex flex-col gap-2 border border-orange-600/20 shadow-sm"><div className="flex justify-between font-bold text-xs text-white uppercase tracking-tight leading-none"><span>{item.nombre}</span><button onClick={() => setCarrito(carrito.filter(x => x.id !== item.id))}><Trash2 size={14} className="text-slate-600 hover:text-red-500 transition-colors"/></button></div><div className="flex justify-between items-center"><span className="text-orange-500 font-bold italic tracking-tighter">${item.precio * item.cantidad}</span><div className="flex items-center gap-3 bg-slate-800 rounded-full px-3 py-1 shadow-inner"><Minus onClick={() => restarDelCarrito(item.id)} size={12} className="cursor-pointer"/><span className="text-xs font-bold text-white">{item.cantidad}</span><Plus onClick={() => agregarAlCarrito(item)} size={12} className="cursor-pointer"/></div></div></div>))}</div></div>)}{consumoAcumulado.length > 0 && (<div><p className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-3 flex items-center gap-2"><History size={12}/> Ya consumido:</p><div className="space-y-2">{consumoAcumulado.map((item, idx) => (<div key={idx} className="bg-slate-900/50 p-3 rounded-xl flex justify-between items-center border border-slate-800 opacity-60"><span className="text-[11px] font-bold text-slate-300 uppercase">{item.cantidad}x {item.nombre}</span><span className="text-[11px] font-black text-white">${item.precio * item.cantidad}</span></div>))}</div></div>)}</div><div className="pt-4 border-t border-slate-800 space-y-4"><div className="flex justify-between font-black text-2xl text-orange-500 italic"><span>Total Cuenta</span><span>${totalCarrito + totalAcumulado}</span></div><button disabled={carrito.length === 0} onClick={intentarEnviar} className="w-full py-4 rounded-2xl font-black text-white bg-orange-600 active:scale-95 transition-all shadow-xl uppercase tracking-widest">Confirmar Pedido</button></div></div></div>
-       {verModalTelefono && (
-         <div className="fixed inset-0 z-[200] bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
+       <div className={`fixed inset-0 z-[200] bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans ${verModalTelefono ? 'visible' : 'hidden'}`}>
             <div className="mb-8 text-center"><Phone size={48} className="text-orange-600 mx-auto mb-4 animate-bounce" /><h2 className="text-3xl font-black italic uppercase tracking-tighter">¿Tu Teléfono?</h2><p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Para identificar tu pedido externo</p></div>
             <div className="w-full max-w-[300px] mb-8"><div className="bg-slate-900 border-2 border-orange-600/50 rounded-2xl p-6 text-center shadow-2xl"><span className="text-4xl font-black tracking-widest text-white">{telefonoInput || "----------"}</span></div></div>
-            {/* ... Aquí termina tu cuadrícula de botones del teclado telefónico nativo ... */}
            <div className="grid grid-cols-3 gap-4 max-w-[280px]">
                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (<button key={n} onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">{n}</button>))}
                <button onClick={() => setTelefonoInput("")} className="w-16 h-16 rounded-full flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20"><Trash2 size={24}/></button>
@@ -1783,11 +1726,10 @@ const guardarEvento = async (e) => {
                <button onClick={() => setVerModalTelefono(false)} className="w-16 h-16 rounded-full flex items-center justify-center text-slate-500 border border-slate-800"><X size={24}/></button>
            </div>
            {telefonoInput.length >= 10 && (<button onClick={() => procesarEnvio()} className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse">Confirmar Pedido</button>)}
-         </div>
-       )}
+       </div>
 
        {/* ========================================================================= */}
-       {/* 🔥 CORRECCIÓN: EL MODAL VA EXACTAMENTE AQUÍ (ADENTRO DEL BLOQUE DEL MENU) */}
+       {/* 🔥 VISOR DE CÁMARA E INYECTOR DE LA NUEVA LIBRERÍA HTML5-QRCODE INTEGRADOS */}
        {/* ========================================================================= */}
        {verModalEscaner && (
          <div className="fixed inset-0 z-[250] bg-slate-950/95 backdrop-blur-md text-white flex flex-col items-center justify-center p-6 font-sans">
@@ -1801,11 +1743,38 @@ const guardarEvento = async (e) => {
                <button onClick={() => setVerModalEscaner(false)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><X size={18}/></button>
              </div>
 
-             {/* 🎥 RECUADRO DE VIDEO NATIVO (Agregado para que use tus referencias useRef de cámara) */}
-             <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
-               <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-               <div className="absolute inset-0 border-2 border-orange-500/20 rounded-2xl pointer-events-none flex items-center justify-center">
-                 <div className="w-28 h-28 border border-dashed border-orange-500 rounded-xl opacity-40 animate-pulse"></div>
+             {/* VISOR COMPLETO: Reemplaza el <video> viejo por el inyector del motor profesional */}
+             <div className="relative w-full overflow-hidden bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl min-h-[250px]">
+               <div id="lector-qr-tribu" className="w-full min-h-[250px] bg-slate-950 text-white text-xs font-bold rounded-2xl"></div>
+               
+               {/* 📸 BOTÓN AUXILIAR PARA USAR LA CÁMARA HASSELBLAD DEL ONEPLUS COMPLETA */}
+               <div className="p-3 bg-slate-950 border-t border-slate-800 text-left space-y-1">
+                 <span className="text-[8px] text-slate-500 uppercase font-black block">¿No lee en vivo? Usa la cámara del cel:</span>
+                 <input 
+                   type="file" 
+                   accept="image/*" 
+                   capture="environment"
+                   onChange={async (e) => {
+                     if (e.target.files && e.target.files[0] && window.Html5Qrcode) {
+                       const archivo = e.target.files[0];
+                       const localReader = new window.Html5Qrcode("lector-qr-tribu");
+                       try {
+                         const resultado = await localReader.scanFile(archivo, true);
+                         setVerModalEscaner(false);
+                         try {
+                           const urlObj = new URL(resultado);
+                           const mesaIdUrl = urlObj.searchParams.get("mesa");
+                           procesarEscaneoMesa(mesaIdUrl ? mesaIdUrl : resultado.trim());
+                         } catch {
+                           procesarEscaneoMesa(resultado.trim());
+                         }
+                       } catch (err) {
+                         alert("No se encontró un código QR claro. ¡Intenta tomarla más de cerca!");
+                       }
+                     }
+                   }}
+                   className="block w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:bg-orange-600 file:text-white hover:file:bg-orange-500 cursor-pointer"
+                 />
                </div>
              </div>
 
@@ -1842,24 +1811,23 @@ const guardarEvento = async (e) => {
                </div>
              </div>
 
-             <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Tribu's Bar • SincronizaciónStandalone Interna</p>
+             <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Tribu's Bar • Sincronización Novedosa Interna</p>
            </div>
          </div>
        )}
 
      </div>
    );
- })()} {/* 👈 AQUÍ SE CIERRA EL CONTEXTO DEL MENU */}
+ })()}
 
-      {/* --- RENDER DE CARGA E INYECTOR RECAPTCHA ORIGINALES AL FINAL --- */}
       {view !== 'welcome' && view !== 'registro' && view !== 'login' && view !== 'menu' && view !== 'barra' && view !== 'login_staff' && view !== 'mis_pedidos' && (
         <div className="min-h-screen bg-slate-900 flex items-center justify-center">
           <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
         </div>
       )}
       <div id="recaptcha-container"></div>
-    </>
-  );
+   </>
+ );
 }
 
 export default App;
