@@ -113,9 +113,14 @@ const encenderCamaraPWA = () => {
          },
         (decodedText) => {
            console.log("¡QR Detectado!", decodedText);
-           apagarCamaraPWA();
-           setVerModalEscaner(false);
+         // 1️⃣ Primero procesamos el texto y actualizamos la mesa
            procesarEscaneoMesa(decodedText.trim());
+           
+           // 2️⃣ Después cerramos el modal y apagamos la cámara con calma
+           setTimeout(() => {
+             apagarCamaraPWA();
+             setVerModalEscaner(false);
+           }, 100);
          },
          (errorMessage) => { /* Silenciar escaneos vacíos */ }
        ).catch((err) => {
