@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db } from './firebase'; 
 import { 
  collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, 
- query, where, orderBy, serverTimestamp, writeBatch, increment, setDoc, getDoc, getDocs 
+ query, where, orderBy, serverTimestamp, writeBatch, increment, setDoc, getDoc, getDocs, deleteField 
 } from "firebase/firestore";
 
 import { auth } from './firebase';
@@ -593,8 +593,7 @@ const moverMesa = async (pedido) => {
    const plantaOrigen = obtenerPlanta(pedido.mesa);
    let nuevaMesa = "";
 
-   // 💡 DETECTOR INTELIGENTE DE SOLICITUD DE TRASLADO
-   // Si el cliente ya escaneó la nueva mesa desde su cel, el sistema ya sabe cuál es:
+   // DETECTOR INTELIGENTE DE SOLICITUD DE TRASLADO
    if (pedido.pideTraslado && pedido.solicitudTraslado) {
      const confirmarTrasladoAuto = window.confirm(
        `🚨 El cliente solicita moverse de la Mesa ${pedido.mesa} a la Mesa ${pedido.solicitudTraslado}.\n\n¿Aceptar y trasladar cuenta ahora mismo?`
@@ -602,7 +601,7 @@ const moverMesa = async (pedido) => {
      if (!confirmarTrasladoAuto) return;
      nuevaMesa = String(pedido.solicitudTraslado).trim();
    } else {
-     // Si el mesero lo mueve manualmente desde la barra sin que el cliente lo haya pedido:
+     // Si el staff lo hace manualmente por alguna razón
      nuevaMesa = window.prompt(`Moviendo cuenta de Mesa ${pedido.mesa} (${plantaOrigen}). Ingrese el nuevo número de mesa:`);
      if (!nuevaMesa || nuevaMesa === "" || nuevaMesa === pedido.mesa) return;
    }
@@ -613,15 +612,15 @@ const moverMesa = async (pedido) => {
    try {
      const pedidoRef = doc(db, "pedidos", pedido.id);
      
-     // Actualizamos la mesa, sumamos la etiqueta y APAGAMOS las banderas rojas en Firebase
+     // Modificamos el documento en Firebase
      await updateDoc(pedidoRef, {
        mesa: String(nuevaMesa),
        detalle: pedido.detalle + etiquetaTraslado,
-       pideTraslado: false,              // <-- Se quita la etiqueta roja
-       solicitudTraslado: deleteField ? deleteField() : null // <-- Limpiamos la variable temporal
+       pideTraslado: false,                   // Borra la notificación en rojo de la barra
+       solicitudTraslado: deleteField()       // 🔥 Borra de Firebase de forma limpia la variable temporal
      });
 
-     alert(`✅ Cuenta trasladada con éxito a la Mesa ${nuevaMesa} (${plantaDestino}). Las alertas rojas se han removido.`);
+     alert(`✅ Cuenta trasladada con éxito a la Mesa ${nuevaMesa} (${plantaDestino}).`);
    } catch (e) {
      console.error("Error al mover mesa:", e);
      alert("No se pudo procesar el traslado de mesa.");
