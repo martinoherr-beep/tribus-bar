@@ -173,30 +173,26 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
    console.log("🔍 Texto bruto recibido en el procesador:", idMesaLimpia);
 
    // 🗺️ TABLA MAESTRA DE ENLACES ME-QR
-   // Aquí es donde sucede la magia. Vinculamos el código raro del QR con el número de mesa real del bar:
+   // Aquí asocias el código final de CADA QR con su número de mesa real:
    const mapaMesas = {
-     "o3pvdzac": "1",  // Tu primer QR
-     "4ewlnlrh": "5",  // El QR de la primera foto
-     "h9pve9vo": "5",  // 🔥 ¡EL DE LA NUEVA FOTO! Si este QR es de la Mesa 5, déjalo así. Si es de la Mesa 6, cámbialo a "6"
-     
-     // Cuando vayas escaneando las demás mesas, solo agregas una línea aquí abajo:
-     // "codigo_raro_de_la_mesa_6": "6",
-     // "codigo_raro_de_la_mesa_7": "7",
+     "oskw04hm": "5",  // Tu primer QR (Mesa 5)
+     "4ewlnlrh": "5",  // El QR de la foto del cel (Asumo que también es la 5 o cámbialo al número que sea)
+     "codigo3": "6",   // Cuando escanees la mesa 6, pones sus letras aquí
    };
 
-   // ✂️ EXTRACTOR: Si por alguna razón el teléfono lee la URL larga completa, le mochas el inicio
+   // ✂️ EXTACTOR AUTOMÁTICO: Si es un link largo de me-qr, le mocha el inicio
    if (idMesaLimpia.includes("me-qr.com/")) {
      const partes = idMesaLimpia.split("me-qr.com/");
      idMesaLimpia = partes[partes.length - 1].replace("/", "").trim(); 
+     // De "https://q.me-qr.com/4ewlnlrh" solo nos queda: "4ewlnlrh"
    }
 
-   // 🔎 Buscamos el ID en nuestra tabla maestra para cambiar las letras por el número real
+   // 🔎 Buscamos en nuestra tabla maestra
    if (mapaMesas[idMesaLimpia]) {
-     console.log(`🎯 Código ${idMesaLimpia} detectado. Asignando Mesa: ${mapaMesas[idMesaLimpia]}`);
      idMesaLimpia = mapaMesas[idMesaLimpia];
    }
 
-   // Limpiar la URL visual del navegador para que no interfiera con el estado
+   // Limpiar la URL del navegador inmediatamente
    if (window.history.replaceState) {
      window.history.replaceState(null, '', window.location.pathname);
    }
