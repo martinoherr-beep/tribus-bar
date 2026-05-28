@@ -61,7 +61,7 @@ function App() {
  const [telefonoInput, setTelefonoInput] = useState("");
  const [nombreUsuarioLogueado, setNombreUsuarioLogueado] = useState("");
  const [recordatorios, setRecordatorios] = useState([]);
- const [verModalNuevoEvento, setVerModalNuevoEvento] = useState(false);
+ const [verModalNuevoEvent, setVerModalNuevoEvento] = useState(false);
  const [nuevoEvento, setNuevoEvento] = useState({ titulo: "", fecha: "", hora: "" });
  const [verModalNuevoProd, setVerModalNuevoProd] = useState(false);
  const [nuevoProd, setNuevoProd] = useState({
@@ -98,32 +98,30 @@ const encenderCamaraPWA = () => {
   setVerModalEscaner(true);
 
   setTimeout(() => {
-    const contenedor = document.getElementById("lector-qr-tribu");
-    if (!contenedor) return;
+     const contenedor = document.getElementById("lector-qr-tribu");
+     if (!contenedor) return;
 
-    if (window.Html5Qrcode) {
-      const html5QrCode = new window.Html5Qrcode("lector-qr-tribu");
-      html5QrCodeRef.current = html5QrCode;
+     if (window.Html5Qrcode) {
+       const html5QrCode = new window.Html5Qrcode("lector-qr-tribu");
+       html5QrCodeRef.current = html5QrCode;
 
-      html5QrCode.start(
-        { facingMode: "environment" }, 
-        {
-          fps: 10,
-          qrbox: { width: 220, height: 220 }
-        },
-       (decodedText) => {
-          console.log("¡QR Detectado!", decodedText);
-          apagarCamaraPWA();
-          setVerModalEscaner(false);
-
-          // Mandamos el texto directo sin filtros previos para que el traductor haga su trabajo
-          procesarEscaneoMesa(decodedText.trim());
-        },
-        (errorMessage) => { /* Silenciar escaneos vacíos */ }
-      ).catch((err) => {
-        console.warn("Fallo cámara en vivo, usando modo archivo de respaldo:", err);
-      });
-    }
+       html5QrCode.start(
+         { facingMode: "environment" }, 
+         {
+           fps: 10,
+           qrbox: { width: 220, height: 220 }
+         },
+        (decodedText) => {
+           console.log("¡QR Detectado!", decodedText);
+           apagarCamaraPWA();
+           setVerModalEscaner(false);
+           procesarEscaneoMesa(decodedText.trim());
+         },
+         (errorMessage) => { /* Silenciar escaneos vacíos */ }
+       ).catch((err) => {
+         console.warn("Fallo cámara en vivo, usando modo archivo de respaldo:", err);
+       });
+     }
   }, 600);
 };
 
@@ -169,15 +167,17 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
 
    console.log("🔍 Texto bruto recibido en el procesador:", idMesaLimpia);
 
-   // 💥 DETECTOR AGRESIVO POR PALABRA CLAVE
-   // Si la URL contiene el código del QR, le asignamos el número a la fuerza
+   // DETECTOR AGRESIVO POR PALABRA CLAVE
    if (idMesaLimpia.includes("oskw04hm")) {
      idMesaLimpia = "5";
    }
-   // Aquí puedes agregar las demás mesas abajo siguiendo el mismo ejemplo:
-   // else if (idMesaLimpia.includes("codigo_de_la_mesa_6")) { idMesaLimpia = "6"; }
 
-   // [A PARTIR DE AQUÍ TU LÓGICA ORIGINAL SIGUE EXACTAMENTE IGUAL]
+   // Limpiamos los parámetros de la URL visible en el navegador para evitar bucles
+   if (window.history.pushState) {
+     const nuevaURL = window.location.protocol + "//" + window.location.host + window.location.pathname;
+     window.history.pushState({ path: nuevaURL }, '', nuevaURL);
+   }
+
    if (consumoAcumulado.length === 0 && carrito.length === 0) {
      localStorage.setItem("tribu_mesa", idMesaLimpia);
      setMesa(idMesaLimpia);
@@ -266,7 +266,7 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
     terraza: totalTerraza,
     externo: totalExterno,
     totalGlobal: totalBaja + totalTerraza + totalExterno,
-    cantidadTickets: ticketsEnRango // CORREGIDO AQUÍ PARA COINCIDIR CON EL HTML
+    cantidadTickets: ticketsEnRango 
   });
 };
 
@@ -592,7 +592,7 @@ useEffect(() => {
             where("mesa", "==", "pendiente")
           );
           
-          const pedidoSnapshot = await getDocs(qPedido); // AHORA SÍ CONECTADO BIEN ARRIBA
+          const pedidoSnapshot = await getDocs(qPedido); 
           const batch = writeBatch(db);
 
           if (!pedidoSnapshot.empty) {
@@ -637,29 +637,35 @@ useEffect(() => {
   return () => unsub();
 }, []);
 
+// 🔥 CORREGIDO DE RAÍZ: Intercepta e impide bucles limpiando la URL en el navegador
 useEffect(() => {
    const params = new URLSearchParams(window.location.search);
    let mesaId = params.get("mesa");
    
    if (mesaId) {
-     // 🔥 Si viene la URL larga en el link, la interceptamos antes de guardarla en memoria
      if (mesaId.includes("oskw04hm")) {
        mesaId = "5";
      }
      localStorage.setItem("tribu_mesa", mesaId);
+     
+     // Limpiar la URL visual del navegador para que no vuelva a sobreescribir el estado en el renderizado
+     if (window.history.pushState) {
+       const nuevaURL = window.location.protocol + "//" + window.location.host + window.location.pathname;
+       window.history.pushState({ path: nuevaURL }, '', nuevaURL);
+     }
    } else {
      mesaId = localStorage.getItem("tribu_mesa");
-     // 🔥 Si ya estaba guardada la URL larga por error, la corregimos aquí
      if (mesaId && mesaId.includes("oskw04hm")) {
        mesaId = "5";
        localStorage.setItem("tribu_mesa", "5");
      }
    }
    
-   if (mesaId) setMesa(mesaId);
+   if (mesaId && mesaId !== "null" && mesaId !== "undefined") {
+     setMesa(mesaId);
+   }
    if (params.get("view") === 'barra') setView('barra');
 
-   // ... [Tus Snapshot de productos, pedidos e historial quedan exactamente igual abajo]
    onSnapshot(collection(db, "productos"), (snap) => setProductosMenu(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
    onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -695,14 +701,14 @@ useEffect(() => {
    const itemStock = productosMenu.find(x => x.id === item.id);
    const ex = carrito.find(x => x.id === item.id);
    if (itemStock && itemStock.stock <= (ex ? ex.cantidad : 0)) return alert("Sin stock.");
-   if (ex) setCarrito(carrito.map(x => x.id === item.id ? { ...ex, cantidad: ex.cantidad + 1 } : x)); // CORREGIDO ADELANTE EL "CRYSTALLINE"
-   else setCarrito([...carrito, { ...item, precio: p, cantidad: 1 }]);
+   if (ex) setCarrito(carrito.map(x => x.id === item.id ? { ...ex, cantidad: ex.cantidad + 1 } : x)); 
+   else setCarrito([...carrito, { ...item, precio: p, carrot: 1, cantidad: 1 }]);
  };
 
  const restarDelCarrito = (id) => {
    const ex = carrito.find(x => x.id === id);
    if (!ex) return;
-   if (ex.cantidad === 1) setCarrito(carrito.filter(x => x.id !== id)); // CORREGIDO EL WHITESPACE ADELANTE
+   if (ex.cantidad === 1) setCarrito(carrito.filter(x => x.id !== id)); 
    else setCarrito(carrito.map(x => x.id === id ? { ...ex, cantidad: ex.cantidad - 1 } : x));
  };
 
@@ -1358,7 +1364,7 @@ const guardarEvento = async (e) => {
        </div>
      )}
 
-     {verModalNuevoEvento && (
+     {verModalNuevoEvent && (
        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
          <div className="bg-slate-900 border border-slate-800 w-full max-w-[350px] rounded-[2.5rem] p-8 shadow-2xl relative">
            <button onClick={() => setVerModalNuevoEvento(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white"><X/></button>
@@ -1637,7 +1643,7 @@ const guardarEvento = async (e) => {
       )}
     </button>
 
-    {/* 🔑 PIN DE SEGURIDAD EN CELULAR (Recuperado) */}
+    {/* 🔑 PIN DE SEGURIDAD EN CELULAR */}
     {pinCorrectoMesa && (
       <div className="bg-orange-600/10 px-2 py-1.5 rounded-xl border border-orange-500/20 flex flex-col items-center justify-center min-w-[38px]">
         <span className="text-[5px] font-black text-orange-500 uppercase tracking-tighter leading-none mb-0.5">PIN</span>
@@ -1645,7 +1651,7 @@ const guardarEvento = async (e) => {
       </div>
     )}
     
-    {/* 💰 TOTAL YA CONSUMIDO EN CELULAR (Recuperado) */}
+    {/* 💰 TOTAL YA CONSUMIDO EN CELULAR */}
     {consumoAcumulado.length > 0 && (
       <div className="bg-green-600/10 px-2 py-1.5 rounded-xl border border-green-500/20 flex items-center gap-1 h-[26px]">
         <History size={10} className="text-green-500" />
@@ -1757,9 +1763,6 @@ const guardarEvento = async (e) => {
            {telefonoInput.length >= 10 && (<button onClick={() => procesarEnvio()} className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse">Confirmar Pedido</button>)}
        </div>
 
-       {/* ========================================================================= */}
-       {/* 🔥 VISOR DE CÁMARA E INYECTOR DE LA NUEVA LIBRERÍA HTML5-QRCODE INTEGRADOS */}
-       {/* ========================================================================= */}
        {verModalEscaner && (
          <div className="fixed inset-0 z-[250] bg-slate-950/95 backdrop-blur-md text-white flex flex-col items-center justify-center p-6 font-sans">
            <div className="w-full max-w-sm space-y-6 text-center animate-fade-in">
@@ -1772,11 +1775,9 @@ const guardarEvento = async (e) => {
                <button onClick={() => setVerModalEscaner(false)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><X size={18}/></button>
              </div>
 
-             {/* VISOR COMPLETO: Reemplaza el <video> viejo por el inyector del motor profesional */}
              <div className="relative w-full overflow-hidden bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl min-h-[250px]">
                <div id="lector-qr-tribu" className="w-full min-h-[250px] bg-slate-950 text-white text-xs font-bold rounded-2xl"></div>
                
-               {/* 📸 BOTÓN AUXILIAR PARA USAR LA CÁMARA HASSELBLAD DEL ONEPLUS COMPLETA */}
                <div className="p-3 bg-slate-950 border-t border-slate-800 text-left space-y-1">
                  <span className="text-[8px] text-slate-500 uppercase font-black block">¿No lee en vivo? Usa la cámara del cel:</span>
                  <input 
@@ -1787,16 +1788,13 @@ const guardarEvento = async (e) => {
                      if (e.target.files && e.target.files[0] && window.Html5Qrcode) {
                        const archivo = e.target.files[0];
                        const localReader = new window.Html5Qrcode("lector-qr-tribu");
-                      // ASÍ DEBE QUEDAR:
-try {
-  const resultado = await localReader.scanFile(archivo, true);
-  setVerModalEscaner(false);
-  
-  // Mandamos el texto directo al procesador para que el diccionario lo traduzca
-  procesarEscaneoMesa(resultado.trim());
-} catch (err) {
-                         alert("No se encontró un código QR claro. ¡Intenta tomarla más de cerca!");
-                       }
+                        try {
+                          const resultado = await localReader.scanFile(archivo, true);
+                          setVerModalEscaner(false);
+                          procesarEscaneoMesa(resultado.trim());
+                        } catch (err) {
+                           alert("No se encontró un código QR claro. ¡Intenta tomarla más de cerca!");
+                        }
                      }
                    }}
                    className="block w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:bg-orange-600 file:text-white hover:file:bg-orange-500 cursor-pointer"
