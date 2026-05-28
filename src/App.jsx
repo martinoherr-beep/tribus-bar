@@ -667,7 +667,7 @@ useEffect(() => {
   
   // 🗺️ TABLA MAESTRA UNIFICADA
   const mapaMesas = {
-    "oskw04hm": "5",
+    "o3pvdzac": "1",
     "4ewlnlrh": "5",
     "h9pve9vo": "5", // Si este código pertenece a otra mesa, solo cambia el "5" por el número real (ej: "6")
     // "proximo_codigo": "6"
