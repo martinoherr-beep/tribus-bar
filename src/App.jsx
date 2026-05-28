@@ -172,20 +172,21 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
 
    console.log("🔍 Texto bruto recibido en el procesador:", idMesaLimpia);
 
-   // DETECTOR AGRESIVO POR PALABRA CLAVE
+   // DETECTOR AGRESIVO POR PALABRA CLAVE (A prueba de fallas)
    if (idMesaLimpia.includes("oskw04hm")) {
      idMesaLimpia = "5";
    }
 
-   // Limpiamos los parámetros de la URL visible en el navegador para evitar bucles
-   if (window.history.pushState) {
-     const nuevaURL = window.location.protocol + "//" + window.location.host + window.location.pathname;
-     window.history.pushState({ path: nuevaURL }, '', nuevaURL);
+   // Limpiar la URL del navegador inmediatamente para que no se recicle el link viejo
+   if (window.history.replaceState) {
+     window.history.replaceState(null, '', window.location.pathname);
    }
 
+   // Guardar valores limpios en la memoria local
+   localStorage.setItem("tribu_mesa", idMesaLimpia);
+   setMesa(idMesaLimpia);
+
    if (consumoAcumulado.length === 0 && carrito.length === 0) {
-     localStorage.setItem("tribu_mesa", idMesaLimpia);
-     setMesa(idMesaLimpia);
      setVerModalEscaner(false);
      alert(`📍 Te has ubicado en la Mesa ${idMesaLimpia} (${obtenerPlanta(idMesaLimpia)})`);
      return;
@@ -210,8 +211,6 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
        alert("Error al solicitar traslado.");
      }
    } else {
-     localStorage.setItem("tribu_mesa", idMesaLimpia);
-     setMesa(idMesaLimpia);
      setVerModalEscaner(false);
    }
  };
