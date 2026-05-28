@@ -173,26 +173,30 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
    console.log("🔍 Texto bruto recibido en el procesador:", idMesaLimpia);
 
    // 🗺️ TABLA MAESTRA DE ENLACES ME-QR
-   // Aquí asocias el código final de CADA QR con su número de mesa real:
+   // Aquí es donde sucede la magia. Vinculamos el código raro del QR con el número de mesa real del bar:
    const mapaMesas = {
-     "oskw04hm": "5",  // Tu primer QR (Mesa 5)
-     "4ewlnlrh": "5",  // El QR de la foto del cel (Asumo que también es la 5 o cámbialo al número que sea)
-     "codigo3": "6",   // Cuando escanees la mesa 6, pones sus letras aquí
+     "o3pvdzac": "1",  // Tu primer QR
+     "4ewlnlrh": "5",  // El QR de la primera foto
+     "h9pve9vo": "5",  // 🔥 ¡EL DE LA NUEVA FOTO! Si este QR es de la Mesa 5, déjalo así. Si es de la Mesa 6, cámbialo a "6"
+     
+     // Cuando vayas escaneando las demás mesas, solo agregas una línea aquí abajo:
+     // "codigo_raro_de_la_mesa_6": "6",
+     // "codigo_raro_de_la_mesa_7": "7",
    };
 
-   // ✂️ EXTACTOR AUTOMÁTICO: Si es un link largo de me-qr, le mocha el inicio
+   // ✂️ EXTRACTOR: Si por alguna razón el teléfono lee la URL larga completa, le mochas el inicio
    if (idMesaLimpia.includes("me-qr.com/")) {
      const partes = idMesaLimpia.split("me-qr.com/");
      idMesaLimpia = partes[partes.length - 1].replace("/", "").trim(); 
-     // De "https://q.me-qr.com/4ewlnlrh" solo nos queda: "4ewlnlrh"
    }
 
-   // 🔎 Buscamos en nuestra tabla maestra
+   // 🔎 Buscamos el ID en nuestra tabla maestra para cambiar las letras por el número real
    if (mapaMesas[idMesaLimpia]) {
+     console.log(`🎯 Código ${idMesaLimpia} detectado. Asignando Mesa: ${mapaMesas[idMesaLimpia]}`);
      idMesaLimpia = mapaMesas[idMesaLimpia];
    }
 
-   // Limpiar la URL del navegador inmediatamente
+   // Limpiar la URL visual del navegador para que no interfiera con el estado
    if (window.history.replaceState) {
      window.history.replaceState(null, '', window.location.pathname);
    }
@@ -656,55 +660,77 @@ useEffect(() => {
   return () => unsub();
 }, []);
 
-// 🔥 CORREGIDO DE RAÍZ: Intercepta e impide bucles limpiando la URL en el navegador
+// 🔥 EFECTO DE ARRANQUE CON TRADUCTOR UNIFICADO Y ANTI-BUCLES
 useEffect(() => {
-   const params = new URLSearchParams(window.location.search);
-   let mesaId = params.get("mesa");
-   
-   if (mesaId) {
-     if (mesaId.includes("oskw04hm")) {
-       mesaId = "5";
-     }
-     localStorage.setItem("tribu_mesa", mesaId);
-     
-     // Limpiar la URL visual del navegador para que no vuelva a sobreescribir el estado en el renderizado
-     if (window.history.pushState) {
-       const nuevaURL = window.location.protocol + "//" + window.location.host + window.location.pathname;
-       window.history.pushState({ path: nuevaURL }, '', nuevaURL);
-     }
-   } else {
-     mesaId = localStorage.getItem("tribu_mesa");
-     if (mesaId && mesaId.includes("oskw04hm")) {
-       mesaId = "5";
-       localStorage.setItem("tribu_mesa", "5");
-     }
-   }
-   
-   if (mesaId && mesaId !== "null" && mesaId !== "undefined") {
-     setMesa(mesaId);
-   }
-   if (params.get("view") === 'barra') setView('barra');
+  const params = new URLSearchParams(window.location.search);
+  let mesaId = params.get("mesa");
+  
+  // 🗺️ TABLA MAESTRA UNIFICADA
+  const mapaMesas = {
+    "oskw04hm": "5",
+    "4ewlnlrh": "5",
+    "h9pve9vo": "5", // Si este código pertenece a otra mesa, solo cambia el "5" por el número real (ej: "6")
+    // "proximo_codigo": "6"
+  };
 
-   onSnapshot(collection(db, "productos"), (snap) => setProductosMenu(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-   onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
-     const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-     setPedidosBarra(data);
-     if (mesaId) {
-       const pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
-       if (pedidoMesa && pedidoMesa.pinMesa) {
-           setPinCorrectoMesa(pedidoMesa.pinMesa);
-           const items = pedidoMesa.detalle.split('\n').map(linea => {
-               const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
-               if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
-               return null;
-           }).filter(i => i !== null);
-           setConsumoAcumulado(items);
-       } else { setMesaValidada(true); setConsumoAcumulado([]); }
-     }
-   });
-   onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
-   onSnapshot(query(collection(db, "recordatorios"), orderBy("fecha", "asc")), (snap) => setRecordatorios(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
- }, [mesa]);
+  // Función interna para limpiar enlaces de me-qr
+  const traducirTextoQR = (texto) => {
+    if (!texto) return null;
+    let limpio = String(texto).trim();
+    
+    if (limpio.includes("me-qr.com/")) {
+      const partes = limpio.split("me-qr.com/");
+      limpio = partes[partes.length - 1].replace("/", "").trim();
+    }
+    
+    // Si el código está en el mapa, devolvemos el número real, si no, el texto original
+    return mapaMesas[limpio] ? mapaMesas[limpio] : limpio;
+  };
+
+  if (mesaId) {
+    // Traducimos el código raro a número de mesa real de inmediato
+    mesaId = traducirTextoQR(mesaId);
+    localStorage.setItem("tribu_mesa", mesaId);
+    
+    // Limpiamos la URL del navegador para que no vuelva a reciclar las letras raras al refrescar
+    if (window.history.replaceState) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  } else {
+    // Si no hay URL, leemos la memoria interna del cel y la saneamos por si acaso
+    const guardada = localStorage.getItem("tribu_mesa");
+    mesaId = traducirTextoQR(guardada);
+    if (mesaId !== guardada && mesaId) {
+      localStorage.setItem("tribu_mesa", mesaId);
+    }
+  }
+  
+  if (mesaId && mesaId !== "null" && mesaId !== "undefined") {
+    setMesa(mesaId);
+  }
+  if (params.get("view") === 'barra') setView('barra');
+
+  // [DE AQUÍ EN ADELANTE TUS SNAPSHOTS DE FIREBASE SE QUEDAN EXACTAMENTE IGUAL]
+  onSnapshot(collection(db, "productos"), (snap) => setProductosMenu(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+  onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setPedidosBarra(data);
+    if (mesaId) {
+      const pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
+      if (pedidoMesa && pedidoMesa.pinMesa) {
+          setPinCorrectoMesa(pedidoMesa.pinMesa);
+          const items = pedidoMesa.detalle.split('\n').map(linea => {
+              const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
+              if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
+              return null;
+          }).filter(i => i !== null);
+          setConsumoAcumulado(items);
+      } else { setMesaValidada(true); setConsumoAcumulado([]); }
+    }
+  });
+  onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+  onSnapshot(query(collection(db, "recordatorios"), orderBy("fecha", "asc")), (snap) => setRecordatorios(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+}, [mesa]);
 
  const manejarPinMesa = (num) => {
    if (pinMesaInput.length < 4) {
