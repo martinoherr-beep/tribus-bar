@@ -1775,17 +1775,14 @@ const guardarEvento = async (e) => {
                      if (e.target.files && e.target.files[0] && window.Html5Qrcode) {
                        const archivo = e.target.files[0];
                        const localReader = new window.Html5Qrcode("lector-qr-tribu");
-                       try {
-                         const resultado = await localReader.scanFile(archivo, true);
-                         setVerModalEscaner(false);
-                         try {
-                           const urlObj = new URL(resultado);
-                           const mesaIdUrl = urlObj.searchParams.get("mesa");
-                           procesarEscaneoMesa(mesaIdUrl ? mesaIdUrl : resultado.trim());
-                         } catch {
-                           procesarEscaneoMesa(resultado.trim());
-                         }
-                       } catch (err) {
+                      // ASÍ DEBE QUEDAR:
+try {
+  const resultado = await localReader.scanFile(archivo, true);
+  setVerModalEscaner(false);
+  
+  // Mandamos el texto directo al procesador para que el diccionario lo traduzca
+  procesarEscaneoMesa(resultado.trim());
+} catch (err) {
                          alert("No se encontró un código QR claro. ¡Intenta tomarla más de cerca!");
                        }
                      }
