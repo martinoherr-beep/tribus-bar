@@ -1613,45 +1613,58 @@ const guardarEvento = async (e) => {
 
               <div className="flex items-center justify-end gap-3 w-full sm:w-auto border-t border-slate-800/50 pt-2 sm:pt-0 sm:border-none">
                 
-                <div className="flex sm:hidden items-center justify-between w-full">
-                  <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative border-none outline-none active:scale-95">
-                    <ShoppingCart size={18} />
-                    {carrito.length > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-orange-600 text-[8px] px-1.5 py-0.5 rounded-full font-bold">
-                        {carrito.reduce((a, b) => a + b.cantidad, 0)}
-                      </span>
-                    )}
-                  </button>
+        {/* 📱 VISTA SOLO EN CELULARES/TABLETS (Menu Desplegable Rápido) */}
+<div className="flex sm:hidden items-center justify-between w-full gap-2">
+  
+  {/* 🛒 LADO IZQUIERDO: Botón del Carrito e Indicadores Rápidos */}
+  <div className="flex items-center gap-1.5">
+    <button onClick={() => setVerCarrito(true)} className="bg-slate-800 p-2.5 rounded-full relative border-none outline-none active:scale-95">
+      <ShoppingCart size={18} />
+      {carrito.length > 0 && (
+        <span className="absolute -top-1 -right-1 bg-orange-600 text-[8px] px-1.5 py-0.5 rounded-full font-bold">
+          {carrito.reduce((a, b) => a + b.cantidad, 0)}
+        </span>
+      )}
+    </button>
 
-                  <select 
-                    onChange={(e) => {
-                      if (e.target.value === 'mis_pedidos') setView('mis_pedidos');
-                      if (e.target.value === 'cerrar_sesion') cerrarSesion();
-                      e.target.value = 'default'; 
-                    }}
-                    className="bg-slate-900 border border-slate-800 text-[10px] font-black uppercase rounded-xl px-3 py-2 text-slate-300 outline-none cursor-pointer max-w-[180px]"
-                  >
-                    <option value="default">
-                      👤 {usuarioLogueado ? (nombreUsuarioLogueado ? nombreUsuarioLogueado.split(" ")[0] : "Mi Cuenta") : "Invitado"} 
-                      {consumoAcumulado.length > 0 ? ` ($${totalAcumulado})` : ''}
-                    </option>
-                    
-                    {pinCorrectoMesa && (
-                      <option disabled>🔑 PIN de Mesa: {pinCorrectoMesa}</option>
-                    )}
-                    
-                    {consumoAcumulado.length > 0 && (
-                      <option disabled>💰 Ya consumido: ${totalAcumulado}</option>
-                    )}
-                    
-                    {usuarioLogueado && (
-                      <>
-                        <option value="mis_pedidos">📋 Ver mis órdenes</option>
-                        <option value="cerrar_sesion" className="text-red-500">❌ Cerrar Sesión</option>
-                      </>
-                    )}
-                  </select>
-                </div>
+    {/* 🔑 PIN DE SEGURIDAD EN CELULAR (Recuperado) */}
+    {pinCorrectoMesa && (
+      <div className="bg-orange-600/10 px-2 py-1.5 rounded-xl border border-orange-500/20 flex flex-col items-center justify-center min-w-[38px]">
+        <span className="text-[5px] font-black text-orange-500 uppercase tracking-tighter leading-none mb-0.5">PIN</span>
+        <span className="text-[9px] font-black text-white leading-none tracking-widest">{pinCorrectoMesa}</span>
+      </div>
+    )}
+    
+    {/* 💰 TOTAL YA CONSUMIDO EN CELULAR (Recuperado) */}
+    {consumoAcumulado.length > 0 && (
+      <div className="bg-green-600/10 px-2 py-1.5 rounded-xl border border-green-500/20 flex items-center gap-1 h-[26px]">
+        <History size={10} className="text-green-500" />
+        <span className="text-[9px] font-black text-green-500 leading-none">${totalAcumulado}</span>
+      </div>
+    )}
+  </div>
+
+  {/* 👤 LADO DERECHO: Menú Desplegable */}
+  <select 
+    onChange={(e) => {
+      if (e.target.value === 'mis_pedidos') setView('mis_pedidos');
+      if (e.target.value === 'cerrar_sesion') cerrarSesion();
+      e.target.value = 'default'; 
+    }}
+    className="bg-slate-900 border border-slate-800 text-[10px] font-black uppercase rounded-xl px-2.5 py-2 text-slate-300 outline-none cursor-pointer max-w-[130px]"
+  >
+    <option value="default">
+      👤 {usuarioLogueado ? (nombreUsuarioLogueado ? nombreUsuarioLogueado.split(" ")[0] : "Mi Cuenta") : "Invitado"} 
+    </option>
+    
+    {usuarioLogueado && (
+      <>
+        <option value="mis_pedidos">📋 Ver mis órdenes</option>
+        <option value="cerrar_sesion" className="text-red-500">❌ Cerrar Sesión</option>
+      </>
+    )}
+  </select>
+</div>
 
 
                 <div className="hidden sm:flex items-center gap-2">
