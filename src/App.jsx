@@ -167,28 +167,17 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
    let idMesaLimpia = String(nuevaMesa).trim();
    if (!idMesaLimpia || idMesaLimpia === "") return;
 
-   // 🗺️ DICCIONARIO TRADUCTOR DE ENLACES ME-QR
-   const traductorQRs = {
-     "https://q.me-qr.com/oskw04hm": "5",  // Si lee el link completo
-     "oskw04hm": "5"                       // Si solo lee el código final
-   };
+   console.log("🔍 Texto bruto recibido en el procesador:", idMesaLimpia);
 
-   // Si lo que llegó coincide con el diccionario, lo convertimos a número de mesa
-   if (traductorQRs[idMesaLimpia]) {
-     idMesaLimpia = traductorQRs[idMesaLimpia];
+   // 💥 DETECTOR AGRESIVO POR PALABRA CLAVE
+   // Si la URL contiene el código del QR, le asignamos el número a la fuerza
+   if (idMesaLimpia.includes("oskw04hm")) {
+     idMesaLimpia = "5";
    }
+   // Aquí puedes agregar las demás mesas abajo siguiendo el mismo ejemplo:
+   // else if (idMesaLimpia.includes("codigo_de_la_mesa_6")) { idMesaLimpia = "6"; }
 
-   // Si por alguna razón sigue llegando la URL completa y no se tradujo, 
-   // extraemos solo los últimos caracteres para que no guarde el link en Firebase
-   if (idMesaLimpia.includes("me-qr.com/")) {
-     const partes = idMesaLimpia.split("me-qr.com/");
-     const codigoFinal = partes[partes.length - 1];
-     if (traductorQRs[codigoFinal]) {
-       idMesaLimpia = traductorQRs[codigoFinal];
-     }
-   }
-
-   // [A PARTIR DE AQUÍ TU LÓGICA ORIGINAL SIGUE IGUAL]
+   // [A PARTIR DE AQUÍ TU LÓGICA ORIGINAL SIGUE EXACTAMENTE IGUAL]
    if (consumoAcumulado.length === 0 && carrito.length === 0) {
      localStorage.setItem("tribu_mesa", idMesaLimpia);
      setMesa(idMesaLimpia);
