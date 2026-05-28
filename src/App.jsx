@@ -1902,22 +1902,26 @@ const guardarEvento = async (e) => {
            {telefonoInput.length >= 10 && (<button onClick={() => procesarEnvio()} className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse">Confirmar Pedido</button>)}
        </div>
 
+    {/* ========================================================================= */}
+       {/* 🔥 VISOR DE CÁMARA E INYECTOR DE LA NUEVA LIBRERÍA HTML5-QRCODE INTEGRADOS */}
+       {/* ========================================================================= */}
        {verModalEscaner && (
-         <div className="fixed inset-0 z-[250] bg-slate-950/95 backdrop-blur-md text-white flex flex-col items-center justify-center p-6 font-sans">
-           <div className="w-full max-w-sm space-y-6 text-center animate-fade-in">
+         <div className="fixed inset-0 z-[250] bg-slate-950/95 backdrop-blur-md text-white flex flex-col items-center justify-start p-4 font-sans overflow-y-auto">
+           <div className="w-full max-w-sm space-y-4 text-center my-auto py-4">
              
-             <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                <div className="text-left">
-                 <h3 className="text-xl font-black italic uppercase text-orange-500 tracking-tight">Escanear o Cambiar Mesa</h3>
+                 <h3 className="text-lg font-black italic uppercase text-orange-500 tracking-tight">Escanear o Cambiar Mesa</h3>
                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Control de ubicación de la Tribu</p>
                </div>
-               <button onClick={() => setVerModalEscaner(false)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><X size={18}/></button>
+               <button onClick={() => setVerModalEscaner(false)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><X size={16}/></button>
              </div>
 
-             <div className="relative w-full overflow-hidden bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl min-h-[250px]">
-               <div id="lector-qr-tribu" className="w-full min-h-[250px] bg-slate-950 text-white text-xs font-bold rounded-2xl"></div>
+             {/* Visor de Cámara */}
+             <div className="relative w-full overflow-hidden bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl min-h-[200px]">
+               <div id="lector-qr-tribu" className="w-full min-h-[200px] bg-slate-950 text-white text-xs font-bold rounded-2xl"></div>
                
-               <div className="p-3 bg-slate-950 border-t border-slate-800 text-left space-y-1">
+               <div className="p-2.5 bg-slate-950 border-t border-slate-800 text-left space-y-1">
                  <span className="text-[8px] text-slate-500 uppercase font-black block">¿No lee en vivo? Usa la cámara del cel:</span>
                  <input 
                    type="file" 
@@ -1936,45 +1940,50 @@ const guardarEvento = async (e) => {
                         }
                      }
                    }}
-                   className="block w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:bg-orange-600 file:text-white hover:file:bg-orange-500 cursor-pointer"
+                   className="block w-full text-xs text-slate-400 file:mr-3 file:py-1 file:px-2.5 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:bg-orange-600 file:text-white hover:file:bg-orange-500 cursor-pointer"
                  />
                </div>
              </div>
 
-             <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-4 text-left space-y-1.5">
-               <p className="text-[10px] font-black uppercase text-orange-500 tracking-widest">⚠️ Estado de Cuenta:</p>
-               <p className="text-xs font-semibold text-slate-200">
+             <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-3 text-left space-y-1">
+               <p className="text-[9px] font-black uppercase text-orange-500 tracking-widest">⚠️ Estado de Cuenta:</p>
+               <p className="text-[11px] font-semibold text-slate-300 leading-tight">
                  {consumoAcumulado.length > 0 
-                   ? `Te encuentras en la Mesa ${mesa}. Si escaneas otra mesa, tu cuenta acumulada de $${totalAcumulado} solicitará traslado automático en la barra.`
-                   : "Tu cuenta está limpia ($0). Puedes asignarte a cualquier mesa libre escaneando o digitando su número."
+                   ? `Te encuentras en la Mesa ${mesa}. Si cambias de mesa, tu cuenta de $${totalAcumulado} solicitará traslado.`
+                   : "Tu cuenta está limpia ($0). Puedes asignarte a cualquier mesa libre."
                  }
                </p>
              </div>
 
-             <div className="space-y-4">
-               <div className="bg-slate-900 border-2 border-orange-500/30 rounded-2xl p-4 text-center shadow-inner">
-                 <span className="text-xs font-black uppercase text-slate-500 tracking-widest block mb-1">Mesa Seleccionada</span>
-                 <span className="text-4xl font-black tracking-widest text-white">{mesaEscaneadaInput || "---"}</span>
+             {/* 🎛️ SECCIÓN DEL TECLADO NUMÉRICO OPTIMIZADA */}
+             <div className="space-y-3 bg-black/30 p-3 rounded-2xl border border-slate-900 shadow-inner">
+               <div className="bg-slate-900 border-2 border-orange-500/30 rounded-xl py-1.5 px-4 text-center">
+                 <span className="text-[8px] font-black uppercase text-slate-500 tracking-widest block mb-0.5">Mesa Seleccionada</span>
+                 <span className="text-3xl font-black tracking-widest text-white">{mesaEscaneadaInput || "---"}</span>
                </div>
 
-               <div className="grid grid-cols-3 gap-3 max-w-[260px] mx-auto">
+               {/* Botones más compactos (h-12 en vez de h-14) para que no rompan la pantalla */}
+               <div className="grid grid-cols-3 gap-2.5 max-w-[240px] mx-auto">
                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-                   <button key={n} type="button" onClick={() => mesaEscaneadaInput.length < 2 && setMesaEscaneadaInput(mesaEscaneadaInput + n)} className="w-14 h-14 rounded-full bg-slate-900 border border-slate-800 text-xl font-black active:scale-90 transition-all">{n}</button>
+                   <button key={n} type="button" onClick={() => mesaEscaneadaInput.length < 2 && setMesaEscaneadaInput(mesaEscaneadaInput + n)} className="w-full h-12 rounded-xl bg-slate-900 border border-slate-800 text-lg font-black active:scale-90 transition-all">{n}</button>
                  ))}
-                 <button type="button" onClick={() => setMesaEscaneadaInput("")} className="w-14 h-14 rounded-full flex items-center justify-center text-red-500 bg-red-500/10 border border-slate-800"><Trash2 size={18}/></button>
-                 <button type="button" onClick={() => mesaEscaneadaInput.length < 2 && setMesaEscaneadaInput(mesaEscaneadaInput + "0")} className="w-14 h-14 rounded-full bg-slate-900 border border-slate-800 text-xl font-black">0</button>
+                 <button type="button" onClick={() => setMesaEscaneadaInput("")} className="w-full h-12 rounded-xl flex items-center justify-center text-red-500 bg-red-500/10 border border-slate-800"><Trash2 size={16}/></button>
+                 <button type="button" onClick={() => mesaEscaneadaInput.length < 2 && setMesaEscaneadaInput(mesaEscaneadaInput + "0")} className="w-full h-12 rounded-xl bg-slate-900 border border-slate-800 text-lg font-black">0</button>
                  <button 
                    type="button"
                    disabled={!mesaEscaneadaInput}
-                   onClick={() => procesarEscaneoMesa(mesaEscaneadaInput)} 
-                   className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${mesaEscaneadaInput ? 'bg-green-600 text-white animate-pulse' : 'bg-slate-900 text-slate-700 border border-slate-800'}`}
+                   onClick={() => {
+                     procesarEscaneoMesa(mesaEscaneadaInput);
+                     setMesaEscaneadaInput(""); // Limpia el teclado al terminar
+                   }} 
+                   className={`w-full h-12 rounded-xl flex items-center justify-center transition-all ${mesaEscaneadaInput ? 'bg-green-600 text-white shadow-lg' : 'bg-slate-900 text-slate-700 border border-slate-800'}`}
                  >
-                   <CheckCircle size={22}/>
+                   <CheckCircle size={18}/>
                  </button>
                </div>
              </div>
 
-             <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Tribu's Bar • Sincronización Novedosa Interna</p>
+             <p className="text-[8px] text-slate-600 font-semibold uppercase tracking-wider">Tribu's Bar • Sincronización Interna</p>
            </div>
          </div>
        )}
