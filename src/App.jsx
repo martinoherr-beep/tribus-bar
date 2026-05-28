@@ -589,25 +589,42 @@ const verificarCodigo = async () => {
  const totalCajaHoy = historialFiltradoParaCaja.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
  const ultimoMinutoEnviado = useRef("");
 
- const moverMesa = async (pedido) => {
+const moverMesa = async (pedido) => {
    const plantaOrigen = obtenerPlanta(pedido.mesa);
-   const nuevaMesa = window.prompt(`Moviendo cuenta de Mesa ${pedido.mesa} (${plantaOrigen}). Ingrese el nuevo número de mesa:`);
-   
-   if (!nuevaMesa || nuevaMesa === "" || nuevaMesa === pedido.mesa) return;
+   let nuevaMesa = "";
+
+   // 💡 DETECTOR INTELIGENTE DE SOLICITUD DE TRASLADO
+   // Si el cliente ya escaneó la nueva mesa desde su cel, el sistema ya sabe cuál es:
+   if (pedido.pideTraslado && pedido.solicitudTraslado) {
+     const confirmarTrasladoAuto = window.confirm(
+       `🚨 El cliente solicita moverse de la Mesa ${pedido.mesa} a la Mesa ${pedido.solicitudTraslado}.\n\n¿Aceptar y trasladar cuenta ahora mismo?`
+     );
+     if (!confirmarTrasladoAuto) return;
+     nuevaMesa = String(pedido.solicitudTraslado).trim();
+   } else {
+     // Si el mesero lo mueve manualmente desde la barra sin que el cliente lo haya pedido:
+     nuevaMesa = window.prompt(`Moviendo cuenta de Mesa ${pedido.mesa} (${plantaOrigen}). Ingrese el nuevo número de mesa:`);
+     if (!nuevaMesa || nuevaMesa === "" || nuevaMesa === pedido.mesa) return;
+   }
 
    const plantaDestino = obtenerPlanta(nuevaMesa);
    const etiquetaTraslado = `\n--- TRASLADO DE ${plantaOrigen} A ${plantaDestino} ---`;
 
    try {
      const pedidoRef = doc(db, "pedidos", pedido.id);
+     
+     // Actualizamos la mesa, sumamos la etiqueta y APAGAMOS las banderas rojas en Firebase
      await updateDoc(pedidoRef, {
        mesa: String(nuevaMesa),
-       detalle: pedido.detalle + etiquetaTraslado
+       detalle: pedido.detalle + etiquetaTraslado,
+       pideTraslado: false,              // <-- Se quita la etiqueta roja
+       solicitudTraslado: deleteField ? deleteField() : null // <-- Limpiamos la variable temporal
      });
-     alert(`Cuenta trasladada a Mesa ${nuevaMesa} (${plantaDestino}) con éxito.`);
+
+     alert(`✅ Cuenta trasladada con éxito a la Mesa ${nuevaMesa} (${plantaDestino}). Las alertas rojas se han removido.`);
    } catch (e) {
      console.error("Error al mover mesa:", e);
-     alert("No se pudo mover la mesa.");
+     alert("No se pudo procesar el traslado de mesa.");
    }
  };
 
