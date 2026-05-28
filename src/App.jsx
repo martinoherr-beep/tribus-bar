@@ -819,7 +819,10 @@ useEffect(() => {
     setMesa(mesaId);
   }
   if (params.get("view") === 'barra') setView('barra');
-
+// 🔐 INTERCEPTOR OCULTO PARA EL LOGIN DE LA BANDA DE LA BARRA
+  if (window.location.pathname === '/equipo/barra') {
+    setView('login_staff');
+  }
   // [DE AQUÍ EN ADELANTE TUS SNAPSHOTS DE FIREBASE SE QUEDAN EXACTAMENTE IGUAL]
   onSnapshot(collection(db, "productos"), (snap) => setProductosMenu(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
@@ -1001,6 +1004,17 @@ const guardarEvento = async (e) => {
            <button onClick={forzarInstalacionApp} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs transition-all shadow-xl active:scale-95">
              ✨ Agregar a Pantalla de Inicio
            </button>
+           <button onClick={forzarInstalacionApp} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs transition-all shadow-xl active:scale-95">
+  ✨ Agregar a Pantalla de Inicio
+</button>
+
+{/* --- 🤫 BOTÓN DE ESCAPE OCULTO PARA ACCEDER DESDE LA PC --- */}
+<button 
+  onClick={() => setView('login_staff')} 
+  className="mt-3 text-[10px] text-slate-600 hover:text-slate-400 font-bold uppercase tracking-widest underline transition-colors"
+>
+  Ingresar como Staff de Barra
+</button>
            <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Tribu's Bar • Sistema de Seguridad de Mesas</p>
          </div>
        </div>
