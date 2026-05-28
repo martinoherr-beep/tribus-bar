@@ -637,19 +637,29 @@ useEffect(() => {
   return () => unsub();
 }, []);
 
- useEffect(() => {
+useEffect(() => {
    const params = new URLSearchParams(window.location.search);
    let mesaId = params.get("mesa");
    
    if (mesaId) {
+     // 🔥 Si viene la URL larga en el link, la interceptamos antes de guardarla en memoria
+     if (mesaId.includes("oskw04hm")) {
+       mesaId = "5";
+     }
      localStorage.setItem("tribu_mesa", mesaId);
    } else {
      mesaId = localStorage.getItem("tribu_mesa");
+     // 🔥 Si ya estaba guardada la URL larga por error, la corregimos aquí
+     if (mesaId && mesaId.includes("oskw04hm")) {
+       mesaId = "5";
+       localStorage.setItem("tribu_mesa", "5");
+     }
    }
    
    if (mesaId) setMesa(mesaId);
    if (params.get("view") === 'barra') setView('barra');
 
+   // ... [Tus Snapshot de productos, pedidos e historial quedan exactamente igual abajo]
    onSnapshot(collection(db, "productos"), (snap) => setProductosMenu(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
    onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
