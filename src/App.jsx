@@ -172,17 +172,32 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
 
    console.log("🔍 Texto bruto recibido en el procesador:", idMesaLimpia);
 
-   // DETECTOR AGRESIVO POR PALABRA CLAVE (A prueba de fallas)
-   if (idMesaLimpia.includes("oskw04hm")) {
-     idMesaLimpia = "5";
+   // 🗺️ TABLA MAESTRA DE ENLACES ME-QR
+   // Aquí asocias el código final de CADA QR con su número de mesa real:
+   const mapaMesas = {
+     "oskw04hm": "5",  // Tu primer QR (Mesa 5)
+     "4ewlnlrh": "5",  // El QR de la foto del cel (Asumo que también es la 5 o cámbialo al número que sea)
+     "codigo3": "6",   // Cuando escanees la mesa 6, pones sus letras aquí
+   };
+
+   // ✂️ EXTACTOR AUTOMÁTICO: Si es un link largo de me-qr, le mocha el inicio
+   if (idMesaLimpia.includes("me-qr.com/")) {
+     const partes = idMesaLimpia.split("me-qr.com/");
+     idMesaLimpia = partes[partes.length - 1].replace("/", "").trim(); 
+     // De "https://q.me-qr.com/4ewlnlrh" solo nos queda: "4ewlnlrh"
    }
 
-   // Limpiar la URL del navegador inmediatamente para que no se recicle el link viejo
+   // 🔎 Buscamos en nuestra tabla maestra
+   if (mapaMesas[idMesaLimpia]) {
+     idMesaLimpia = mapaMesas[idMesaLimpia];
+   }
+
+   // Limpiar la URL del navegador inmediatamente
    if (window.history.replaceState) {
      window.history.replaceState(null, '', window.location.pathname);
    }
 
-   // Guardar valores limpios en la memoria local
+   // Guardar valores limpios en la memoria
    localStorage.setItem("tribu_mesa", idMesaLimpia);
    setMesa(idMesaLimpia);
 
@@ -213,7 +228,7 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
    } else {
      setVerModalEscaner(false);
    }
- };
+};
 
  const obtenerPlanta = (idMesa) => {
    if (!idMesa) return "EXTERNO";
