@@ -830,13 +830,31 @@ onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")),
     setPedidosBarra(data);
     
     if (mesaId) {
-      const pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
+      // 1️⃣ Buscamos si existe el pedido en la mesa donde cree estar el cliente
+      let pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
       
-      // 🚀 LIMPIEZA AUTOMÁTICA INTELIGENTE (CORREGIDA)
-      // Solo vamos a limpiar la mesa si el cliente TIENE consumo acumulado viejo (o sea, ya pidió antes)
-      // pero el pedido ya no existe en la barra (porque ya se cobró).
+      // 🔄 DETECTOR Y ADAPTADOR DE TRASLADOS EN VIVO
+      // Si no encuentra el pedido por número de mesa, pero el cliente está logueado,
+      // buscamos si hay alguna comanda activa en la barra con su mismo UID:
+      if (!pedidoMesa && usuarioLogueado) {
+        const pedidoTrasladado = data.find(p => p.uid === usuarioLogueado.uid);
+        if (pedidoTrasladado) {
+          console.log(`➡️ Traslado detectado en vivo. El staff movió al cliente a la Mesa ${pedidoTrasladado.mesa}`);
+          
+          // Actualizamos la memoria del cel de inmediato con la nueva mesa
+          localStorage.setItem("tribu_mesa", pedidoTrasladado.mesa);
+          setMesa(pedidoTrasladado.mesa);
+          
+          // Apuntamos la variable local al pedido encontrado para que cargue sus datos abajo
+          pedidoMesa = pedidoTrasladado;
+        }
+      }
+
+      // 🚀 LIMPIEZA AUTOMÁTICA INTELIGENTE
+      // Solo limpiamos si no hay pedido en la mesa actual, tampoco se halló traslado por UID,
+      // y el cliente arrastra historial de consumo viejo (está en su casa).
       if (!pedidoMesa && consumoAcumulado.length > 0) {
-        console.log("♻️ Cuenta cobrada detectada. Restableciendo dispositivo a modo EXTERNO.");
+        console.log("♻️ Cuenta cobrada o mesa huérfana. Restableciendo a modo EXTERNO.");
         localStorage.removeItem("tribu_mesa");
         setMesa(null);
         setConsumoAcumulado([]);
@@ -845,8 +863,7 @@ onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")),
         return;
       }
 
-      // Si es una mesa nueva que se acaba de escanear (pedidoMesa no existe y consumoAcumulado está vacío)
-      // o si es una mesa con pedido activo, dejamos pasar la lógica normal:
+      // 📊 PROCESAMIENTO DE LA COMANDA (Normal o Trasladada)
       if (pedidoMesa && pedidoMesa.pinMesa) {
           setPinCorrectoMesa(pedidoMesa.pinMesa);
           const items = pedidoMesa.detalle.split('\n').map(linea => {
@@ -855,8 +872,12 @@ onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")),
               return null;
           }).filter(i => i !== null);
           setConsumoAcumulado(items);
-      } else { 
-          // Si entra aquí es una mesa limpia lista para ordenar
+      } else if (pedidoMesa) { 
+          setMesaValidada(true); 
+          setConsumoAcumulado([]); 
+          setPinCorrectoMesa(null);
+      } else {
+          // Mesa nueva escaneada desde cero (sin pedido aún en la barra)
           setMesaValidada(true); 
           setConsumoAcumulado([]); 
           setPinCorrectoMesa(null);
