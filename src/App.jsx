@@ -828,6 +828,18 @@ useEffect(() => {
   onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
     const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     setPedidosBarra(data);
+    // 🔥 CORRECCIÓN CRÍTICA: Si el cliente cree estar en una mesa, pero en el bar ya no hay pedidos pendientes de esa mesa:
+  if (mesaId && data.length > 0) {
+    const pedidoActivoMesa = data.find(p => String(p.mesa) === String(mesaId));
+    if (!pedidoActivoMesa) {
+      // La barra ya cobró la cuenta y eliminó el pedido. ¡Limpiamos el celular del cliente!
+      localStorage.removeItem("tribu_mesa");
+      setMesa(null);
+      setConsumoAcumulado([]);
+      setMesaValidada(false);
+      return; // Detenemos la ejecución para que no intente validar un pedido inexistente
+    }
+  }
     if (mesaId) {
       const pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
       if (pedidoMesa && pedidoMesa.pinMesa) {
@@ -936,15 +948,7 @@ const cobrarCuenta = async (p) => {
       telefono: p.telefono || "N/A",
       uid: p.uidCliente || null
    });
-   
    await deleteDoc(doc(db, "pedidos", p.id));
-
-   // ✨ LA LÍNEA MÁGICA Y SU LIMPIEZA DE ESTADOS:
-   localStorage.removeItem("tribu_mesa"); // Borra la mesa de la memoria del cel
-   setMesa(null);                         // Quita la mesa del estado actual
-   setConsumoAcumulado([]);               // Limpia la cuenta vieja reflejada en el cliente
-   setMesaValidada(false);                // Resetea la validación del PIN
-
    setTicketParaReimprimir(p);
 };
 
@@ -1802,6 +1806,23 @@ const guardarEvento = async (e) => {
                 >
                   📷 {mesa ? `Mesa ${mesa}` : "Escanear QR / Mesa"}
                 </button>
+                {/* --- 🏠 BOTÓN DE ESCAPE: PERMITE AL CLIENTE CAMBIAR A MODO REPARTO DESDE SU CASA --- */}
+{mesa && (
+  <button
+    onClick={() => {
+      if (window.confirm("¿Deseas quitar la mesa actual para realizar un pedido a domicilio?")) {
+        localStorage.removeItem("tribu_mesa");
+        setMesa(null);
+        setConsumoAcumulado([]);
+        setMesaValidada(false);
+        alert("Ubicación restablecida. Ahora puedes pedir como Externo. 📦");
+      }
+    }}
+    className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[9px] font-black uppercase px-2.5 py-1.5 rounded-xl border border-slate-700 transition-all active:scale-95"
+  >
+    Pedir a Domicilio
+  </button>
+)}
               </div>
 
               <div className="flex items-center justify-end gap-3 w-full sm:w-auto border-t border-slate-800/50 pt-2 sm:pt-0 sm:border-none">
