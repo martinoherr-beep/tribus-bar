@@ -832,19 +832,21 @@ onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")),
     if (mesaId) {
       const pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
       
-      // 🚀 LIMPIEZA AUTOMÁTICA COMPLETA DE ARRANCKE / RETIRO
-      // Si el cel tiene mesa guardada, pero YA NO existe un pedido pendiente para ella en la barra:
-      if (!pedidoMesa) {
-        console.log("♻️ Mesa inactiva detectada. Restableciendo dispositivo a modo EXTERNO automáticamente.");
+      // 🚀 LIMPIEZA AUTOMÁTICA INTELIGENTE (CORREGIDA)
+      // Solo vamos a limpiar la mesa si el cliente TIENE consumo acumulado viejo (o sea, ya pidió antes)
+      // pero el pedido ya no existe en la barra (porque ya se cobró).
+      if (!pedidoMesa && consumoAcumulado.length > 0) {
+        console.log("♻️ Cuenta cobrada detectada. Restableciendo dispositivo a modo EXTERNO.");
         localStorage.removeItem("tribu_mesa");
         setMesa(null);
         setConsumoAcumulado([]);
         setMesaValidada(false);
         setPinCorrectoMesa(null);
-        return; // Cortamos ejecución limpia
+        return;
       }
 
-      // Si sí hay pedido, sigue tu lógica normal de PIN y mapeo de artículos:
+      // Si es una mesa nueva que se acaba de escanear (pedidoMesa no existe y consumoAcumulado está vacío)
+      // o si es una mesa con pedido activo, dejamos pasar la lógica normal:
       if (pedidoMesa && pedidoMesa.pinMesa) {
           setPinCorrectoMesa(pedidoMesa.pinMesa);
           const items = pedidoMesa.detalle.split('\n').map(linea => {
@@ -854,8 +856,10 @@ onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")),
           }).filter(i => i !== null);
           setConsumoAcumulado(items);
       } else { 
+          // Si entra aquí es una mesa limpia lista para ordenar
           setMesaValidada(true); 
           setConsumoAcumulado([]); 
+          setPinCorrectoMesa(null);
       }
     }
   });
