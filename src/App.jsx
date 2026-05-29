@@ -927,16 +927,24 @@ const procesarEnvio = async (idDestino) => {
 
 const cobrarCuenta = async (p) => {
    await addDoc(collection(db, "historial_tickets"), { 
-       mesa: p.mesa, 
-       detalle: p.detalle, 
-       total: Number(p.total), 
-       fecha: serverTimestamp(), 
-       archivado: false,
-       cliente: p.cliente || "Cliente General",
-       telefono: p.telefono || "N/A",
-       uid: p.uidCliente || null
+      mesa: p.mesa, 
+      detalle: p.detalle, 
+      total: Number(p.total), 
+      fecha: serverTimestamp(), 
+      archivado: false,
+      cliente: p.cliente || "Cliente General",
+      telefono: p.telefono || "N/A",
+      uid: p.uidCliente || null
    });
+   
    await deleteDoc(doc(db, "pedidos", p.id));
+
+   // ✨ LA LÍNEA MÁGICA Y SU LIMPIEZA DE ESTADOS:
+   localStorage.removeItem("tribu_mesa"); // Borra la mesa de la memoria del cel
+   setMesa(null);                         // Quita la mesa del estado actual
+   setConsumoAcumulado([]);               // Limpia la cuenta vieja reflejada en el cliente
+   setMesaValidada(false);                // Resetea la validación del PIN
+
    setTicketParaReimprimir(p);
 };
 
