@@ -825,23 +825,26 @@ useEffect(() => {
   }
   // [DE AQUÍ EN ADELANTE TUS SNAPSHOTS DE FIREBASE SE QUEDAN EXACTAMENTE IGUAL]
   onSnapshot(collection(db, "productos"), (snap) => setProductosMenu(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-  onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
+onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
     const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     setPedidosBarra(data);
-    // 🔥 CORRECCIÓN CRÍTICA: Si el cliente cree estar en una mesa, pero en el bar ya no hay pedidos pendientes de esa mesa:
-  if (mesaId && data.length > 0) {
-    const pedidoActivoMesa = data.find(p => String(p.mesa) === String(mesaId));
-    if (!pedidoActivoMesa) {
-      // La barra ya cobró la cuenta y eliminó el pedido. ¡Limpiamos el celular del cliente!
-      localStorage.removeItem("tribu_mesa");
-      setMesa(null);
-      setConsumoAcumulado([]);
-      setMesaValidada(false);
-      return; // Detenemos la ejecución para que no intente validar un pedido inexistente
-    }
-  }
+    
     if (mesaId) {
       const pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
+      
+      // 🚀 LIMPIEZA AUTOMÁTICA COMPLETA DE ARRANCKE / RETIRO
+      // Si el cel tiene mesa guardada, pero YA NO existe un pedido pendiente para ella en la barra:
+      if (!pedidoMesa) {
+        console.log("♻️ Mesa inactiva detectada. Restableciendo dispositivo a modo EXTERNO automáticamente.");
+        localStorage.removeItem("tribu_mesa");
+        setMesa(null);
+        setConsumoAcumulado([]);
+        setMesaValidada(false);
+        setPinCorrectoMesa(null);
+        return; // Cortamos ejecución limpia
+      }
+
+      // Si sí hay pedido, sigue tu lógica normal de PIN y mapeo de artículos:
       if (pedidoMesa && pedidoMesa.pinMesa) {
           setPinCorrectoMesa(pedidoMesa.pinMesa);
           const items = pedidoMesa.detalle.split('\n').map(linea => {
@@ -850,7 +853,10 @@ useEffect(() => {
               return null;
           }).filter(i => i !== null);
           setConsumoAcumulado(items);
-      } else { setMesaValidada(true); setConsumoAcumulado([]); }
+      } else { 
+          setMesaValidada(true); 
+          setConsumoAcumulado([]); 
+      }
     }
   });
   onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
@@ -1806,23 +1812,7 @@ const guardarEvento = async (e) => {
                 >
                   📷 {mesa ? `Mesa ${mesa}` : "Escanear QR / Mesa"}
                 </button>
-                {/* --- 🏠 BOTÓN DE ESCAPE: PERMITE AL CLIENTE CAMBIAR A MODO REPARTO DESDE SU CASA --- */}
-{mesa && (
-  <button
-    onClick={() => {
-      if (window.confirm("¿Deseas quitar la mesa actual para realizar un pedido a domicilio?")) {
-        localStorage.removeItem("tribu_mesa");
-        setMesa(null);
-        setConsumoAcumulado([]);
-        setMesaValidada(false);
-        alert("Ubicación restablecida. Ahora puedes pedir como Externo. 📦");
-      }
-    }}
-    className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[9px] font-black uppercase px-2.5 py-1.5 rounded-xl border border-slate-700 transition-all active:scale-95"
-  >
-    Pedir a Domicilio
-  </button>
-)}
+
               </div>
 
               <div className="flex items-center justify-end gap-3 w-full sm:w-auto border-t border-slate-800/50 pt-2 sm:pt-0 sm:border-none">
