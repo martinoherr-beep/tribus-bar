@@ -835,32 +835,31 @@ onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")),
     if (mesaId) {
       let pedidoMesa = null;
 
-      // 🔍 RASTREO DE COMANDA
+      // 🔍 1. INTENTAMOS BUSCAR POR EL ID DE LA COMANDA GUARDADA
       if (comandaIdGuardada) {
-        // Primero intentamos buscar el pedido exacto por su ID único de documento
         pedidoMesa = data.find(p => p.id === comandaIdGuardada);
         
-        // 🔄 SI EL MESERO MOVIÓ LA MESA:
-        if (pedidoMesa && String(pedidoMesa.mesa) !== String(mesaId)) {
-          console.log(`🎯 ¡Traslado Detectado! El mesero movió esta cuenta a la Mesa ${pedidoMesa.mesa}`);
+        // 🚨 SI EL PEDIDO EXISTE PERO EL MESERO YA CAMBIÓ LA MESA EN FIREBASE:
+        // Actualizamos la mesa en el celular del cliente AUTOMÁTICAMENTE sólo si el mesero 
+        // ya procesó y aceptó el traslado (es decir, pideTraslado ya volvió a ser false).
+        if (pedidoMesa && String(pedidoMesa.mesa) !== String(mesaId) && !pedidoMesa.pideTraslado) {
+          console.log(`✅ Traslado completado por el staff. Nueva Mesa: ${pedidoMesa.mesa}`);
           localStorage.setItem("tribu_mesa", pedidoMesa.mesa);
           setMesa(pedidoMesa.mesa);
-          // Actualizamos la variable local para que el flujo no se rompa
-          mesaId = pedidoMesa.mesa; 
+          mesaId = pedidoMesa.mesa; // Sincronizamos la variable local
         }
       } else {
-        // Si el cliente va llegando y no tiene comandaID (acaba de escanear el QR), busca por número de mesa
+        // 🔍 2. SI NO HAY COMANDA GUARDADA (CLIENTE NUEVO SENTÁNDOSE), BUSCAMOS POR NÚMERO DE MESA
         pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
         if (pedidoMesa) {
-          // Si encontró una comanda abierta en esa mesa por otro dispositivo, se engancha a su ID
           localStorage.setItem("tribu_comanda_id", pedidoMesa.id);
         }
       }
 
-      // 🚀 AUTO-LIMPIEZA CUANDO EL CLIENTE YA ESTÁ EN SU CASA
-      // Si el celular tiene historial de consumo, pero la comanda ya no existe en Firebase (porque se cobró):
+      // 🚀 AUTO-LIMPIEZA PARA CUANDO EL CLIENTE SE VA A SU CASA
+      // Si el celular arrastra historial de consumo viejo, pero esa comanda ya no existe en la barra:
       if (!pedidoMesa && consumoAcumulado.length > 0) {
-        console.log("♻️ La comanda ya no existe en la barra. Restableciendo a modo EXTERNO automáticamente.");
+        console.log("♻️ Cuenta cobrada. Restableciendo a modo EXTERNO automáticamente.");
         localStorage.removeItem("tribu_comanda_id");
         localStorage.removeItem("tribu_mesa");
         setMesa(null);
@@ -884,7 +883,7 @@ onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")),
           setConsumoAcumulado([]); 
           setPinCorrectoMesa(null);
       } else {
-          // Mesa limpia recién escaneada sin comanda activa
+          // Mesa limpia recién escaneada sin comanda activa (Permite iniciar cuenta)
           setMesaValidada(true); 
           setConsumoAcumulado([]); 
           setPinCorrectoMesa(null);
