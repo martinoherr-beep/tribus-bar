@@ -173,110 +173,71 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
    console.log("🔍 Texto bruto recibido en el procesador:", idMesaLimpia);
 
    // 🗺️ TABLA MAESTRA DE ENLACES ME-QR
-   // Aquí es donde sucede la magia. Vinculamos el código raro del QR con el número de mesa real del bar:
    const mapaMesas = {
-    "o3pvdzac": "1",
-    "1hs61le7": "2",
-    "6uri5fma": "3", 
-    "3l12b2ip": "4",
-    "0p0rvh65": "5",
-    "e4jbnq9e": "6",
-    "ht3zdvne": "7",
-    "sv5ee5id": "8",
-    "y7q3j49y": "9",
-    "cn97d9e2": "10",
-    "splcfc9c": "11",
-    "oskwo4hm": "12",
-    "h9pve9vo": "13",
-    "exl0zpz0": "14",
-    "xirj4tak": "15",
-    "ppotpg8p": "16",
-    "ffaad9lu": "17",
-    "qnsuk3nx": "18",
-    "gpb7s9yx": "19",
-    "isbwypqb": "20",
-    "qe0wn8oh": "21",
-    "4ewlnlrh": "22",
-    "i4smmljs": "23",
-    "gmyfc6km": "24",
-    "jj8j9hli": "25",
-    "choaq8tg": "26",
-    "dwqzrz76": "27",
-    "j5q3kyy7": "28",
-    "rsvnbj86": "29",
-    "jp02r7cz": "30",
-    "zh23ozpf": "31",
-    "7yloueec": "32",
-    "7bf03w7j": "33",
-    "gtae074f": "34",
-    "3f8vyhom": "35",
-    "awnud16d": "36",
-    "ckyjst7f": "37",
-    "vhjzokg9": "38",
-    "xphki5a6": "39",
-    "rhk7lp7a": "40",
-    "f47j11md": "41",
-    "i0j9kt4s": "42",
-    "03hn45yd": "43",
-    "r88o1mbk": "44",
-    "ru50unaf": "45",
-    "7rqdxilz": "46",
-    "1qtcsszs": "47",
-    "y0yrnzm8": "48",
-    "eb0db9e2": "49",
-    "low0c63e": "50",
-     // Cuando vayas escaneando las demás mesas, solo agregas una línea aquí abajo:
-     // "codigo_raro_de_la_mesa_6": "6",
-     // "codigo_raro_de_la_mesa_7": "7",
+    "o3pvdzac": "1", "1hs61le7": "2", "6uri5fma": "3", "3l12b2ip": "4",
+    "0p0rvh65": "5", "e4jbnq9e": "6", "ht3zdvne": "7", "sv5ee5id": "8",
+    "y7q3j49y": "9", "cn97d9e2": "10", "splcfc9c": "11", "oskwo4hm": "12",
+    "h9pve9vo": "13", "exl0zpz0": "14", "xirj4tak": "15", "ppotpg8p": "16",
+    "ffaad9lu": "17", "qnsuk3nx": "18", "gpb7s9yx": "19", "isbwypqb": "20",
+    "qe0wn8oh": "21", "4ewlnlrh": "22", "i4smmljs": "23", "gmyfc6km": "24",
+    "jj8j9hli": "25", "choaq8tg": "26", "dwqzrz76": "27", "j5q3kyy7": "28",
+    "rsvnbj86": "29", "jp02r7cz": "30", "zh23ozpf": "31", "7yloueec": "32",
+    "7bf03w7j": "33", "gtae074f": "34", "3f8vyhom": "35", "awnud16d": "36",
+    "ckyjst7f": "37", "vhjzokg9": "38", "xphki5a6": "39", "rhk7lp7a": "40",
+    "f47j11md": "41", "i0j9kt4s": "42", "03hn45yd": "43", "r88o1mbk": "44",
+    "ru50unaf": "45", "7rqdxilz": "46", "1qtcsszs": "47", "y0yrnzm8": "48",
+    "eb0db9e2": "49", "low0c63e": "50"
    };
 
-   // ✂️ EXTRACTOR: Si por alguna razón el teléfono lee la URL larga completa, le mochas el inicio
+   // ✂️ EXTRACTOR DE URL
    if (idMesaLimpia.includes("me-qr.com/")) {
-     const partes = idMesaLimpia.split("me-qr.com/");
-     idMesaLimpia = partes[partes.length - 1].replace("/", "").trim(); 
+      const partes = idMesaLimpia.split("me-qr.com/");
+      idMesaLimpia = partes[partes.length - 1].replace("/", "").trim(); 
    }
 
-   // 🔎 Buscamos el ID en nuestra tabla maestra para cambiar las letras por el número real
+   // 🔎 Mapeo a número real
    if (mapaMesas[idMesaLimpia]) {
-     console.log(`🎯 Código ${idMesaLimpia} detectado. Asignando Mesa: ${mapaMesas[idMesaLimpia]}`);
-     idMesaLimpia = mapaMesas[idMesaLimpia];
+      idMesaLimpia = mapaMesas[idMesaLimpia];
    }
 
-   // Limpiar la URL visual del navegador para que no interfiera con el estado
    if (window.history.replaceState) {
-     window.history.replaceState(null, '', window.location.pathname);
+      window.history.replaceState(null, '', window.location.pathname);
    }
 
-   // Guardar valores limpios en la memoria
+   // 🚨 DETECTOR DE CUENTA ACTIVA (Filtro por comanda ID en memoria)
+   const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
+
+   if (comandaIdGuardada) {
+      if (String(mesa) === idMesaLimpia) {
+         setVerModalEscaner(false);
+         return;
+      }
+
+      try {
+         // Buscamos el pedido en caliente usando el ID persistente de Firebase
+         await updateDoc(doc(db, "pedidos", comandaIdGuardada), {
+            solicitudTraslado: idMesaLimpia,
+            pideTraslado: true
+         });
+         
+         setVerModalEscaner(false);
+         alert(`⏳ Solicitud enviada. La barra está trasladando tu cuenta de la Mesa ${mesa} a la Mesa ${idMesaLimpia}.`);
+         return; // 🔥 Bloqueamos la asignación local hasta que el mesero acepte
+      } catch (e) {
+         console.error("Error al inyectar traslado:", e);
+         alert("Error al solicitar traslado.");
+         return;
+      }
+   }
+
+   // 🍏 SI NO TIENE CUENTA ACTIVA (Mesa libre / nueva):
+   // Asignamos directamente la mesa en el celular del cliente
    localStorage.setItem("tribu_mesa", idMesaLimpia);
    setMesa(idMesaLimpia);
+   setVerModalEscaner(false);
 
    if (consumoAcumulado.length === 0 && carrito.length === 0) {
-     setVerModalEscaner(false);
-     alert(`📍 Te has ubicado en la Mesa ${idMesaLimpia} (${obtenerPlanta(idMesaLimpia)})`);
-     return;
-   }
-
-   if (String(mesa) === idMesaLimpia) {
-     setVerModalEscaner(false);
-     return;
-   }
-
-   const pedidoActivo = pedidosBarra.find(p => String(p.mesa) === String(mesa));
-   if (pedidoActivo) {
-     try {
-       await updateDoc(doc(db, "pedidos", pedidoActivo.id), {
-         solicitudTraslado: idMesaLimpia,
-         pideTraslado: true
-       });
-       setVerModalEscaner(false);
-       alert(`⏳ Solicitud enviada. La barra está trasladando tu cuenta de la Mesa ${mesa} a la Mesa ${idMesaLimpia}.`);
-     } catch (e) {
-       console.error(e);
-       alert("Error al solicitar traslado.");
-     }
-   } else {
-     setVerModalEscaner(false);
+      alert(`📍 Te has ubicado en la Mesa ${idMesaLimpia} (${obtenerPlanta(idMesaLimpia)})`);
    }
 };
 
