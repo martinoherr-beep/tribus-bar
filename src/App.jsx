@@ -829,32 +829,39 @@ onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")),
     const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     setPedidosBarra(data);
     
+    // Leemos el ID de la comanda guardado en este celular
+    const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
+
     if (mesaId) {
-      // 1️⃣ Buscamos si existe el pedido en la mesa donde cree estar el cliente
-      let pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
-      
-      // 🔄 DETECTOR Y ADAPTADOR DE TRASLADOS EN VIVO
-      // Si no encuentra el pedido por número de mesa, pero el cliente está logueado,
-      // buscamos si hay alguna comanda activa en la barra con su mismo UID:
-      if (!pedidoMesa && usuarioLogueado) {
-        const pedidoTrasladado = data.find(p => p.uid === usuarioLogueado.uid);
-        if (pedidoTrasladado) {
-          console.log(`➡️ Traslado detectado en vivo. El staff movió al cliente a la Mesa ${pedidoTrasladado.mesa}`);
-          
-          // Actualizamos la memoria del cel de inmediato con la nueva mesa
-          localStorage.setItem("tribu_mesa", pedidoTrasladado.mesa);
-          setMesa(pedidoTrasladado.mesa);
-          
-          // Apuntamos la variable local al pedido encontrado para que cargue sus datos abajo
-          pedidoMesa = pedidoTrasladado;
+      let pedidoMesa = null;
+
+      // 🔍 RASTREO DE COMANDA
+      if (comandaIdGuardada) {
+        // Primero intentamos buscar el pedido exacto por su ID único de documento
+        pedidoMesa = data.find(p => p.id === comandaIdGuardada);
+        
+        // 🔄 SI EL MESERO MOVIÓ LA MESA:
+        if (pedidoMesa && String(pedidoMesa.mesa) !== String(mesaId)) {
+          console.log(`🎯 ¡Traslado Detectado! El mesero movió esta cuenta a la Mesa ${pedidoMesa.mesa}`);
+          localStorage.setItem("tribu_mesa", pedidoMesa.mesa);
+          setMesa(pedidoMesa.mesa);
+          // Actualizamos la variable local para que el flujo no se rompa
+          mesaId = pedidoMesa.mesa; 
+        }
+      } else {
+        // Si el cliente va llegando y no tiene comandaID (acaba de escanear el QR), busca por número de mesa
+        pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
+        if (pedidoMesa) {
+          // Si encontró una comanda abierta en esa mesa por otro dispositivo, se engancha a su ID
+          localStorage.setItem("tribu_comanda_id", pedidoMesa.id);
         }
       }
 
-      // 🚀 LIMPIEZA AUTOMÁTICA INTELIGENTE
-      // Solo limpiamos si no hay pedido en la mesa actual, tampoco se halló traslado por UID,
-      // y el cliente arrastra historial de consumo viejo (está en su casa).
+      // 🚀 AUTO-LIMPIEZA CUANDO EL CLIENTE YA ESTÁ EN SU CASA
+      // Si el celular tiene historial de consumo, pero la comanda ya no existe en Firebase (porque se cobró):
       if (!pedidoMesa && consumoAcumulado.length > 0) {
-        console.log("♻️ Cuenta cobrada o mesa huérfana. Restableciendo a modo EXTERNO.");
+        console.log("♻️ La comanda ya no existe en la barra. Restableciendo a modo EXTERNO automáticamente.");
+        localStorage.removeItem("tribu_comanda_id");
         localStorage.removeItem("tribu_mesa");
         setMesa(null);
         setConsumoAcumulado([]);
@@ -863,7 +870,7 @@ onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")),
         return;
       }
 
-      // 📊 PROCESAMIENTO DE LA COMANDA (Normal o Trasladada)
+      // 📊 PROCESAMIENTO VISUAL DE LOS ARTÍCULOS
       if (pedidoMesa && pedidoMesa.pinMesa) {
           setPinCorrectoMesa(pedidoMesa.pinMesa);
           const items = pedidoMesa.detalle.split('\n').map(linea => {
@@ -877,7 +884,7 @@ onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")),
           setConsumoAcumulado([]); 
           setPinCorrectoMesa(null);
       } else {
-          // Mesa nueva escaneada desde cero (sin pedido aún en la barra)
+          // Mesa limpia recién escaneada sin comanda activa
           setMesaValidada(true); 
           setConsumoAcumulado([]); 
           setPinCorrectoMesa(null);
