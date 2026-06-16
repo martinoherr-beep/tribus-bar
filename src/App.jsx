@@ -795,65 +795,65 @@ onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")),
     const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     setPedidosBarra(data);
     
-    // Leemos el ID de la comanda guardado en este celular
     const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
+    let pedidoMesa = null;
 
-    if (mesaId) {
-      let pedidoMesa = null;
-
-      // 🔍 1. INTENTAMOS BUSCAR POR EL ID DE LA COMANDA GUARDADA
-      if (comandaIdGuardada) {
-        pedidoMesa = data.find(p => p.id === comandaIdGuardada);
-        
-        // 🚨 SI EL PEDIDO EXISTE PERO EL MESERO YA CAMBIÓ LA MESA EN FIREBASE:
-        // Actualizamos la mesa en el celular del cliente AUTOMÁTICAMENTE sólo si el mesero 
-        // ya procesó y aceptó el traslado (es decir, pideTraslado ya volvió a ser false).
-        if (pedidoMesa && String(pedidoMesa.mesa) !== String(mesaId) && !pedidoMesa.pideTraslado) {
-          console.log(`✅ Traslado completado por el staff. Nueva Mesa: ${pedidoMesa.mesa}`);
-          localStorage.setItem("tribu_mesa", pedidoMesa.mesa);
-          setMesa(pedidoMesa.mesa);
-          mesaId = pedidoMesa.mesa; // Sincronizamos la variable local
-        }
-      } else {
-        // 🔍 2. SI NO HAY COMANDA GUARDADA (CLIENTE NUEVO SENTÁNDOSE), BUSCAMOS POR NÚMERO DE MESA
-        pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
-        if (pedidoMesa) {
-          localStorage.setItem("tribu_comanda_id", pedidoMesa.id);
-        }
+    // 🔍 1. RASTREO UNIVERSAL POR ID DE COMANDA (Funciona en Bar y en Casa)
+    if (comandaIdGuardada) {
+      pedidoMesa = data.find(p => p.id === comandaIdGuardada);
+      
+      // 🔄 Si el mesero movió la mesa en el bar (Solo aplica si está en modo mesa)
+      if (mesaId && pedidoMesa && String(pedidoMesa.mesa) !== String(mesaId) && !pedidoMesa.pideTraslado) {
+        console.log(`✅ Traslado completado por el staff. Nueva Mesa: ${pedidoMesa.mesa}`);
+        localStorage.setItem("tribu_mesa", pedidoMesa.mesa);
+        setMesa(pedidoMesa.mesa);
+        mesaId = pedidoMesa.mesa;
       }
+    } else if (mesaId) {
+      // Si va llegando al bar y no tiene ID de comanda todavía, busca por número de mesa física
+      pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
+      if (pedidoMesa) {
+        localStorage.setItem("tribu_comanda_id", pedidoMesa.id);
+      }
+    }
 
-      // 🚀 AUTO-LIMPIEZA PARA CUANDO EL CLIENTE SE VA A SU CASA
-      // Si el celular arrastra historial de consumo viejo, pero esa comanda ya no existe en la barra:
-      if (!pedidoMesa && consumoAcumulado.length > 0) {
-        console.log("♻️ Cuenta cobrada. Restableciendo a modo EXTERNO automáticamente.");
-        localStorage.removeItem("tribu_comanda_id");
-        localStorage.removeItem("tribu_mesa");
-        setMesa(null);
-        setConsumoAcumulado([]);
-        setMesaValidada(false);
+    // 🚀 AUTO-LIMPIEZA EXCLUSIVA PARA EL BAR CUANDO LA CUENTA SE COBRA
+    // Si el cel cree estar en una mesa del bar, tiene historial, pero la comanda ya no existe:
+    if (mesaId && !pedidoMesa && consumoAcumulado.length > 0) {
+      console.log("♻️ Cuenta cobrada en barra. Restableciendo a modo EXTERNO automáticamente.");
+      localStorage.removeItem("tribu_comanda_id");
+      localStorage.removeItem("tribu_mesa");
+      setMesa(null);
+      setConsumoAcumulado([]);
+      setMesaValidada(false);
+      setPinCorrectoMesa(null);
+      return;
+    }
+
+    // 📊 PROCESAMIENTO VISUAL DE LOS ARTÍCULOS (Pinta pendientes tanto en bar como en casa)
+    if (pedidoMesa && pedidoMesa.pinMesa) {
+        setPinCorrectoMesa(pedidoMesa.pinMesa);
+        const items = pedidoMesa.detalle.split('\n').map(linea => {
+            const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
+            if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
+            return null;
+        }).filter(i => i !== null);
+        setConsumoAcumulado(items);
+    } else if (pedidoMesa) { 
+        // Si hay pedido pero no tiene PIN (como los pedidos de casa/externos)
+        setMesaValidada(true); 
+        const items = pedidoMesa.detalle.split('\n').map(linea => {
+            const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
+            if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
+            return null;
+        }).filter(i => i !== null);
+        setConsumoAcumulado(items);
         setPinCorrectoMesa(null);
-        return;
-      }
-
-      // 📊 PROCESAMIENTO VISUAL DE LOS ARTÍCULOS
-      if (pedidoMesa && pedidoMesa.pinMesa) {
-          setPinCorrectoMesa(pedidoMesa.pinMesa);
-          const items = pedidoMesa.detalle.split('\n').map(linea => {
-              const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
-              if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
-              return null;
-          }).filter(i => i !== null);
-          setConsumoAcumulado(items);
-      } else if (pedidoMesa) { 
-          setMesaValidada(true); 
-          setConsumoAcumulado([]); 
-          setPinCorrectoMesa(null);
-      } else {
-          // Mesa limpia recién escaneada sin comanda activa (Permite iniciar cuenta)
-          setMesaValidada(true); 
-          setConsumoAcumulado([]); 
-          setPinCorrectoMesa(null);
-      }
+    } else {
+        // No hay pedido activo (Mesa limpia o sin compras a domicilio pendientes)
+        setMesaValidada(true); 
+        setConsumoAcumulado([]); 
+        setPinCorrectoMesa(null);
     }
   });
   onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
@@ -2046,11 +2046,12 @@ const guardarEvento = async (e) => {
    );
  })()}
 
-      {view !== 'welcome' && view !== 'registro' && view !== 'login' && view !== 'menu' && view !== 'barra' && view !== 'login_staff' && view !== 'mis_pedidos' && (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-          <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
-        </div>
-      )}
+      {/* 🔥 FILTRO CORREGIDO: Añadimos 'success' para evitar el scroll de "Cargando..." al comprar */}
+  {view !== 'welcome' && view !== 'registro' && view !== 'login' && view !== 'menu' && view !== 'barra' && view !== 'login_staff' && view !== 'mis_pedidos' && view !== 'success' && (
+     <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+       <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
+     </div>
+  )}
       <div id="recaptcha-container"></div>
    </>
  );
