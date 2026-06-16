@@ -204,17 +204,21 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
       window.history.replaceState(null, '', window.location.pathname);
    }
 
-   // 🚨 DETECTOR DE CUENTA ACTIVA (Filtro por comanda ID en memoria)
+   // 🚨 DETECTOR DE CUENTA ACTIVA EN LA BARRA
    const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
+   
+   // Verificamos si la comanda realmente existe en los pedidos en vivo de la barra
+   const comandaExisteEnBarra = pedidosBarra.some(p => p.id === comandaIdGuardada);
 
-   if (comandaIdGuardada) {
+   if (comandaIdGuardada && comandaExisteEnBarra) {
+      // Si escanea la misma mesa en la que ya está con comanda activa, no hace nada
       if (String(mesa) === idMesaLimpia) {
          setVerModalEscaner(false);
          return;
       }
 
       try {
-         // Buscamos el pedido en caliente usando el ID persistente de Firebase
+         // Si la comanda es real y está en la barra, le manda la petición al mesero
          await updateDoc(doc(db, "pedidos", comandaIdGuardada), {
             solicitudTraslado: idMesaLimpia,
             pideTraslado: true
@@ -222,16 +226,17 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
          
          setVerModalEscaner(false);
          alert(`⏳ Solicitud enviada. La barra está trasladando tu cuenta de la Mesa ${mesa} a la Mesa ${idMesaLimpia}.`);
-         return; // 🔥 Bloqueamos la asignación local hasta que el mesero acepte
+         return; // Bloqueamos cambio local hasta que el mesero acepte
       } catch (e) {
          console.error("Error al inyectar traslado:", e);
-         alert("Error al solicitar traslado.");
+         alert("Error de traslado.");
          return;
       }
    }
 
-   // 🍏 SI NO TIENE CUENTA ACTIVA (Mesa libre / nueva):
-   // Asignamos directamente la mesa en el celular del cliente
+   // 🍏 SI LA COMANDA NO EXISTE EN LA BARRA (Cuenta muerta o cliente nuevo):
+   // Forzamos la limpieza de IDs viejos antes de asignar la nueva mesa
+   localStorage.removeItem("tribu_comanda_id");
    localStorage.setItem("tribu_mesa", idMesaLimpia);
    setMesa(idMesaLimpia);
    setVerModalEscaner(false);
