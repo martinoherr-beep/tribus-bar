@@ -987,6 +987,14 @@ const cobrarCuenta = async (p) => {
       uid: p.uidCliente || null
    });
    await deleteDoc(doc(db, "pedidos", p.id));
+
+   // ✨ LIMPIAMOS EL RASTREO CUANDO LA BARRA COBRA
+   localStorage.removeItem("tribu_comanda_id");
+   localStorage.removeItem("tribu_mesa");
+   setMesa(null);
+   setConsumoAcumulado([]);
+   setMesaValidada(false);
+
    setTicketParaReimprimir(p);
 };
 
