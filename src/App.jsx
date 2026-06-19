@@ -929,22 +929,24 @@ const procesarEnvio = async (idDestino) => {
  const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
   
  try {
-   // ✨ 1. CALCULAMOS LA PRIORIDAD AUTOMÁTICA JUSTO AQUÍ ENTRANDO AL TRY:
    const uidFinal = usuarioLogueado?.uid || null;
-   const colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
+   
+   // 🛡️ Validador seguro: solo busca historial si el cliente está registrado
+   let colorAlerta = "morada";
+   if (uidFinal) {
+      colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
+   }
 
    const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
    
- if (existente) {
+   if (existente) {
      batch.update(doc(db, "pedidos", existente.id), { 
        detalle: existente.detalle + "\n" + detalleNuevo, 
-       // 🔥 CORREGIDO: Cambiado existing.total por existente.total
+       // 🔥 CORREGIDO: Cambiado 'existing.total' por 'existente.total'
        total: Number(existente.total) + Number(totalCarrito), 
        fecha: serverTimestamp(),
        cliente: nombreUsuarioLogueado || existente.cliente || "Cliente",
        uid: uidFinal || existente.uid || null,
-       
-       // ✨ AGREGAMOS LA PRIORIDAD SI AGREGAN MÁS PRODUCTOS A LA CUENTA EXISTENTE
        alertaPrioridad: colorAlerta 
      });
    } else {
@@ -959,8 +961,6 @@ const procesarEnvio = async (idDestino) => {
        cliente: nombreUsuarioLogueado || "Cliente",
        telefono: telFinal,
        uid: uidFinal,
-       
-       // ✨ INYECTAMOS LA PRIORIDAD AQUÍ PARA EL PEDIDO NUEVO DESDE CERO
        alertaPrioridad: colorAlerta 
      };
 
@@ -972,7 +972,6 @@ const procesarEnvio = async (idDestino) => {
 
    await batch.commit();
 
-   // ✨ PERSISTENCIA DE COMANDA PARA EL RASTREO QUE HICIMOS ANTES:
    const idComandaActual = existente ? existente.id : nuevoPedidoRef.id;
    localStorage.setItem("tribu_comanda_id", idComandaActual);
 
@@ -1074,9 +1073,7 @@ const guardarEvento = async (e) => {
            <button onClick={forzarInstalacionApp} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs transition-all shadow-xl active:scale-95">
              ✨ Agregar a Pantalla de Inicio
            </button>
-           <button onClick={forzarInstalacionApp} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs transition-all shadow-xl active:scale-95">
-  ✨ Agregar a Pantalla de Inicio
-</button>
+  
 
 {/* --- 🤫 BOTÓN DE ESCAPE OCULTO PARA ACCEDER DESDE LA PC --- */}
 <button 
@@ -1256,6 +1253,13 @@ const guardarEvento = async (e) => {
           >
             <LayoutDashboard size={14}/> Comandas
           </button>
+          {/* ✨ NUEVO BOTÓN PARA EL PANEL DE MESEROS */}
+          <button 
+            onClick={() => setTabBarra('mesas_fisicas')} 
+            className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-[10px] transition-all ${tabBarra === 'mesas_fisicas' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}
+          >
+            <UtensilsCrossed size={14}/> Control Mesas
+          </button>
           <button 
             onClick={() => setTabBarra('inventario')} 
             className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-[10px] transition-all ${tabBarra === 'inventario' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}
@@ -1271,6 +1275,60 @@ const guardarEvento = async (e) => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* ✨ NUEVO COMPONENTE: GRID DE MESAS PARA OPERACIÓN MANUAL DEL MESERO */}
+        {tabBarra === 'mesas_fisicas' && (
+          <div className="flex-1 no-print">
+            <div className="mb-4">
+               <h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-1">
+                  🗺️ Tablero de Control Físico
+               </h2>
+               <p className="text-slate-400 text-[10px] uppercase font-bold">
+                  Toca una mesa libre para abrir comanda o una ocupada para añadir artículos
+               </p>
+            </div>
+
+            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10 gap-3">
+               {Array.from({ length: 50 }, (_, i) => {
+                  const numMesa = String(i + 1);
+                  // Buscamos si hay una comanda activa en Firebase para esta mesa
+                  const comandaActiva = pedidosBarra.find(p => String(p.mesa) === numMesa);
+                  
+                  return (
+                     <button
+                        key={numMesa}
+                        onClick={() => {
+                           if (comandaActiva) {
+                              // Si está ocupada, cargamos su id de comanda en el carrito global para añadirle más cosas
+                              localStorage.setItem("tribu_comanda_id", comandaActiva.id);
+                              setMesa(numMesa);
+                              setMesaValidada(true);
+                              setView('menu');
+                              alert(`Abriendo cuenta de Mesa ${numMesa} para añadir productos.`);
+                           } else {
+                              // Si está vacía, iniciamos una cuenta limpia desde cero para esa mesa
+                              localStorage.removeItem("tribu_comanda_id");
+                              setMesa(numMesa);
+                              setMesaValidada(true);
+                              setView('menu');
+                              alert(`Abriendo nueva comanda manual para Mesa ${numMesa}.`);
+                           }
+                        }}
+                        className={`p-4 rounded-xl flex flex-col items-center justify-center border transition-all active:scale-95 ${
+                           comandaActiva 
+                             ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-lg shadow-purple-950/20' 
+                             : 'bg-[#0c111a] border-slate-800 text-slate-500 hover:border-slate-700'
+                        }`}
+                     >
+                        <span className="text-lg font-black tracking-tighter leading-none text-white">M-{numMesa}</span>
+                        <span className="text-[7px] font-black uppercase mt-1 tracking-widest block">
+                           {comandaActiva ? `Ocupada • $${comandaActiva.total}` : 'Disponible'}
+                        </span>
+                     </button>
+                  );
+               })}
+            </div>
+          </div>
+        )}
           {tabBarra === 'inventario' && (
             <button 
               onClick={() => setVerModalNuevoProd(true)} 
