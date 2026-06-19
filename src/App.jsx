@@ -894,6 +894,34 @@ const intentarEnviar = () => {
  }
 };
 
+// Para las tarjetas de VIP
+const obtenerAlertaCliente = async (telefonoCliente, uidCliente) => {
+   // 🔥 PLUS EXCLUSIVO: Si el cliente no está registrado (no tiene UID),
+   // no acumula estatus y se va directo como esporádico (morada)
+   if (!uidCliente || !telefonoCliente || telefonoCliente === "N/A") {
+      return "morada"; 
+   }
+
+   try {
+      // Como sí está registrado, consultamos cuántos tickets tiene asociados en su historial
+      const q = query(collection(db, "historial_tickets"), where("uid", "==", uidCliente));
+      const querySnapshot = await getDocs(q);
+      
+      const totalPedidos = querySnapshot.size; // Total de visitas/compras facturadas
+
+      if (totalPedidos >= 5) {
+         return "verde";     // 👑 VIP Registrado
+      } else if (totalPedidos >= 2) {
+         return "amarilla";   // 🍺 Regular Registrado
+      } else {
+         return "morada";    // ⚡ Nuevo Registro (Apenas lleva 1 o 0 pedidos)
+      }
+   } catch (error) {
+      console.error("Error al clasificar cliente registrado:", error);
+      return "morada";
+   }
+};
+
 const procesarEnvio = async (idDestino) => {
  const batch = writeBatch(db);
  const telFinal = telefonoUsuarioLogueado || usuarioLogueado?.phoneNumber || telefonoInput || "S/N";
@@ -901,14 +929,23 @@ const procesarEnvio = async (idDestino) => {
  const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
   
  try {
+   // ✨ 1. CALCULAMOS LA PRIORIDAD AUTOMÁTICA JUSTO AQUÍ ENTRANDO AL TRY:
+   const uidFinal = usuarioLogueado?.uid || null;
+   const colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
+
    const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
-   if (existente) {
+   
+ if (existente) {
      batch.update(doc(db, "pedidos", existente.id), { 
        detalle: existente.detalle + "\n" + detalleNuevo, 
+       // 🔥 CORREGIDO: Cambiado existing.total por existente.total
        total: Number(existente.total) + Number(totalCarrito), 
        fecha: serverTimestamp(),
        cliente: nombreUsuarioLogueado || existente.cliente || "Cliente",
-       uid: usuarioLogueado?.uid || existente.uid || null
+       uid: uidFinal || existente.uid || null,
+       
+       // ✨ AGREGAMOS LA PRIORIDAD SI AGREGAN MÁS PRODUCTOS A LA CUENTA EXISTENTE
+       alertaPrioridad: colorAlerta 
      });
    } else {
      const nuevoPedidoRef = doc(collection(db, "pedidos"));
@@ -921,7 +958,10 @@ const procesarEnvio = async (idDestino) => {
        archivado: false,
        cliente: nombreUsuarioLogueado || "Cliente",
        telefono: telFinal,
-       uid: usuarioLogueado?.uid || null 
+       uid: uidFinal,
+       
+       // ✨ INYECTAMOS LA PRIORIDAD AQUÍ PARA EL PEDIDO NUEVO DESDE CERO
+       alertaPrioridad: colorAlerta 
      };
 
      if (idDestino && !String(idDestino).startsWith("TEL:")) {
@@ -929,7 +969,13 @@ const procesarEnvio = async (idDestino) => {
      }
      batch.set(nuevoPedidoRef, datosNuevoPedido);
    }
+
    await batch.commit();
+
+   // ✨ PERSISTENCIA DE COMANDA PARA EL RASTREO QUE HICIMOS ANTES:
+   const idComandaActual = existente ? existente.id : nuevoPedidoRef.id;
+   localStorage.setItem("tribu_comanda_id", idComandaActual);
+
    setView('success'); 
    setCarrito([]); 
    setVerCarrito(false); 
@@ -949,7 +995,8 @@ const cobrarCuenta = async (p) => {
       archivado: false,
       cliente: p.cliente || "Cliente General",
       telefono: p.telefono || "N/A",
-      uid: p.uidCliente || null
+      // 🔥 CORREGIDO: Usamos p.uid que es el campo real que viene de la comanda
+      uid: p.uid || null 
    });
    await deleteDoc(doc(db, "pedidos", p.id));
 
@@ -1254,9 +1301,18 @@ const guardarEvento = async (e) => {
                 const esExterno = String(p.mesa).startsWith("TEL:");
                 const numTel = esExterno ? p.mesa.replace("TEL:", "") : "";
                 const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está listo.\n\n*Total a pagar: $${p.total}*\n\n*Detalle del pedido:*\n${p.detalle}\n\n${DATOS_PAGO}`;
+                
+                // 🎨 1. CLASE DE COLOR DE PRIORIDAD HISTÓRICA (CON RESPALDO SEGURO)
+                const colorCintillo = 
+                p.alertaPrioridad === 'verde' ? 'bg-emerald-500' : 
+                p.alertaPrioridad === 'amarilla' ? 'bg-amber-500' : 
+                p.alertaPrioridad === 'morada' ? 'bg-purple-500' : 
+                (esExterno ? 'bg-blue-600' : 'bg-purple-500'); // 🔥 CORREGIDO: Si no trae el campo, por defecto es morado (esporádico)
+
                 return (
                   <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-3.5 rounded-xl relative shadow-lg flex flex-col justify-between group transition-all text-left">
-                    <div className={`absolute top-0 left-0 w-1 h-full ${esExterno ? 'bg-blue-600' : 'bg-orange-600'}`}></div>
+                    {/* 🔥 Inyectamos la variable colorCintillo aquí */}
+                    <div className={`absolute top-0 left-0 w-1.5 h-full ${colorCintillo}`}></div>
                     
                     {p.pagoInformado && (
                       <div className="bg-blue-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex items-center justify-center gap-1.5 animate-pulse shadow-md border border-blue-400/20">
@@ -1270,6 +1326,21 @@ const guardarEvento = async (e) => {
                       </div>
                     )}
                     <div>
+                      {/* 🏷️ 2. INDICADOR TEXTUAL DE PRIORIDAD EXCLUSIVO PARA REGISTRADOS */}
+                      {p.alertaPrioridad && (
+                        <div className="mb-2">
+                          <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${
+                            p.alertaPrioridad === 'verde' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                            p.alertaPrioridad === 'amarilla' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                            'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                          }`}>
+                            {p.alertaPrioridad === 'verde' ? '👑 Cliente VIP' :
+                             p.alertaPrioridad === 'amarilla' ? '🍺 Regular' :
+                             '⚡ Esporádico'}
+                          </span>
+                        </div>
+                      )}
+
                       <div className="flex justify-between items-start">
                         <div className="flex flex-col leading-tight">
                           <h3 className="text-lg font-black italic uppercase tracking-tight text-white">
