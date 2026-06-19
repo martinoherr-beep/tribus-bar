@@ -931,18 +931,18 @@ const procesarEnvio = async (idDestino) => {
  try {
    const uidFinal = usuarioLogueado?.uid || null;
    
-   // 🛡️ Validador seguro: solo busca historial si el cliente está registrado
    let colorAlerta = "morada";
    if (uidFinal) {
       colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
    }
 
    const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
+   let idComandaActual = ""; 
    
    if (existente) {
+     idComandaActual = existente.id; 
      batch.update(doc(db, "pedidos", existente.id), { 
        detalle: existente.detalle + "\n" + detalleNuevo, 
-       // 🔥 CORREGIDO: Cambiado 'existing.total' por 'existente.total'
        total: Number(existente.total) + Number(totalCarrito), 
        fecha: serverTimestamp(),
        cliente: nombreUsuarioLogueado || existente.cliente || "Cliente",
@@ -950,7 +950,10 @@ const procesarEnvio = async (idDestino) => {
        alertaPrioridad: colorAlerta 
      });
    } else {
+     // 🔥 CORREGIDO: Ruta limpia a la colección "pedidos" sin el "db" duplicado
      const nuevoPedidoRef = doc(collection(db, "pedidos"));
+     idComandaActual = nuevoPedidoRef.id; 
+     
      const datosNuevoPedido = { 
        mesa: String(idFinal), 
        detalle: detalleNuevo, 
@@ -970,17 +973,18 @@ const procesarEnvio = async (idDestino) => {
      batch.set(nuevoPedidoRef, datosNuevoPedido);
    }
 
-   await batch.commit();
-
-   const idComandaActual = existente ? existente.id : nuevoPedidoRef.id;
+   // Guardamos el ID en la memoria local del celular de forma segura
    localStorage.setItem("tribu_comanda_id", idComandaActual);
 
+   await batch.commit();
+
+   // Cambios de estado visual limpios
    setView('success'); 
    setCarrito([]); 
    setVerCarrito(false); 
    setVerModalTelefono(false);
  } catch (e) { 
-   console.error("Error en Firebase:", e);
+   console.error("Error crítico en Firebase:", e);
    alert("Error al procesar el pedido.");
  }
 };
