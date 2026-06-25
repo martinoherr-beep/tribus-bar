@@ -61,7 +61,7 @@ function App() {
  const [telefonoInput, setTelefonoInput] = useState("");
  const [nombreUsuarioLogueado, setNombreUsuarioLogueado] = useState("");
  const [recordatorios, setRecordatorios] = useState([]);
- const [verModalNuevoEvent, setVerModalNuevoEvento] = useState(false);
+ const [verModalNuevoEvento, setVerModalNuevoEvento] = useState(false);
  const [nuevoEvento, setNuevoEvento] = useState({ titulo: "", fecha: "", hora: "" });
  const [verModalNuevoProd, setVerModalNuevoProd] = useState(false);
  const [nuevoProd, setNuevoProd] = useState({
@@ -77,174 +77,174 @@ function App() {
  const [filtroMesa, setFiltroMesa] = useState(""); 
  const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
  const [nombreRegistro, setNombreRegistro] = useState('');
-const [usuarioLogueado, setUsuarioLogueado] = useState(null);
-const [verModalAuth, setVerModalAuth] = useState(false);
-const [historialHoy, setHistorialHoy] = useState([]);
-const [pasoAuth, setPasoAuth] = useState('telefono'); // 'telefono' o 'codigo'
-const [codigoOTP, setCodigoOTP] = useState("");
-const [confirmacionResultado, setConfirmacionResult] = useState(null);
-const [password, setPassword] = useState('');
-const [areaStaff, setAreaStaff] = useState('TODOS');
-const [fechaInicioRep, setFechaInicioRep] = useState("");
-const [fechaFinRep, setFechaFinRep] = useState("");
-const [reporteFiltrado, setReporteFiltrado] = useState(null);
-const [esSuperAdmin, setEsSuperAdmin] = useState(false);
-const [esStaff, setEsStaff] = useState(false);
-const [eventoInstalacion, setEventoInstalacion] = useState(null);
-const [verModalEscaner, setVerModalEscaner] = useState(false);
-const html5QrCodeRef = useRef(null);
+ const [usuarioLogueado, setUsuarioLogueado] = useState(null);
+ const [verModalAuth, setVerModalAuth] = useState(false);
+ const [historialHoy, setHistorialHoy] = useState([]);
+ const [pasoAuth, setPasoAuth] = useState('telefono'); // 'telefono' o 'codigo'
+ const [codigoOTP, setCodigoOTP] = useState("");
+ const [confirmacionResultado, setConfirmacionResult] = useState(null);
+ const [password, setPassword] = useState('');
+ const [areaStaff, setAreaStaff] = useState('TODOS');
+ const [fechaInicioRep, setFechaInicioRep] = useState("");
+ const [fechaFinRep, setFechaFinRep] = useState("");
+ const [reporteFiltrado, setReporteFiltrado] = useState(null);
+ const [esSuperAdmin, setEsSuperAdmin] = useState(false);
+ const [esStaff, setEsStaff] = useState(false);
+ const [eventoInstalacion, setEventoInstalacion] = useState(null);
+ const [verModalEscaner, setVerModalEscaner] = useState(false);
+ const html5QrCodeRef = useRef(null);
 
-// 🔥 CONFIGURACIÓN INTEGRADA: Switch especial para comandos manuales de mesero
-const [esComandaManual, setEsComandaManual] = useState(false);
+ // 🔥 CONFIGURACIÓN INTEGRADA: Switch especial para comandos manuales de mesero
+ const [esComandaManual, setEsComandaManual] = useState(false);
 
-// --- LECTOR DE QR NATIVO OPTIMIZADO CON HTML5-QRCODE ---
-const encenderCamaraPWA = () => {
-  setVerModalEscaner(true);
+ // --- LECTOR DE QR NATIVO OPTIMIZADO CON HTML5-QRCODE ---
+ const encenderCamaraPWA = () => {
+   setVerModalEscaner(true);
 
-  setTimeout(() => {
-     const contenedor = document.getElementById("lector-qr-tribu");
-     if (!contenedor) return;
+   setTimeout(() => {
+       const contenedor = document.getElementById("lector-qr-tribu");
+       if (!contenedor) return;
 
-     if (window.Html5Qrcode) {
-       const html5QrCode = new window.Html5Qrcode("lector-qr-tribu");
-       html5QrCodeRef.current = html5QrCode;
+       if (window.Html5Qrcode) {
+         const html5QrCode = new window.Html5Qrcode("lector-qr-tribu");
+         html5QrCodeRef.current = html5QrCode;
 
-       html5QrCode.start(
-         { facingMode: "environment" }, 
-         {
-           fps: 10,
-           qrbox: { width: 220, height: 220 }
-         },
-        (decodedText) => {
-           console.log("¡QR Detectado!", decodedText);
-           procesarEscaneoMesa(decodedText.trim());
-           
-           setTimeout(() => {
-             apagarCamaraPWA();
-             setVerModalEscaner(false);
-           }, 100);
-         },
-         (errorMessage) => { /* Silenciar escaneos vacíos */ }
-       ).catch((err) => {
-         console.warn("Fallo cámara en vivo, usando modo archivo de respaldo:", err);
-       });
-     }
-  }, 600);
-};
-
-const apagarCamaraPWA = () => {
-  if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-    html5QrCodeRef.current.stop().then(() => {
-      html5QrCodeRef.current.clear();
-      html5QrCodeRef.current = null;
-    }).catch(err => console.log("Error al detener escáner:", err));
-  }
-};
-
-useEffect(() => {
-  if (!verModalEscaner) {
-    apagarCamaraPWA();
-  }
-}, [verModalEscaner]);
-
-
-const [errorCamara, setErrorCamara] = useState(false);
-const [mesaEscaneadaInput, setMesaEscaneadaInput] = useState(""); // Teclado de respaldo
-const [esAppInstalada, setEsAppInstalada] = useState(
- window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
-);
-
-const forzarInstalacionApp = async () => {
- if (!eventoInstalacion) {
-   alert("En iPhone/iPad: Pulsa el botón 'Compartir' abajo en tu navegador y selecciona 'Agregar a inicio' 📲");
-   return;
- }
- e-ventoInstalacion.prompt();
- const { outcome } = await eventoInstalacion.userChoice;
- 
- if (outcome === 'accepted') {
-   setEsAppInstalada(true);
-   setEventoInstalacion(null);
- }
-};
-
-const procesarEscaneoMesa = async (nuevaMesa) => {
-   let idMesaLimpia = String(nuevaMesa).trim();
-   if (!idMesaLimpia || idMesaLimpia === "") return;
-
-   console.log("🔍 Texto bruto recibido en el procesador:", idMesaLimpia);
-
-   const mapaMesas = {
-    "o3pvdzac": "1", "1hs61le7": "2", "6uri5fma": "3", "3l12b2ip": "4",
-    "0p0rvh65": "5", "e4jbnq9e": "6", "ht3zdvne": "7", "sv5ee5id": "8",
-    "y7q3j49y": "9", "cn97d9e2": "10", "splcfc9c": "11", "oskwo4hm": "12",
-    "h9pve9vo": "13", "exl0zpz0": "14", "xirj4tak": "15", "ppotpg8p": "16",
-    "ffaad9lu": "17", "qnsuk3nx": "18", "gpb7s9yx": "19", "isbwypqb": "20",
-    "qe0wn8oh": "21", "4ewlnlrh": "22", "i4smmljs": "23", "gmyfc6km": "24",
-    "jj8j9hli": "25", "choaq8tg": "26", "dwqzrz76": "27", "j5q3kyy7": "28",
-    "rsvnbj86": "29", "jp02r7cz": "30", "zh23ozpf": "31", "7yloueec": "32",
-    "7bf03w7j": "33", "gtae074f": "34", "3f8vyhom": "35", "awnud16d": "36",
-    "ckyjst7f": "37", "vhjzokg9": "38", "xphki5a6": "39", "rhk7lp7a": "40",
-    "f47j11md": "41", "i0j9kt4s": "42", "03hn45yd": "43", "r88o1mbk": "44",
-    "ru50unaf": "45", "7rqdxilz": "46", "1qtcsszs": "47", "y0yrnzm8": "48",
-    "eb0db9e2": "49", "low0c63e": "50"
-   };
-
-   if (idMesaLimpia.includes("me-qr.com/")) {
-      const partes = idMesaLimpia.split("me-qr.com/");
-      idMesaLimpia = partes[partes.length - 1].replace("/", "").trim(); 
-   }
-
-   if (mapaMesas[idMesaLimpia]) {
-      idMesaLimpia = mapaMesas[idMesaLimpia];
-   }
-
-   if (window.history.replaceState) {
-      window.history.replaceState(null, '', window.location.pathname);
-   }
-
-   const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
-   const comandaExisteEnBarra = pedidosBarra.some(p => p.id === comandaIdGuardada);
-
-   if (comandaIdGuardada && comandaExisteEnBarra) {
-      if (String(mesa) === idMesaLimpia) {
-         setVerModalEscaner(false);
-         return;
-      }
-
-      try {
-         await updateDoc(doc(db, "pedidos", comandaIdGuardada), {
-            solicitudTraslado: idMesaLimpia,
-            pideTraslado: true
+         html5QrCode.start(
+           { facingMode: "environment" }, 
+           {
+             fps: 10,
+             qrbox: { width: 220, height: 220 }
+           },
+          (decodedText) => {
+             console.log("¡QR Detectado!", decodedText);
+             procesarEscaneoMesa(decodedText.trim());
+             
+             setTimeout(() => {
+               apagarCamaraPWA();
+               setVerModalEscaner(false);
+             }, 100);
+           },
+           (errorMessage) => { /* Silenciar escaneos vacíos */ }
+         ).catch((err) => {
+           console.warn("Fallo cámara en vivo, usando modo archivo de respaldo:", err);
          });
-         
-         setVerModalEscaner(false);
-         alert(`⏳ Solicitud enviada. La barra está trasladando tu cuenta de la Mesa ${mesa} a la Mesa ${idMesaLimpia}.`);
-         return;
-      } catch (e) {
-         console.error("Error al inyectar traslado:", e);
-         alert("Error de traslado.");
-         return;
-      }
-   }
+       }
+   }, 600);
+ };
 
-   localStorage.removeItem("tribu_comanda_id");
-   localStorage.setItem("tribu_mesa", idMesaLimpia);
-   setMesa(idMesaLimpia);
-   setVerModalEscaner(false);
-
-   if (consumoAcumulado.length === 0 && carrito.length === 0) {
-      alert(`📍 Te has ubicado en la Mesa ${idMesaLimpia} (${obtenerPlanta(idMesaLimpia)})`);
+ const apagarCamaraPWA = () => {
+   if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+     html5QrCodeRef.current.stop().then(() => {
+       html5QrCodeRef.current.clear();
+       html5QrCodeRef.current = null;
+     }).catch(err => console.log("Error al detener escáner:", err));
    }
-};
+ };
+
+ useEffect(() => {
+   if (!verModalEscaner) {
+     apagarCamaraPWA();
+   }
+ }, [verModalEscaner]);
+
+
+ const [errorCamara, setErrorCamara] = useState(false);
+ const [mesaEscaneadaInput, setMesaEscaneadaInput] = useState(""); // Teclado de respaldo
+ const [esAppInstalada, setEsAppInstalada] = useState(
+  window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+ );
+
+ const forzarInstalacionApp = async () => {
+  if (!eventoInstalacion) {
+    alert("En iPhone/iPad: Pulsa el botón 'Compartir' abajo en tu navegador y selecciona 'Agregar a inicio' 📲");
+    return;
+  }
+  eventoInstalacion.prompt(); 
+  const { outcome } = await eventoInstalacion.userChoice;
+  
+  if (outcome === 'accepted') {
+    setEsAppInstalada(true);
+    setEventoInstalacion(null);
+  }
+ };
+
+ const procesarEscaneoMesa = async (nuevaMesa) => {
+    let idMesaLimpia = String(nuevaMesa).trim();
+    if (!idMesaLimpia || idMesaLimpia === "") return;
+
+    console.log("🔍 Texto bruto recibido en el procesador:", idMesaLimpia);
+
+    const mapaMesas = {
+     "o3pvdzac": "1", "1hs61le7": "2", "6uri5fma": "3", "3l12b2ip": "4",
+     "0p0rvh65": "5", "e4jbnq9e": "6", "ht3zdvne": "7", "sv5ee5id": "8",
+     "y7q3j49y": "9", "cn97d9e2": "10", "splcfc9c": "11", "oskwo4hm": "12",
+     "h9pve9vo": "13", "exl0zpz0": "14", "xirj4tak": "15", "ppotpg8p": "16",
+     "ffaad9lu": "17", "qnsuk3nx": "18", "gpb7s9yx": "19", "isbwypqb": "20",
+     "qe0wn8oh": "21", "4ewlnlrh": "22", "i4smmljs": "23", "gmyfc6km": "24",
+     "jj8j9hli": "25", "choaq8tg": "26", "dwqzrz76": "27", "j5q3kyy7": "28",
+     "rsvnbj86": "29", "jp02r7cz": "30", "zh23ozpf": "31", "7yloueec": "32",
+     "7bf03w7j": "33", "gtae074f": "34", "3f8vyhom": "35", "awnud16d": "36",
+     "ckyjst7f": "37", "vhjzokg9": "38", "xphki5a6": "39", "rhk7lp7a": "40",
+     "f47j11md": "41", "i0j9kt4s": "42", "03hn45yd": "43", "r88o1mbk": "44",
+     "ru50unaf": "45", "7rqdxilz": "46", "1qtcsszs": "47", "y0yrnzm8": "48",
+     "eb0db9e2": "49", "low0c63e": "50"
+    };
+
+    if (idMesaLimpia.includes("me-qr.com/")) {
+       const partes = idMesaLimpia.split("me-qr.com/");
+       idMesaLimpia = partes[partes.length - 1].replace("/", "").trim(); 
+    }
+
+    if (mapaMesas[idMesaLimpia]) {
+       idMesaLimpia = mapaMesas[idMesaLimpia];
+    }
+
+    if (window.history.replaceState) {
+       window.history.replaceState(null, '', window.location.pathname);
+    }
+
+    const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
+    const comandaExisteEnBarra = pedidosBarra.some(p => p.id === comandaIdGuardada);
+
+    if (comandaIdGuardada && comandaExisteEnBarra) {
+       if (String(mesa) === idMesaLimpia) {
+           setVerModalEscaner(false);
+           return;
+       }
+
+       try {
+           await updateDoc(doc(db, "pedidos", comandaIdGuardada), {
+              solicitudTraslado: idMesaLimpia,
+              pideTraslado: true
+           });
+           
+           setVerModalEscaner(false);
+           alert(`⏳ Solicitud enviada. La barra está trasladando tu cuenta de la Mesa ${mesa} a la Mesa ${idMesaLimpia}.`);
+           return;
+       } catch (e) {
+           console.error("Error al inyectar traslado:", e);
+           alert("Error de traslado.");
+           return;
+       }
+    }
+
+    localStorage.removeItem("tribu_comanda_id");
+    localStorage.setItem("tribu_mesa", idMesaLimpia);
+    setMesa(idMesaLimpia);
+    setVerModalEscaner(false);
+
+    if (consumoAcumulado.length === 0 && carrito.length === 0) {
+       alert(`📍 Te has ubicado en la Mesa ${idMesaLimpia} (${obtenerPlanta(idMesaLimpia)})`);
+    }
+ };
 
  const obtenerPlanta = (idMesa) => {
-   if (!idMesa) return "EXTERNO";
-   const n = parseInt(idMesa);
-   if (isNaN(n)) return "EXTERNO";
-   if (n >= 1 && n <= 25) return "PLANTA BAJA";
-   if (n >= 26 && n <= 50) return "TERRAZA";
-   return "EXTERNO";
+    if (!idMesa) return "EXTERNO";
+    const n = parseInt(idMesa);
+    if (isNaN(n)) return "EXTERNO";
+    if (n >= 1 && n <= 25) return "PLANTA BAJA";
+    if (n >= 26 && n <= 50) return "TERRAZA";
+    return "EXTERNO";
  };
 
  const generarReporteVentas = () => {
@@ -293,7 +293,7 @@ const procesarEscaneoMesa = async (nuevaMesa) => {
     terraza: totalTerraza,
     externo: totalExterno,
     totalGlobal: totalBaja + totalTerraza + totalExterno,
-    cantidadTickets: ticketsEnRango 
+    amountTickets: ticketsEnRango 
   });
 };
 
@@ -302,16 +302,16 @@ const [telefonoUsuarioLogueado, setTelefonoUsuarioLogueado] = useState("");
 
 useEffect(() => {
  if (usuarioLogueado) {
-   const q = query(
-     collection(db, "pedidos"),
-     where("uid", "==", usuarioLogueado.uid) 
-   );
+    const q = query(
+      collection(db, "pedidos"),
+      where("uid", "==", usuarioLogueado.uid) 
+    );
 
-   const unsub = onSnapshot(q, (snapshot) => {
-     const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-     setMisPedidos(docs);
-   });
-   return () => unsub();
+    const unsub = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMisPedidos(docs);
+    });
+    return () => unsub();
  }
 }, [usuarioLogueado]);
 
@@ -336,24 +336,25 @@ useEffect(() => {
 }, []);
 
  const loginClienteFrecuente = async () => {
-   if (!telefonoInput || !password) {
-     return alert("Por favor, ingresa tu teléfono y contraseña.");
-   }
+    if (!telefonoInput || !password) {
+      return alert("Por favor, ingresa tu teléfono y contraseña.");
+    }
 
-   try {
-     const emailFalso = `${telefonoInput}@tribus.com`;
-     const userCredential = await signInWithEmailAndPassword(auth, emailFalso, password);
-     setUsuarioLogueado(userCredential.user);
-     setView('menu');
-     alert("¡Qué bueno verte de nuevo en la Tribu!");
-   } catch (error) {
-     console.error("Error al entrar:", error.code);
-     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-       alert("Teléfono o contraseña incorrectos.");
-     } else {
-       alert("Error al iniciar sesión: " + error.message);
-     }
-   }
+    try {
+      const emailFalso = `${telefonoInput}@tribus.com`;
+      const userCredential = await signInWithEmailAndPassword(auth, emailFalso, password);
+      localStorage.removeItem("tribu_comanda_id"); 
+      setUsuarioLogueado(userCredential.user);
+      setView('menu');
+      alert("¡Qué bueno verte de nuevo en la Tribu!");
+    } catch (error) {
+      console.error("Error al entrar:", error.code);
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        alert("Teléfono o contraseña incorrectos.");
+      } else {
+        alert("Error al iniciar sesión: " + error.message);
+      }
+    }
  };
 
  const informarPago = async (pedidoId) => {
@@ -371,7 +372,7 @@ useEffect(() => {
 
 const registrarClienteFrecuente = async () => {
  if (!nombreRegistro || telefonoInput.length < 10 || password.length < 6) {
-   return alert("Por favor, completa todos los campos (Mínimo 6 caracteres para contraseña).");
+    return alert("Por favor, completa todos los campos (Mínimo 6 caracteres para contraseña).");
  }
 
  try {
@@ -388,6 +389,7 @@ const registrarClienteFrecuente = async () => {
      ultimaVisita: serverTimestamp()
    });
 
+   localStorage.removeItem("tribu_comanda_id"); 
    setUsuarioLogueado(user);
    setView('menu'); 
    alert(`¡Bienvenido a la Tribu, ${nombreRegistro}!`);
@@ -414,19 +416,19 @@ const cerrarSesion = async () => {
 
 useEffect(() => {
  if (usuarioLogueado) {
-   const obtenerDatosCliente = async () => {
-     const docRef = doc(db, "clientes", usuarioLogueado.uid);
-     const docSnap = await getDoc(docRef);
-     if (docSnap.exists() && docSnap.data().nombre) {
-       setNombreUsuarioLogueado(docSnap.data().nombre);
-       setTelefonoUsuarioLogueado(docSnap.data().telefono);
-     } else {
-       setNombreUsuarioLogueado("Invitado Tribu");
-     }
-   };
-   obtenerDatosCliente();
+    const obtenerDatosCliente = async () => {
+      const docRef = doc(db, "clientes", usuarioLogueado.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists() && docSnap.data().nombre) {
+        setNombreUsuarioLogueado(docSnap.data().nombre);
+        setTelefonoUsuarioLogueado(docSnap.data().telefono);
+      } else {
+        setNombreUsuarioLogueado("Invitado Tribu");
+      }
+    };
+    obtenerDatosCliente();
  } else {
-   setNombreUsuarioLogueado(""); 
+    setNombreUsuarioLogueado(""); 
  }
 }, [usuarioLogueado]);
 
@@ -555,73 +557,73 @@ const verificarCodigo = async () => {
  const totalCajaHoy = historialFiltradoParaCaja.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
  const ultimoMinutoEnviado = useRef("");
 
-const moverMesa = async (pedido) => {
-   const plantaOrigen = obtenerPlanta(pedido.mesa);
-   let nuevaMesa = "";
+ const moverMesa = async (pedido) => {
+    const plantaOrigen = obtenerPlanta(pedido.mesa);
+    let nuevaMesa = "";
 
-   if (pedido.pideTraslado && pedido.solicitudTraslado) {
-     const confirmarTrasladoAuto = window.confirm(
-       `🚨 El cliente solicita moverse de la Mesa ${pedido.mesa} a la Mesa ${pedido.solicitudTraslado}.\n\n¿Aceptar y trasladar cuenta ahora mismo?`
-     );
-     if (!confirmarTrasladoAuto) return;
-     nuevaMesa = String(pedido.solicitudTraslado).trim();
-   } else {
-     nuevaMesa = window.prompt(`Moviendo cuenta de Mesa ${pedido.mesa} (${plantaOrigen}). Ingrese el nuevo número de mesa:`);
-     if (!nuevaMesa || nuevaMesa === "" || nuevaMesa === pedido.mesa) return;
-   }
+    if (pedido.pideTraslado && pedido.solicitudTraslado) {
+      const confirmarTrasladoAuto = window.confirm(
+        `🚨 El cliente solicita moverse de la Mesa ${pedido.mesa} a la Mesa ${pedido.solicitudTraslado}.\n\n¿Aceptar y trasladar cuenta ahora mismo?`
+      );
+      if (!confirmarTrasladoAuto) return;
+      nuevaMesa = String(pedido.solicitudTraslado).trim();
+    } else {
+      nuevaMesa = window.prompt(`Moviendo cuenta de Mesa ${pedido.mesa} (${plantaOrigen}). Ingrese el nuevo número de mesa:`);
+      if (!nuevaMesa || nuevaMesa === "" || nuevaMesa === pedido.mesa) return;
+    }
 
-   const plantaDestino = obtenerPlanta(nuevaMesa);
-   const etiquetaTraslado = `\n--- TRASLADO DE ${plantaOrigen} A ${plantaDestino} ---`;
+    const plantaDestino = obtenerPlanta(nuevaMesa);
+    const etiquetaTraslado = `\n--- TRASLADO DE ${plantaOrigen} A ${plantaDestino} ---`;
 
-   try {
-     const pedidoRef = doc(db, "pedidos", pedido.id);
-     
-     await updateDoc(pedidoRef, {
-       mesa: String(nuevaMesa),
-       detalle: pedido.detalle + etiquetaTraslado,
-       pideTraslado: false,                   
-       solicitudTraslado: deleteField()       
-     });
+    try {
+      const pedidoRef = doc(db, "pedidos", pedido.id);
+      
+      await updateDoc(pedidoRef, {
+        mesa: String(nuevaMesa),
+        detalle: pedido.detalle + etiquetaTraslado,
+        pideTraslado: false,                   
+        solicitudTraslado: deleteField()       
+      });
 
-     alert(`✅ Cuenta trasladada con éxito a la Mesa ${nuevaMesa} (${plantaDestino}).`);
-   } catch (e) {
-     console.error("Error al mover mesa:", e);
-     alert("No se pudo procesar el traslado de mesa.");
-   }
- };
+      alert(`✅ Cuenta trasladada con éxito a la Mesa ${nuevaMesa} (${plantaDestino}).`);
+    } catch (e) {
+      console.error("Error al mover mesa:", e);
+      alert("No se pudo procesar el traslado de mesa.");
+    }
+  };
+
+  useEffect(() => {
+    const vigilante = setInterval(() => {
+      const ahora = new Date();
+      const f = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
+      const h = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+      
+      recordatorios.forEach(async (rec) => {
+        const llaveVigilante = `${rec.id}_${h}`;
+        if (rec.fecha === f && rec.hora === h && !rec.enviado && ultimoMinutoEnviado.current !== llaveVigilante) {
+          ultimoMinutoEnviado.current = llaveVigilante;
+          try {
+            const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: `🔔 *EVENTO:* ${rec.titulo}\n⏰ *HORA:* ${rec.hora} HRS`, parse_mode: 'Markdown' })
+            });
+            if (res.ok) {
+              await updateDoc(doc(db, "recordatorios", rec.id), { enviado: true });
+              console.log("✅ Mensaje único enviado con éxito");
+            }
+          } catch (e) {
+            ultimoMinutoEnviado.current = "";
+            console.error("❌ Error:", e);
+          }
+        }
+      });
+    }, 5000);
+
+    return () => clearInterval(vigilante);
+  }, [recordatorios]);
 
  useEffect(() => {
-   const vigilante = setInterval(() => {
-     const ahora = new Date();
-     const f = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
-     const h = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
-     
-     recordatorios.forEach(async (rec) => {
-       const llaveVigilante = `${rec.id}_${h}`;
-       if (rec.fecha === f && rec.hora === h && !rec.enviado && ultimoMinutoEnviado.current !== llaveVigilante) {
-         ultimoMinutoEnviado.current = llaveVigilante;
-         try {
-           const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: `🔔 *EVENTO:* ${rec.titulo}\n⏰ *HORA:* ${rec.hora} HRS`, parse_mode: 'Markdown' })
-           });
-           if (res.ok) {
-             await updateDoc(doc(db, "recordatorios", rec.id), { enviado: true });
-             console.log("✅ Mensaje único enviado con éxito");
-           }
-         } catch (e) {
-           ultimoMinutoEnviado.current = "";
-           console.error("❌ Error:", e);
-         }
-       }
-     });
-   }, 5000);
-
-   return () => clearInterval(vigilante);
- }, [recordatorios]);
-
-useEffect(() => {
   const q = query(collection(db, "rockola_pendientes"), where("estado", "==", "pendiente"));
 
   const unsub = onSnapshot(q, async (snapshot) => {
@@ -682,9 +684,10 @@ useEffect(() => {
   });
 
   return () => unsub();
-}, []);
+ }, []);
 
-useEffect(() => {
+ // 🚨 CORRECCIÓN IMPLEMENTADA EN EL COMPONENTE CENTRAL DE MONITOREO 🚨
+ useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     let mesaId = params.get("mesa");
     
@@ -716,12 +719,9 @@ useEffect(() => {
       return mapaMesas[limpio] ? mapaMesas[limpio] : limpio;
     };
 
-    // 🚨 RESTABLECIMIENTO DE FLUJO: Si viene de QR externo, limpiamos traslados fantasmas
     if (mesaId) {
       mesaId = traducirTextoQR(mesaId);
       localStorage.setItem("tribu_mesa", mesaId);
-      
-      // Si es un escaneo directo de QR en mesa, no es un traslado de la barra
       localStorage.removeItem("tribu_comanda_id"); 
       
       if (window.history.replaceState) {
@@ -743,11 +743,9 @@ useEffect(() => {
       setView('login_staff');
     }
     
-    // Escucha de productos en tiempo real (Báscula e Inventario)
     onSnapshot(collection(db, "productos"), (snap) => setProductosMenu(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     
-    // Escucha de pedidos pendientes con control estricto de traslado
-    onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
+    const unsubPedidos = onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setPedidosBarra(data);
       
@@ -807,7 +805,11 @@ useEffect(() => {
 
     onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     onSnapshot(query(collection(db, "recordatorios"), orderBy("fecha", "asc")), (snap) => setRecordatorios(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-  }, [mesa]);
+
+    return () => unsubPedidos();
+  // 🔥 CRUCIAL: Añadido 'usuarioLogueado' al Array de Dependencias para que al iniciar sesión
+  // la app evalúe la mesa del QR de inmediato y no pierda la referencia reactiva.
+  }, [mesa, usuarioLogueado]);
 
  const manejarPinMesa = (num) => {
    if (pinMesaInput.length < 4) {
@@ -834,7 +836,7 @@ useEffect(() => {
    else setCarrito(carrito.map(x => x.id === id ? { ...ex, cantidad: ex.cantidad - 1 } : x));
  };
 
-const intentarEnviar = () => {
+ const intentarEnviar = () => {
  if (carrito.length === 0) return;
  if (mesa || usuarioLogueado) {
     procesarEnvio(mesa || null);
@@ -916,7 +918,6 @@ const procesarEnvio = async (idDestino) => {
 
    await batch.commit();
 
-   // 🔥 RETORNO INTELIGENTE TRAS AGREGAR PEDIDO:
    if (esComandaManual) {
       setView('barra');
       setTabBarra('comandas');
@@ -972,22 +973,22 @@ const eliminarArticuloComanda = async (p, idx) => {
    const lineas = p.detalle.split('\n');
    const match = lineas[idx].match(/(\d+)x (.*?) \(\$(\d+)\)/);
    if (match) {
-     const batch = writeBatch(db);
-     const nombreLimpio = match[2].trim();
-     const prodEnc = productosMenu.find(pr => pr.nombre.trim() === nombreLimpio);
-     if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(match[1])) });
-     const nuevasLineas = lineas.filter((_, i) => i !== idx);
-     if (nuevasLineas.length === 0) batch.delete(doc(db, "pedidos", p.id));
-     else batch.update(doc(db, "pedidos", p.id), { detalle: nuevasLineas.join('\n'), total: Math.max(0, Number(p.total) - Number(match[3]))});
-     await batch.commit();
+      const batch = writeBatch(db);
+      const nombreLimpio = match[2].trim();
+      const prodEnc = productosMenu.find(pr => pr.nombre.trim() === nombreLimpio);
+      if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(match[1])) });
+      const nuevasLineas = lineas.filter((_, i) => i !== idx);
+      if (nuevasLineas.length === 0) batch.delete(doc(db, "pedidos", p.id));
+      else batch.update(doc(db, "pedidos", p.id), { detalle: nuevasLineas.join('\n'), total: Math.max(0, Number(p.total) - Number(match[3]))});
+      await batch.commit();
    }
 };
 
 const realizarCierreTurno = async () => {
    if (window.confirm(`¿Cerrar con $${totalCajaHoy}?`)) {
-     const batch = writeBatch(db);
-     historialCerrado.forEach(t => { if (!t.archivado) batch.update(doc(db, "historial_tickets", t.id), { archivado: true }); });
-     await batch.commit();
+      const batch = writeBatch(db);
+      historialCerrado.forEach(t => { if (!t.archivado) batch.update(doc(db, "historial_tickets", t.id), { archivado: true }); });
+      await batch.commit();
    }
 };
 
@@ -1000,7 +1001,7 @@ const guardarEvento = async (e) => {
 
  return (
    <>
-     {/* --- PWA: OBLIGAR A AGREGAR A INICIO (INMUNIDAD INTEGRADA CON ESSTAFF) --- */}
+     {/* --- PWA: OBLIGAR A AGREGAR A INICIO --- */}
      {!esAppInstalada && view !== 'barra' && view !== 'login_staff' && !esStaff && !esComandaManual && (
        <div className="fixed inset-0 z-[300] bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center font-sans select-none">
          <div className="max-w-sm space-y-6 animate-fade-in">
@@ -1008,9 +1009,9 @@ const guardarEvento = async (e) => {
              <span className="text-3xl font-black italic tracking-tighter text-black -rotate-12">TB</span>
            </div>
            <div className="space-y-2">
-             <h2 className="text-2xl font-black uppercase tracking-tight italic">🔒 Acceso Seguro al Menú</h2>
+             <h2 className="text-2xl font-black uppercase tracking-tight italic">🔒 Acceso Secure al Menú</h2>
              <p className="text-xs text-slate-400 font-medium px-4 leading-relaxed">
-               Para garantizar que tus pedidos se envíen de forma correcta a la barra de tu planta, es necesario añadir la app a tu pantalla de inicio.
+               Para garantizar que tus pedidos se envíen de forma correcta a la barra de tu planta, es necesario agregar la app a tu pantalla de inicio.
              </p>
            </div>
            <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-4 text-left space-y-3">
@@ -1061,13 +1062,13 @@ const guardarEvento = async (e) => {
            <div key={p.id} className="bg-[#0f172a] border border-gray-800 p-5 rounded-[30px]">
              <div className="flex justify-between items-start mb-3">
                <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">{p.mesa.includes('TEL') ? 'Para Llevar' : `Mesa ${p.mesa}`}</span>
-               <span className={`text-[9px] font-bold px-3 py-1 rounded-full uppercase ${p.estado === 'pendiente' ? 'bg-amber-500/10 text-amber-500' : p.estado === 'preparando' ? 'bg-sky-500/10 text-sky-500' : 'bg-green-500/10 text-green-500'}`}>{p.estado}</span>
+               <span className={`text-[9px] font-bold px-3 py-1 rounded-full uppercase ${p.state === 'pendiente' ? 'bg-amber-500/10 text-amber-500' : p.state === 'preparando' ? 'bg-sky-500/10 text-sky-500' : 'bg-green-500/10 text-green-500'}`}>{p.state}</span>
              </div>
              <p className="text-[11px] text-gray-400 whitespace-pre-line mb-3">{p.detalle}</p>
              <div className="border-t border-gray-800 pt-3 flex justify-between items-center">
                <span className="text-xs font-bold text-gray-500 italic">Total</span>
                <span className="text-lg font-black text-white">${p.total}</span>
-               {p.mesa.includes('TEL') && p.estado !== 'entregado' && (
+               {p.mesa.includes('TEL') && p.state !== 'entregado' && (
                  <button onClick={() => informarPago(p.id)} className={`w-full mt-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${p.pagoInformado ? 'bg-green-500/20 text-green-500 border border-green-500/50' : 'bg-blue-600 text-white animate-pulse'}`} disabled={p.pagoInformado}>{p.pagoInformado ? 'Pago en Verificación' : 'Ya deposité / Informar Pago'}</button>
                )}
              </div>
@@ -1194,7 +1195,7 @@ const guardarEvento = async (e) => {
           </div>
         </div>
 
-        {/* MENÚ DE PESTAÑAS (Aquí se agregaron de nuevo los botones en su lugar original) */}
+        {/* MENÚ DE PESTAÑAS */}
         <div className="w-full overflow-x-auto no-scrollbar flex justify-between items-center gap-4 flex-wrap border-t border-slate-900 pt-4">
           <div className="flex gap-3">
             <button 
@@ -1380,53 +1381,47 @@ const guardarEvento = async (e) => {
             </div>
           )}
 
- {/* TAB: TABLERO DE CONTROL FÍSICO ADAPTADO POR PISOS (1-25 y 26-50) */}
+          {/* TAB: TABLERO DE CONTROL FÍSICO */}
           {tabBarra === 'mesas_fisicas' && (
             <div className="no-print w-full space-y-4">
-              
-              {/* ENCABEZADO CON FILTRO MINIMALISTA DE PISOS */}
               <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                 <div>
-                   <h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-1">
-                     🗺️ Tablero de Control Físico
-                   </h2>
-                   <p className="text-slate-400 text-[10px] uppercase font-bold">
-                     Toca una mesa libre para abrir comanda o una ocupada para añadir artículos
-                   </p>
-                 </div>
+                  <div>
+                    <h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-1">
+                      🗺️ Tablero de Control Físico
+                    </h2>
+                    <p className="text-slate-400 text-[10px] uppercase font-bold">
+                      Toca una mesa libre para abrir comanda o una ocupada para añadir artículos
+                    </p>
+                  </div>
 
-                 {/* Botones selectores de área */}
-                 <div className="flex gap-1.5 bg-slate-950 p-1 rounded-xl border border-white/5 w-full sm:w-auto overflow-x-auto no-scrollbar">
-                   {[
-                     { id: "BAJA", label: "Planta Baja (1-25)" },
-                     { id: "TERRAZA", label: "Terraza (26-50)" },
-                     { id: "TODOS", label: "Ver Todo (1-50)" }
-                   ].map(piso => (
-                     <button
-                       key={piso.id}
-                       type="button"
-                       // Usamos tu filtroMesa para no obligarte a declarar un useState nuevo arriba
-                       onClick={() => setFiltroMesa(piso.id)}
-                       className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all whitespace-nowrap ${
-                         (filtroMesa === piso.id || (filtroMesa !== "BAJA" && filtroMesa !== "TERRAZA" && piso.id === "TODOS"))
-                           ? 'bg-orange-600 text-white shadow-md'
-                           : 'text-slate-400 hover:text-white bg-transparent'
-                       }`}
-                     >
-                       {piso.label}
-                     </button>
-                   ))}
-                 </div>
+                  <div className="flex gap-1.5 bg-slate-950 p-1 rounded-xl border border-white/5 w-full sm:w-auto overflow-x-auto no-scrollbar">
+                    {[
+                      { id: "BAJA", label: "Planta Baja (1-25)" },
+                      { id: "TERRAZA", label: "Terraza (26-50)" },
+                      { id: "TODOS", label: "Ver Todo (1-50)" }
+                    ].map(piso => (
+                      <button
+                        key={piso.id}
+                        type="button"
+                        onClick={() => setFiltroMesa(piso.id)}
+                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all whitespace-nowrap ${
+                          (filtroMesa === piso.id || (filtroMesa !== "BAJA" && filtroMesa !== "TERRAZA" && piso.id === "TODOS"))
+                            ? 'bg-orange-600 text-white shadow-md'
+                            : 'text-slate-400 hover:text-white bg-transparent'
+                        }`}
+                      >
+                        {piso.label}
+                      </button>
+                    ))}
+                  </div>
               </div>
 
-              {/* REJILLA FILTRADA MATEMÁTICAMENTE */}
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-7 gap-2.5">
                  {Array.from({ length: 50 }, (_, i) => i + 1)
-                   // 🧮 Aplicamos los rangos de corte exactos en base al botón pulsado
                    .filter(num => {
                      if (filtroMesa === "BAJA") return num >= 1 && num <= 25;
                      if (filtroMesa === "TERRAZA") return num >= 26 && num <= 50;
-                     return true; // TODOS muestra de la 1 a la 50
+                     return true;
                    })
                    .map(num => {
                     const numMesa = String(num);
@@ -1452,7 +1447,7 @@ const guardarEvento = async (e) => {
                              }
                           }}
                           className={`p-3.5 rounded-xl flex flex-col items-center justify-center border transition-all active:scale-95 ${
-                             comandaActiva 
+                              comandaActiva 
                                ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-md animate-pulse-slow' 
                                : 'bg-[#0c111a] border-slate-800 text-slate-500 hover:border-slate-700'
                           }`}
@@ -1463,16 +1458,15 @@ const guardarEvento = async (e) => {
                           </span>
                        </button>
                     );
-                  })}
+                   })}
               </div>
             </div>
           )}
 
-{/* TAB: INVENTARIO CON FILTRO INTELIGENTE CORREGIDO EXCLUSIVO PARA CERVEZAS */}
+          {/* TAB: INVENTARIO */}
           {tabBarra === 'inventario' && (
             <div className="no-print space-y-6 animate-fade-in font-sans">
               
-              {/* Selector de sub-categorías minimalista */}
               <div className="flex gap-2 overflow-x-auto no-scrollbar bg-[#0c111a] p-2 rounded-2xl border border-slate-800">
                 {["TODOS", "CERVEZA", "BOTELLAS", "BEBIDAS PREPARADAS", "SNACKS", "COMIDAS"].map(filtroInv => (
                   <button 
@@ -1489,9 +1483,6 @@ const guardarEvento = async (e) => {
                 ))}
               </div>
 
-              {/* ========================================================= */}
-              {/* 1. ⚖️ PANEL: MONITOR DE BÁSCULA (BEBIDAS PREPARADAS EN USO) */}
-              {/* ========================================================= */}
               {(filtroMesa === "" || filtroMesa.toUpperCase() === "BEBIDAS PREPARADAS") && (
                 <div className="bg-slate-950/40 border border-slate-800 p-4 rounded-3xl space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-900 pb-3">
@@ -1540,7 +1531,6 @@ const guardarEvento = async (e) => {
                     </button>
                   </div>
 
-                  {/* Tarjetas de Auditoría de Peso */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {productosMenu.filter(p => p.categoria?.toLowerCase().trim() === "bebidas preparadas" && p.esInsumoPeso).map(trago => {
                       const gramosLiquidosActuales = Math.max(0, (trago.pesoActualGramos || 0) - (trago.pesoBotellaVacio || 0));
@@ -1574,7 +1564,7 @@ const guardarEvento = async (e) => {
                             </div>
                           </div>
 
-                          <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-900 mt-1">
+                          <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-800 mt-1">
                             <span className="text-[9px] text-slate-400 font-bold uppercase">Neto: <span className="text-white font-black">{gramosLiquidosActuales}g</span></span>
                             <button 
                               type="button"
@@ -1596,9 +1586,6 @@ const guardarEvento = async (e) => {
                 </div>
               )}
 
-              {/* ========================================================= */}
-              {/* 2. 🍳 CONTENEDOR: DESPACHO DE COCINA (SNACKS & COMIDAS) */}
-              {/* ========================================================= */}
               {(filtroMesa === "" || filtroMesa.toUpperCase() === "SNACKS" || filtroMesa.toUpperCase() === "COMIDAS") && (
                 <div>
                   <h2 className="text-amber-500 font-black italic tracking-widest uppercase text-xs mb-3 flex items-center gap-2">
@@ -1634,9 +1621,6 @@ const guardarEvento = async (e) => {
                 </div>
               )}
               
-              {/* ========================================================= */}
-              {/* 3. 🍺 CONTENEDOR: HIELERA PLANTA BAJA */}
-              {/* ========================================================= */}
               {(filtroMesa === "" || filtroMesa.toUpperCase() === "CERVEZA" || filtroMesa.toUpperCase() === "BOTELLAS") && (
                 <div className="pt-2">
                   <h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-3 flex items-center gap-2">
@@ -1645,7 +1629,6 @@ const guardarEvento = async (e) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {productosMenu
                       .filter(p => ["cerveza", "botellas"].includes(p.categoria?.toLowerCase().trim()) && p.ubicacion === "PLANTA BAJA" && !p.esInsumoPeso)
-                      // 📍 CORRECCIÓN: Si el usuario pulsa el filtro exclusivo CERVEZA, bloqueamos que se cuelen las botellas
                       .filter(p => filtroMesa === "" || p.categoria?.toUpperCase().trim() === filtroMesa.toUpperCase())
                       .map(prod => (
                         <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-4 rounded-xl flex flex-col gap-2">
@@ -1672,9 +1655,8 @@ const guardarEvento = async (e) => {
                             </div>
                           </div>
 
-                          {/* Configuración de calibración por peso en Planta Baja */}
                           {prod.categoria?.toLowerCase().trim() === "botellas" && (
-                            <div className="mt-1 pt-2 border-t border-slate-900/60 flex flex-wrap items-center justify-between gap-2 bg-black/20 p-2 rounded-xl border border-white/5">
+                            <div className="mt-1 pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-black/20 p-2 rounded-xl border border-white/5">
                               <p className="text-[8px] font-black text-sky-400 uppercase tracking-wider">📐 Báscula: {prod.pesoBotellaLleno ? `${prod.pesoBotellaLleno}g / ${prod.pesoBotellaVacio}g` : 'Sin calibrar'}</p>
                               <button 
                                 type="button"
@@ -1701,14 +1683,11 @@ const guardarEvento = async (e) => {
                             </div>
                           )}
                         </div>
-                    ))}
+                      ))}
                   </div>
                 </div>
               )}
 
-              {/* ========================================================= */}
-              {/* 4. ❄️ CONTENEDOR: HIELERA TERRAZA */}
-              {/* ========================================================= */}
               {(filtroMesa === "" || filtroMesa.toUpperCase() === "CERVEZA" || filtroMesa.toUpperCase() === "BOTELLAS") && (
                 <div className="pt-2">
                   <h2 className="text-sky-400 font-black italic tracking-widest uppercase text-xs mb-3 flex items-center gap-2">
@@ -1717,7 +1696,6 @@ const guardarEvento = async (e) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {productosMenu
                       .filter(p => ["cerveza", "botellas"].includes(p.categoria?.toLowerCase().trim()) && p.ubicacion === "TERRAZA" && !p.esInsumoPeso)
-                      // 📍 CORRECCIÓN: Si el usuario pulsa el filtro exclusivo CERVEZA, bloqueamos que se cuelen las botellas
                       .filter(p => filtroMesa === "" || p.categoria?.toUpperCase().trim() === filtroMesa.toUpperCase())
                       .map(prod => (
                         <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-4 rounded-xl flex flex-col gap-2">
@@ -1744,9 +1722,8 @@ const guardarEvento = async (e) => {
                             </div>
                           </div>
 
-                          {/* Configuración de calibración por peso en Terraza */}
                           {prod.categoria?.toLowerCase().trim() === "botellas" && (
-                            <div className="mt-1 pt-2 border-t border-slate-900/60 flex items-center justify-between bg-black/20 p-2 rounded-xl border border-white/5">
+                            <div className="mt-1 pt-2 border-t border-slate-800 flex items-center justify-between bg-black/20 p-2 rounded-xl border border-white/5">
                               <p className="text-[8px] font-black text-sky-400 uppercase tracking-wider">📐 Báscula: {prod.pesoBotellaLleno ? `${prod.pesoBotellaLleno}g / ${prod.pesoBotellaVacio}g` : 'Sin calibrar'}</p>
                               <button 
                                 type="button"
@@ -1773,7 +1750,7 @@ const guardarEvento = async (e) => {
                             </div>
                           )}
                         </div>
-                    ))}
+                      ))}
                   </div>
                 </div>
               )}
@@ -1800,7 +1777,7 @@ const guardarEvento = async (e) => {
           )}
         </div>
 
-        {/* 📊 PANEL DERECHO: CONTROL FINANCIERO Y BUSCADOR (FIJO A LA DERECHA) */}
+        {/* 📊 PANEL DERECHO: CONTROL FINANCIERO Y BUSCADOR */}
         <div className="w-full lg:w-[350px] space-y-4 no-print flex-shrink-0">
           
           <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 shadow-xl">
@@ -1861,258 +1838,246 @@ const guardarEvento = async (e) => {
      </div>
 
 {verModalNuevoProd && (
-       <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in">
-         <div className="bg-slate-900 border border-slate-800 w-full max-w-[450px] rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative text-left max-h-[90vh] overflow-y-auto no-scrollbar">
-           <button onClick={() => { setVerModalNuevoProd(false); setEsNuevaSub(false); }} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors">✕</button>
-           
-           <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-5 flex items-center gap-2">
-             <PlusCircle size={22}/> Nuevo Producto / Insumo
-           </h2>
-           
-           <form onSubmit={async (e) => { 
-               e.preventDefault(); 
-               const batch = writeBatch(db);
-               
-               const esBotellaCompleta = nuevoProd.categoria?.toLowerCase().trim() === "botellas";
-               const esBebidaPreparada = nuevoProd.categoria?.toLowerCase().trim() === "bebidas preparadas";
-               const esComidaOSnack = ["snacks", "comidas"].includes(nuevoProd.categoria?.toLowerCase().trim());
-               
-               const deptoBase = (esBebidaPreparada || esComidaOSnack) ? e.target.modalidadPreparacion.value : "";
-               const porcionOFormat = esBebidaPreparada ? e.target.modalidadPorcion.value : nuevoProd.subcategoria;
+        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-[450px] rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative text-left max-h-[90vh] overflow-y-auto no-scrollbar">
+            <button onClick={() => { setVerModalNuevoProd(false); setEsNuevaSub(false); }} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors">✕</button>
+            
+            <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-5 flex items-center gap-2">
+              <PlusCircle size={22}/> Nuevo Producto / Insumo
+            </h2>
+            
+            <form onSubmit={async (e) => { 
+                e.preventDefault(); 
+                const batch = writeBatch(db);
+                
+                const esBotellaCompleta = nuevoProd.categoria?.toLowerCase().trim() === "botellas";
+                const esBebidaPreparada = nuevoProd.categoria?.toLowerCase().trim() === "bebidas preparadas";
+                const esComidaOSnack = ["snacks", "comidas"].includes(nuevoProd.categoria?.toLowerCase().trim());
+                
+                const deptoBase = (esBebidaPreparada || esComidaOSnack) ? e.target.modalidadPreparacion.value : "";
+                const porcionOFormat = esBebidaPreparada ? e.target.modalidadPorcion.value : nuevoProd.subcategoria;
 
-               // Lógica de automatización: Si es bebida preparada, extrae los datos de la botella asociada
-               let datosBasculaAut = {};
-               if (esBebidaPreparada && e.target.botellaEnlaceId?.value) {
-                 const botellaSeleccionada = productosMenu.find(p => p.id === e.target.botellaEnlaceId.value);
-                 if (botellaSeleccionada) {
-                   datosBasculaAut = {
-                     esInsumoPeso: true,
-                     botellaOriginalId: botellaSeleccionada.id,
-                     pesoBotellaLleno: Number(botellaSeleccionada.pesoBotellaLleno || 1200),
-                     pesoBotellaVacio: Number(botellaSeleccionada.pesoBotellaVacio || 500),
-                     gramosPorVaso: Number(botellaSeleccionada.gramosPorVaso || 45),
-                     gramosPorLitro: Number(botellaSeleccionada.gramosPorLitro || 90),
-                     pesoActualGramos: Number(botellaSeleccionada.pesoActualGramos || botellaSeleccionada.pesoBotellaLleno || 1200)
-                   };
-                 }
-               }
+                let datosBasculaAut = {};
+                if (esBebidaPreparada && e.target.botellaEnlaceId?.value) {
+                  const botellaSeleccionada = productosMenu.find(p => p.id === e.target.botellaEnlaceId.value);
+                  if (botellaSeleccionada) {
+                    datosBasculaAut = {
+                      esInsumoPeso: true,
+                      botellaOriginalId: botellaSeleccionada.id,
+                      pesoBotellaLleno: Number(botellaSeleccionada.pesoBotellaLleno || 1200),
+                      pesoBotellaVacio: Number(botellaSeleccionada.pesoBotellaVacio || 500),
+                      gramosPorVaso: Number(botellaSeleccionada.gramosPorVaso || 45),
+                      gramosPorLitro: Number(botellaSeleccionada.gramosPorLitro || 90),
+                      pesoActualGramos: Number(botellaSeleccionada.pesoActualGramos || botellaSeleccionada.pesoBotellaLleno || 1200)
+                    };
+                  }
+                }
 
-               // 1. REGISTRO PARA PLANTA BAJA
-               if (Number(nuevoProd.stockBaja) > 0 || esBebidaPreparada || esComidaOSnack) {
-                 const refBaja = doc(collection(db, "productos"));
-                 batch.set(refBaja, {
-                   nombre: nuevoProd.nombre,
-                   stock: Number(nuevoProd.stockBaja) || 0,
-                   ubicacion: "PLANTA BAJA",
-                   departamento: deptoBase,
-                   precioMesa: Number(nuevoProd.precioMesa),
-                   precioDomicilio: Number(nuevoProd.precioDomicilio),
-                   categoria: nuevoProd.categoria,
-                   subcategoria: porcionOFormat,
-                   imagen: nuevoProd.imagen || "https://images.unsplash.com/photo-1541532713592-79a0317b6b77?q=80&w=200",
-                   ...datosBasculaAut // Se inyectan las medidas automáticamente si se enlazó
-                 });
-               }
+                if (Number(nuevoProd.stockBaja) > 0 || esBebidaPreparada || esComidaOSnack) {
+                  const refBaja = doc(collection(db, "productos"));
+                  batch.set(refBaja, {
+                    nombre: nuevoProd.nombre,
+                    stock: Number(nuevoProd.stockBaja) || 0,
+                    ubicacion: "PLANTA BAJA",
+                    departamento: deptoBase,
+                    precioMesa: Number(nuevoProd.precioMesa),
+                    precioDomicilio: Number(nuevoProd.precioDomicilio),
+                    categoria: nuevoProd.categoria,
+                    subcategoria: porcionOFormat,
+                    imagen: nuevoProd.imagen || "https://images.unsplash.com/photo-1541532713592-79a0317b6b77?q=80&w=200",
+                    ...datosBasculaAut
+                  });
+                }
 
-               // 2. REGISTRO PARA TERRAZA
-               if (Number(nuevoProd.stockTerraza) > 0 && !esBebidaPreparada && !esComidaOSnack) {
-                 const refTerraza = doc(collection(db, "productos"));
-                 batch.set(refTerraza, {
-                   nombre: nuevoProd.nombre,
-                   stock: Number(nuevoProd.stockTerraza),
-                   ubicacion: "TERRAZA",
-                   departamento: deptoBase,
-                   precioMesa: Number(nuevoProd.precioMesa),
-                   precioDomicilio: Number(nuevoProd.precioDomicilio),
-                   categoria: nuevoProd.categoria,
-                   subcategoria: nuevoProd.subcategoria,
-                   imagen: nuevoProd.imagen || "https://images.unsplash.com/photo-1541532713592-79a0317b6b77?q=80&w=200",
-                   ...datosBasculaAut
-                 });
-               }
+                if (Number(nuevoProd.stockTerraza) > 0 && !esBebidaPreparada && !esComidaOSnack) {
+                  const refTerraza = doc(collection(db, "productos"));
+                  batch.set(refTerraza, {
+                    nombre: nuevoProd.nombre,
+                    stock: Number(nuevoProd.stockTerraza),
+                    ubicacion: "TERRAZA",
+                    departamento: deptoBase,
+                    precioMesa: Number(nuevoProd.precioMesa),
+                    precioDomicilio: Number(nuevoProd.precioDomicilio),
+                    categoria: nuevoProd.categoria,
+                    subcategoria: nuevoProd.subcategoria,
+                    imagen: nuevoProd.imagen || "https://images.unsplash.com/photo-1541532713592-79a0317b6b77?q=80&w=200",
+                    ...datosBasculaAut
+                  });
+                }
 
-               await batch.commit();
-               setVerModalNuevoProd(false);
-               setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", categoria: "Cerveza", subcategoria: "", imagen: "" });
-           }} className="space-y-4 font-sans">
-             
-             {/* 1. SELECCIÓN DE CATEGORÍA MÁSTER */}
-             <div>
-               <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Categoría del Producto</label>
-               <select 
-                 value={nuevoProd.categoria} 
-                 onChange={e => setNuevoProd({...nuevoProd, categoria: e.target.value})} 
-                 className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-300 font-bold outline-none focus:border-orange-500 shadow-inner"
-               >
-                 {CATEGORIAS.filter(c => c !== "Todos").map(c => <option key={c} value={c}>{c}</option>)}
-               </select>
-             </div>
+                await batch.commit();
+                setVerModalNuevoProd(false);
+                setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", categoria: "Cerveza", subcategoria: "", imagen: "" });
+            }} className="space-y-4 font-sans">
+              
+              <div>
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Categoría del Producto</label>
+                <select 
+                  value={nuevoProd.categoria} 
+                  onChange={e => setNuevoProd({...nuevoProd, categoria: e.target.value})} 
+                  className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-300 font-bold outline-none focus:border-orange-500 shadow-inner"
+                >
+                  {CATEGORIAS.filter(c => c !== "Todos").map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
 
-             {/* 2. DATOS BÁSICOS GENERALES */}
-             <div>
-               <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Nombre (Ej: Corona Familiar, Papas Fritas, Paloma Centenario)</label>
-               <input required placeholder="Nombre descriptivo" value={nuevoProd.nombre} onChange={e => setNuevoProd({...nuevoProd, nombre: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white font-medium shadow-inner" />
-             </div>
-             
-             {/* 3. PRECIOS DE VENTA (Normales e idénticos a la cerveza) */}
-             <div className="grid grid-cols-2 gap-3">
-               <div>
-                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Precio Mesa / Local</label>
-                 <input required type="number" placeholder="$ Local" value={nuevoProd.precioMesa} onChange={e => setNuevoProd({...nuevoProd, precioMesa: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-orange-500 font-bold shadow-inner" />
-               </div>
-               <div>
-                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Precio Domicilio</label>
-                 <input required type="number" placeholder="$ Delivery" value={nuevoProd.precioDomicilio} onChange={e => setNuevoProd({...nuevoProd, precioDomicilio: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-orange-500 font-bold shadow-inner" />
-               </div>
-             </div>
+              <div>
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Nombre (Ej: Corona Familiar, Papas Fritas)</label>
+                <input required placeholder="Nombre descriptivo" value={nuevoProd.nombre} onChange={e => setNuevoProd({...nuevoProd, nombre: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white font-medium shadow-inner" />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Precio Mesa / Local</label>
+                  <input required type="number" placeholder="$ Local" value={nuevoProd.precioMesa} onChange={e => setNuevoProd({...nuevoProd, precioMesa: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-orange-500 font-bold shadow-inner" />
+                </div>
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Precio Domicilio</label>
+                  <input required type="number" placeholder="$ Delivery" value={nuevoProd.precioDomicilio} onChange={e => setNuevoProd({...nuevoProd, precioDomicilio: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-orange-500 font-bold shadow-inner" />
+                </div>
+              </div>
 
-             {/* 4. CONTROL DE STOCK UNIVERSAL (Igual para todos, incluyendo bebidas preparadas) */}
-             <div className="grid grid-cols-2 gap-3 bg-black/20 p-3 rounded-xl border border-white/5">
-               <div>
-                 <label className="text-[9px] font-black text-emerald-500 uppercase block mb-1">Stock Planta Baja</label>
-                 <input type="number" placeholder="Cantidad u." value={nuevoProd.stockBaja} onChange={e => setNuevoProd({...nuevoProd, stockBaja: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white outline-none focus:border-orange-500" />
-               </div>
-               <div>
-                 <label className="text-[9px] font-black text-sky-400 uppercase block mb-1">Stock Terraza</label>
-                 <input type="number" placeholder="Cantidad u." value={nuevoProd.stockTerraza} onChange={e => setNuevoProd({...nuevoProd, stockTerraza: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white outline-none focus:border-sky-500" />
-               </div>
-             </div>
+              <div className="grid grid-cols-2 gap-3 bg-black/20 p-3 rounded-xl border border-white/5">
+                <div>
+                  <label className="text-[9px] font-black text-emerald-500 uppercase block mb-1">Stock Planta Baja</label>
+                  <input type="number" placeholder="Cantidad u." value={nuevoProd.stockBaja} onChange={e => setNuevoProd({...nuevoProd, stockBaja: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white outline-none focus:border-orange-500" />
+                </div>
+                <div>
+                  <label className="text-[9px] font-black text-sky-400 uppercase block mb-1">Stock Terraza</label>
+                  <input type="number" placeholder="Cantidad u." value={nuevoProd.stockTerraza} onChange={e => setNuevoProd({...nuevoProd, stockTerraza: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white outline-none focus:border-sky-500" />
+                </div>
+              </div>
 
-             {/* 5. SECCIÓN INTELIGENTE ADAPTATIVA (Sin saturación visual) */}
-             {nuevoProd.categoria?.toLowerCase().trim() === "bebidas preparadas" ? (
-               <div className="space-y-3 bg-orange-600/5 p-4 rounded-2xl border border-orange-500/10">
-                 <div className="grid grid-cols-2 gap-3">
-                   <div>
-                     <label className="text-[9px] font-black text-orange-500 uppercase block mb-1">🍳 Centro</label>
-                     <select name="modalidadPreparacion" className="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-xs text-white font-bold outline-none">
-                       <option value="BARRA">Barra / Cantina</option>
-                       <option value="COCINA">Cocina</option>
-                     </select>
-                   </div>
-                   <div>
-                     <label className="text-[9px] font-black text-orange-500 uppercase block mb-1">🥛 Servir en</label>
-                     <select name="modalidadPorcion" className="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-xs text-white font-bold outline-none">
-                       <option value="VASO">Vaso</option>
-                       <option value="LITRO">Litro</option>
-                     </select>
-                   </div>
-                 </div>
+              {nuevoProd.categoria?.toLowerCase().trim() === "bebidas preparadas" ? (
+                <div className="space-y-3 bg-orange-600/5 p-4 rounded-2xl border border-orange-500/10">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[9px] font-black text-orange-500 uppercase block mb-1">🍳 Centro</label>
+                      <select name="modalidadPreparacion" className="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-xs text-white font-bold outline-none">
+                        <option value="BARRA">Barra / Cantina</option>
+                        <option value="COCINA">Cocina</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black text-orange-500 uppercase block mb-1">🥛 Servir en</label>
+                      <select name="modalidadPorcion" className="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-xs text-white font-bold outline-none">
+                        <option value="VASO">Vaso</option>
+                        <option value="LITRO">Litro</option>
+                      </select>
+                    </div>
+                  </div>
 
-                 {/* 🍾 ENLACE AUTOMÁTICO DE LICOR BASE */}
-                 <div className="pt-1">
-                   <label className="text-[9px] font-black text-sky-400 uppercase block mb-1">🍾 Botella Base para la Báscula</label>
-                   <select name="botellaEnlaceId" required className="w-full bg-slate-950 border border-sky-900/40 p-2.5 rounded-xl text-xs text-white font-bold outline-none focus:border-sky-500">
-                     <option value="">-- Seleccionar Botella Insumo --</option>
-                     {productosMenu
-                       .filter(p => p.categoria?.toLowerCase().trim() === "botellas")
-                       // Agrupamos por nombre para que no salgan duplicados si hay en ambos pisos
-                       .filter((v, i, a) => a.findIndex(t => t.nombre === v.nombre) === i)
-                       .map(botella => (
-                         <option key={botella.id} value={botella.id}>{botella.nombre}</option>
-                       ))
-                     }
-                   </select>
-                 </div>
-               </div>
-             ) : ["snacks", "comidas"].includes(nuevoProd.categoria?.toLowerCase().trim()) ? (
-               <div className="bg-orange-600/5 p-4 rounded-2xl border border-orange-500/10 space-y-3 animate-fade-in">
-                 <div className="grid grid-cols-2 gap-3">
-                   <div>
-                     <label className="text-[9px] font-black text-orange-500 uppercase block mb-1">🍳 Centro Preparación</label>
-                     <select name="modalidadPreparacion" className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white font-bold outline-none">
-                       <option value="COCINA">Cocina Caliente</option>
-                       <option value="BARRA">Barra / Fríos</option>
-                     </select>
-                   </div>
-                   <div>
-                     <label className="text-[9px] font-black text-orange-500 uppercase block mb-1">🥛 Porción</label>
-                     <select name="modalidadPorcion" className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white font-bold outline-none">
-                       <option value="INDIVIDUAL">Individual</option>
-                       <option value="COMPARTIR">Para Compartir</option>
-                     </select>
-                   </div>
-                 </div>
-               </div>
-             ) : (
-               /* Caso para Cervezas o Botellas Cerradas */
-               <div className="animate-fade-in">
-                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Formato / Subcategoría</label>
-                 <input placeholder="Ej: Latón, Media, Servicio Cerrado" value={nuevoProd.subcategoria} onChange={e => setNuevoProd({...nuevoProd, subcategoria: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white outline-none focus:border-orange-500" />
-               </div>
-             )}
+                  <div className="pt-1">
+                    <label className="text-[9px] font-black text-sky-400 uppercase block mb-1">🍾 Botella Base para la Báscula</label>
+                    <select name="botellaEnlaceId" required className="w-full bg-slate-950 border border-sky-900/40 p-2.5 rounded-xl text-xs text-white font-bold outline-none focus:border-sky-500">
+                      <option value="">-- Seleccionar Botella Insumo --</option>
+                      {productosMenu
+                        .filter(p => p.categoria?.toLowerCase().trim() === "botellas")
+                        .filter((v, i, a) => a.findIndex(t => t.nombre === v.nombre) === i)
+                        .map(botella => (
+                          <option key={botella.id} value={botella.id}>{botella.nombre}</option>
+                        ))
+                      }
+                    </select>
+                  </div>
+                </div>
+              ) : ["snacks", "comidas"].includes(nuevoProd.categoria?.toLowerCase().trim()) ? (
+                <div className="bg-orange-600/5 p-4 rounded-2xl border border-orange-500/10 space-y-3 animate-fade-in">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[9px] font-black text-orange-500 uppercase block mb-1">🍳 Centro Preparación</label>
+                      <select name="modalidadPreparacion" className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white font-bold outline-none">
+                        <option value="COCINA">Cocina Caliente</option>
+                        <option value="BARRA">Barra / Fríos</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black text-orange-500 uppercase block mb-1">🥛 Porción</label>
+                      <select name="modalidadPorcion" className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white font-bold outline-none">
+                        <option value="INDIVIDUAL">Individual</option>
+                        <option value="COMPARTIR">Para Compartir</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="animate-fade-in">
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Formato / Subcategoría</label>
+                  <input placeholder="Ej: Latón, Media, Servicio Cerrado" value={nuevoProd.subcategoria} onChange={e => setNuevoProd({...nuevoProd, subcategoria: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white outline-none focus:border-orange-500" />
+                </div>
+              )}
 
-             {/* 6. IMAGEN DEL PRODUCTO */}
-             <div>
-               <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Imagen del Producto (URL)</label>
-               <input placeholder="https://ejemplo.com/foto.jpg" value={nuevoProd.imagen} onChange={e => setNuevoProd({...nuevoProd, imagen: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-xs outline-none text-white shadow-inner focus:border-orange-500" />
-             </div>
-             
-             <button type="submit" className="w-full bg-orange-600 hover:bg-orange-500 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest text-white shadow-xl active:scale-95 transition-all mt-2">
-               ✨ Registrar Producto
-             </button>
-           </form>
-         </div>
-       </div>
-     )}
+              <div>
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Imagen del Producto (URL)</label>
+                <input placeholder="https://ejemplo.com/foto.jpg" value={nuevoProd.imagen} onChange={e => setNuevoProd({...nuevoProd, imagen: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-xs outline-none text-white shadow-inner focus:border-orange-500" />
+              </div>
+              
+              <button type="submit" className="w-full bg-orange-600 hover:bg-orange-500 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest text-white shadow-xl active:scale-95 transition-all mt-2">
+                ✨ Registrar Producto
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
-     {verModalNuevoEvent && (
-       <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
-         <div className="bg-slate-900 border border-slate-800 w-full max-w-[350px] rounded-[2.5rem] p-8 shadow-2xl relative text-left">
-           <button onClick={() => setVerModalNuevoEvento(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white">✕</button>
-           <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><Calendar/> Nuevo Evento</h2>
-           <form onSubmit={guardarEvento} className="space-y-4">
-             <input required placeholder="Título" value={nuevoEvento.titulo} onChange={e => setNuevoEvento({...nuevoEvento, titulo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
-             <input required type="date" value={nuevoEvento.fecha} onChange={e => setNuevoEvento({...nuevoEvento, fecha: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
-             <input required type="time" value={nuevoEvento.hora} onChange={e => setNuevoEvento({...nuevoEvento, hora: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
-             <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95">Guardar</button>
-           </form>
-         </div>
-       </div>
-     )}
+      {verModalNuevoEvento && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-[350px] rounded-[2.5rem] p-8 shadow-2xl relative text-left">
+            <button onClick={() => setVerModalNuevoEvento(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white">✕</button>
+            <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><Calendar/> Nuevo Evento</h2>
+            <form onSubmit={guardarEvento} className="space-y-4">
+              <input required placeholder="Título" value={nuevoEvento.titulo} onChange={e => setNuevoEvento({...nuevoEvento, titulo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
+              <input required type="date" value={nuevoEvento.fecha} onChange={e => setNuevoEvento({...nuevoEvento, fecha: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
+              <input required type="time" value={nuevoEvento.hora} onChange={e => setNuevoEvento({...nuevoEvento, hora: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
+              <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95">Guardar</button>
+            </form>
+          </div>
+        </div>
+      )}
 
-     {ticketParaReimprimir && (
-       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
-         <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-orange-600 print:border-none">
-           <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
+      {ticketParaReimprimir && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
+          <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-orange-600 print:border-none">
+            <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
 
-           <div className="text-center mb-6">
-             <h2 className="font-black text-3xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
-             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Nota de Venta</p>
-             <div className="border-y-2 border-black py-2 my-2 space-y-1">
-               <div className="flex justify-between text-[11px] font-bold">
-                 <span>MESA:</span>
-                 <span className="bg-black text-white px-2 uppercase">{ticketParaReimprimir.mesa?.replace("TEL:", "EXT-")}</span>
-               </div>
-               <div className="flex justify-between text-[9px] text-gray-600">
-                 <span>FECHA:</span>
-                 <span>{ticketParaReimprimir.fecha?.seconds ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : new Date().toLocaleString('es-MX')}</span>
-               </div>
-             </div>
-           </div>
+            <div className="text-center mb-6">
+              <h2 className="font-black text-3xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Nota de Venta</p>
+              <div className="border-y-2 border-black py-2 my-2 space-y-1">
+                <div className="flex justify-between text-[11px] font-bold">
+                  <span>MESA:</span>
+                  <span className="bg-black text-white px-2 uppercase">{ticketParaReimprimir.mesa?.replace("TEL:", "EXT-")}</span>
+                </div>
+                <div className="flex justify-between text-[9px] text-gray-600">
+                  <span>FECHA:</span>
+                  <span>{ticketParaReimprimir.fecha?.seconds ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : new Date().toLocaleString('es-MX')}</span>
+                </div>
+              </div>
+            </div>
 
-           <div className="text-[11px] mb-6">
-             <div className="flex justify-between font-black border-b border-black pb-1 mb-2">
-               <span>DESCRIPCIÓN</span>
-               <span>IMPORTE</span>
-             </div>
-             <div className="space-y-3 whitespace-pre-line leading-tight italic">
-               {ticketParaReimprimir.detalle}
-             </div>
-           </div>
+            <div className="text-[11px] mb-6">
+              <div className="flex justify-between font-black border-b border-black pb-1 mb-2">
+                <span>DESCRIPCIÓN</span>
+                <span>IMPORTE</span>
+              </div>
+              <div className="space-y-3 whitespace-pre-line leading-tight italic">
+                {ticketParaReimprimir.detalle}
+              </div>
+            </div>
 
-           <div className="border-t-4 border-double border-black pt-4 mb-8">
-             <div className="flex justify-between items-end">
-               <span className="font-bold text-sm">TOTAL:</span>
-               <span className="font-black text-4xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
-             </div>
-           </div>
-           
-           <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors">
-             <Printer size={20}/> CONFIRMAR IMPRESIÓN
-           </button>
-         </div>
-       </div>
-     )}
+            <div className="border-t-4 border-double border-black pt-4 mb-8">
+              <div className="flex justify-between items-end">
+                <span className="font-bold text-sm">TOTAL:</span>
+                <span className="font-black text-4xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
+              </div>
+            </div>
+            
+            <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors">
+              <Printer size={20}/> CONFIRMAR IMPRESIÓN
+            </button>
+          </div>
+        </div>
+      )}
 
    </div>
 )}
@@ -2126,10 +2091,8 @@ const guardarEvento = async (e) => {
 
      <div className="relative z-10 space-y-12 w-full max-w-lg">
        
-       {/* ─── CONTENEDOR DEL LOGO Y BIENVENIDA (REEMPLAZADO) ─── */}
        <div className="space-y-4 flex flex-col items-center">
          <div className="flex justify-center items-center gap-2 animate-fade-in">
-           {/* 🎯 LOGO DEL BAR: Reemplaza la URL de abajo por la de tu imagen final */}
            <img 
              src="https://res.cloudinary.com/druv9bk0d/image/upload/q_auto/f_auto/v1781915505/tribus_logo-removebg-preview_jzqqpj.png" 
              alt="Tribu's Bar Logo" 
@@ -2201,7 +2164,7 @@ const guardarEvento = async (e) => {
    <div className="flex items-center justify-center min-h-screen bg-black p-4">
      <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
        <button onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
-       <div className="bg-[#2d1b14] p-4 rounded-full mb-6"><div className="text-[#ff4d00] text-3xl italic font-black font-sans">⚡</div></div>
+       <div className="bg-[#2d1b14] p-4 rounded-full mb-6"><div className="text-[#ff4d00] text-3xl italic font-black">⚡</div></div>
        <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">Únete a la Tribu</h2>
        <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 font-bold text-center">Registra tu visita y obtén beneficios</p>
        <div className="w-full space-y-5">
@@ -2227,22 +2190,49 @@ const guardarEvento = async (e) => {
 {view === 'login' && (
    <div className="flex items-center justify-center min-h-screen bg-black p-4 font-sans">
      <div className="bg-[#0f172a] text-white rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center p-8 border border-gray-800 relative">
-       <button onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
+       <button type="button" onClick={() => setView('welcome')} className="absolute top-6 right-8 text-gray-500 hover:text-white">✕</button>
        <div className="bg-[#2d1b14] p-4 rounded-full mb-6"><div className="text-[#ff4d00] text-3xl italic font-black">⚡</div></div>
+       
        <h2 className="text-3xl font-black italic uppercase mb-1 tracking-wider text-center">Bienvenido de nuevo</h2>
        <p className="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-8 font-bold text-center">Ingresa tus datos para continuar</p>
-       <div className="w-full space-y-5">
+       
+       <form onSubmit={(e) => {
+         e.preventDefault();
+         loginClienteFrecuente();
+       }} className="w-full space-y-5">
+         
          <div>
            <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu WhatsApp</label>
-           <input type="tel" placeholder="10 dígitos" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setTelefonoInput(e.target.value)} />
+           <input 
+             type="tel" 
+             required
+             placeholder="10 dígitos" 
+             value={telefonoInput}
+             className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" 
+             onChange={(e) => setTelefonoInput(e.target.value)} 
+           />
          </div>
+         
          <div>
            <label className="text-[9px] font-black text-gray-500 uppercase ml-1 mb-1 block">Tu contraseña</label>
-           <input type="password" placeholder="Ingresa tu clave" className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" onChange={(e) => setPassword(e.target.value)} />
+           <input 
+             type="password" 
+             required
+             placeholder="Ingresa tu clave" 
+             value={password}
+             className="w-full bg-[#050a15] border border-gray-800 p-4 rounded-2xl outline-none focus:border-orange-600 transition-colors" 
+             onChange={(e) => setPassword(e.target.value)} 
+           />
          </div>
-         <button onClick={loginClienteFrecuente} className="w-full bg-[#ff4d00] hover:bg-[#e64500] py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">Entrar</button>
-         <button onClick={() => setView('registro')} className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest">No tengo cuenta, quiero registrarme</button>
-       </div>
+         
+         <button type="submit" className="w-full bg-[#ff4d00] hover:bg-[#e64500] py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">
+           Entrar
+         </button>
+         
+         <button type="button" onClick={() => setView('registro')} className="w-full text-gray-500 text-[10px] font-bold uppercase tracking-widest block text-center mt-2">
+           No tengo cuenta, quiero registrarme
+         </button>
+       </form>
      </div>
    </div>
 )}
@@ -2322,7 +2312,6 @@ const guardarEvento = async (e) => {
       )}
     </select>
     
-    {/* 🔥 BOTÓN REGRESAR INTEGRADO */}
     <button 
       onClick={() => {
         if (esComandaManual) {
@@ -2365,15 +2354,15 @@ const guardarEvento = async (e) => {
        {carrito.length > 0 && !verCarrito && (<div className="fixed bottom-6 left-0 right-0 px-6 z-50 flex justify-center no-print"><button onClick={() => setVerCarrito(true)} className="w-full max-w-lg bg-orange-600 text-white py-4 rounded-2xl font-black flex justify-between px-8 shadow-2xl active:scale-95 transition-all shadow-orange-950/30"><span className="text-[10px] uppercase font-bold tracking-widest text-white leading-none flex items-center gap-2"><ShoppingCart size={14}/> MI PEDIDO ({carrito.reduce((a,b)=>a+b.cantidad,0)})</span><span className="font-black text-xl italic text-white tracking-tighter leading-none">${totalCarrito}</span></button></div>)}
        <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible opacity-100' : 'invisible opacity-0'}`}><div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} /><div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}><div className="flex justify-between items-center border-b border-slate-800 pb-4 font-black text-white italic uppercase text-xl tracking-tighter leading-none"><h2>Mi Cuenta</h2><X onClick={() => setVerCarrito(false)} className="text-slate-500 cursor-pointer" /></div><div className="flex-1 overflow-y-auto py-4 space-y-6 no-scrollbar">{carrito.length > 0 && (<div><p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ShoppingCart size={12}/> Por pedir ahora:</p><div className="space-y-3">{carrito.map(item => (<div key={item.id} className="bg-orange-600/5 p-3 rounded-2xl flex flex-col gap-2 border border-orange-600/20 shadow-sm"><div className="flex justify-between font-bold text-xs text-white uppercase tracking-tight leading-none"><span>{item.nombre}</span><button onClick={() => setCarrito(carrito.filter(x => x.id !== item.id))}><Trash2 size={14} className="text-slate-600 hover:text-red-500 transition-colors"/></button></div><div className="flex justify-between items-center"><span className="text-orange-500 font-bold italic tracking-tighter">${item.precio * item.cantidad}</span><div className="flex items-center gap-3 bg-slate-800 rounded-full px-3 py-1 shadow-inner"><Minus onClick={() => restarDelCarrito(item.id)} size={12} className="cursor-pointer"/><span className="text-xs font-bold text-white">{item.cantidad}</span><Plus onClick={() => agregarAlCarrito(item)} size={12} className="cursor-pointer"/></div></div></div>))}</div></div>)}{consumoAcumulado.length > 0 && (<div><p className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-3 flex items-center gap-2"><History size={12}/> Ya consumido:</p><div className="space-y-2">{consumoAcumulado.map((item, idx) => (<div key={idx} className="bg-slate-900/50 p-3 rounded-xl flex justify-between items-center border border-slate-800 opacity-60"><span className="text-[11px] font-bold text-slate-300 uppercase">{item.amount || item.cantidad}x {item.nombre}</span><span className="text-[11px] font-black text-white">${item.precio * (item.amount || item.cantidad)}</span></div>))}</div></div>)}</div><div className="pt-4 border-t border-slate-800 space-y-4"><div className="flex justify-between font-black text-2xl text-orange-500 italic"><span>Total Cuenta</span><span>${totalCarrito + totalAcumulado}</span></div><button disabled={carrito.length === 0} onClick={intentarEnviar} className="w-full py-4 rounded-2xl font-black text-white bg-orange-600 active:scale-95 transition-all shadow-xl uppercase tracking-widest">Confirmar Pedido</button></div></div></div>
        <div className={`fixed inset-0 z-[200] bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans ${verModalTelefono ? 'visible' : 'hidden'}`}>
-            <div className="mb-8 text-center"><Phone size={48} className="text-orange-600 mx-auto mb-4 animate-bounce" /><h2 className="text-3xl font-black italic uppercase tracking-tighter">¿Tu Teléfono?</h2><p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Para identificar tu pedido externo</p></div>
+            <div className="mb-8 text-center"><Phone size={48} className="text-orange-600 mx-auto mb-4" /><h2 className="text-3xl font-black italic uppercase tracking-tighter">¿Tu Teléfono?</h2><p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Para identificar tu pedido externo</p></div>
             <div className="w-full max-w-[300px] mb-8"><div className="bg-slate-900 border-2 border-orange-600/50 rounded-2xl p-6 text-center shadow-2xl"><span className="text-4xl font-black tracking-widest text-white">{telefonoInput || "----------"}</span></div></div>
-           <div className="grid grid-cols-3 gap-4 max-w-[280px]">
-               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (<button key={n} onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">{n}</button>))}
-               <button onClick={() => setTelefonoInput("")} className="w-16 h-16 rounded-full flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20"><Trash2 size={24}/></button>
-               <button onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + "0")} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black">0</button>
-               <button onClick={() => setVerModalTelefono(false)} className="w-16 h-16 rounded-full flex items-center justify-center text-slate-500 border border-slate-800"><X size={24}/></button>
-           </div>
-           {telefonoInput.length >= 10 && (<button onClick={() => procesarEnvio()} className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse">Confirmar Pedido</button>)}
+            <div className="grid grid-cols-3 gap-4 max-w-[280px]">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (<button key={n} onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">{n}</button>))}
+                <button onClick={() => setTelefonoInput("")} className="w-16 h-16 rounded-full flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20"><Trash2 size={24}/></button>
+                <button onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + "0")} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black">0</button>
+                <button onClick={() => setVerModalTelefono(false)} className="w-16 h-16 rounded-full flex items-center justify-center text-slate-500 border border-slate-800"><X size={24}/></button>
+            </div>
+            {telefonoInput.length >= 10 && (<button onClick={() => procesarEnvio()} className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse">Confirmar Pedido</button>)}
        </div>
 
        {verModalEscaner && (
@@ -2426,7 +2415,7 @@ const guardarEvento = async (e) => {
              </div>
 
              <div className="space-y-3 bg-black/30 p-3 rounded-2xl border border-slate-900 shadow-inner">
-               <div className="bg-slate-900 border-2 border-orange-500/30 rounded-xl py-1.5 px-4 text-center">
+               <div className="slate-900 border-2 border-orange-500/30 rounded-xl py-1.5 px-4 text-center">
                  <span className="text-[8px] font-black uppercase text-slate-500 tracking-widest block mb-0.5">Mesa Seleccionada</span>
                  <span className="text-3xl font-black tracking-widest text-white">{mesaEscaneadaInput || "---"}</span>
                </div>
@@ -2460,12 +2449,11 @@ const guardarEvento = async (e) => {
    );
  })()}
 
-  {/* 🔥 CORREGIDO FILTRO: Agregadas las exclusiones clave para evitar el bucle de bloqueo en la barra */}
-  {view !== 'welcome' && view !== 'registro' && view !== 'login' && view !== 'menu' && view !== 'barra' && view !== 'login_staff' && view !== 'mis_pedidos' && view !== 'success' && (
-     <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-       <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
-     </div>
-  )}
+ {view !== 'welcome' && view !== 'registro' && view !== 'login' && view !== 'menu' && view !== 'barra' && view !== 'login_staff' && view !== 'mis_pedidos' && view !== 'success' && (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
+      </div>
+ )}
       <div id="recaptcha-container"></div>
    </>
  );
