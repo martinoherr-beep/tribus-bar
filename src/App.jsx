@@ -75,6 +75,9 @@ function App() {
  const [pedidosBarra, setPedidosBarra] = useState([]);
  const [historialCerrado, setHistorialCerrado] = useState([]); 
  const [filtroMesa, setFiltroMesa] = useState(""); 
+ // 💡 NUEVO ESTADO AGREGADO PARA SEPARAR EL INVENTARIO DEL BUSCADOR DE COMANDAS
+ const [filtroInventario, setFiltroInventario] = useState(""); 
+ const [filtroPisoFisico, setFiltroPisoFisico] = useState("");
  const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
  const [nombreRegistro, setNombreRegistro] = useState('');
  const [usuarioLogueado, setUsuarioLogueado] = useState(null);
@@ -156,8 +159,8 @@ function App() {
 
  const forzarInstalacionApp = async () => {
   if (!eventoInstalacion) {
-    alert("En iPhone/iPad: Pulsa el botón 'Compartir' abajo en tu navegador y selecciona 'Agregar a inicio' 📲");
-    return;
+     alert("En iPhone/iPad: Pulsa el botón 'Compartir' abajo en tu navegador y selecciona 'Agregar a inicio' 📲");
+     return;
   }
   eventoInstalacion.prompt(); 
   const { outcome } = await eventoInstalacion.userChoice;
@@ -358,6 +361,7 @@ useEffect(() => {
  };
 
  const informarPago = async (pedidoId) => {
+ sniper:
  try {
    const pedidoRef = doc(db, "pedidos", pedidoId);
    await updateDoc(pedidoRef, {
@@ -686,7 +690,6 @@ const verificarCodigo = async () => {
   return () => unsub();
  }, []);
 
- // 🚨 CORRECCIÓN IMPLEMENTADA EN EL COMPONENTE CENTRAL DE MONITOREO 🚨
  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     let mesaId = params.get("mesa");
@@ -807,8 +810,6 @@ const verificarCodigo = async () => {
     onSnapshot(query(collection(db, "recordatorios"), orderBy("fecha", "asc")), (snap) => setRecordatorios(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 
     return () => unsubPedidos();
-  // 🔥 CRUCIAL: Añadido 'usuarioLogueado' al Array de Dependencias para que al iniciar sesión
-  // la app evalúe la mesa del QR de inmediato y no pierda la referencia reactiva.
   }, [mesa, usuarioLogueado]);
 
  const manejarPinMesa = (num) => {
@@ -839,29 +840,29 @@ const verificarCodigo = async () => {
  const intentarEnviar = () => {
  if (carrito.length === 0) return;
  if (mesa || usuarioLogueado) {
-    procesarEnvio(mesa || null);
+     procesarEnvio(mesa || null);
  } else {
-    setVerModalTelefono(true);
+     setVerModalTelefono(true);
  }
 };
 
 const obtenerAlertaCliente = async (telefonoCliente, uidCliente) => {
-    if (!uidCliente || !telefonoCliente || telefonoCliente === "N/A") {
-       return "morada"; 
-    }
+     if (!uidCliente || !telefonoCliente || telefonoCliente === "N/A") {
+        return "morada"; 
+     }
 
-    try {
-       const q = query(collection(db, "historial_tickets"), where("uid", "==", uidCliente));
-       const querySnapshot = await getDocs(q);
-       const totalPedidos = querySnapshot.size;
+     try {
+        const q = query(collection(db, "historial_tickets"), where("uid", "==", uidCliente));
+        const querySnapshot = await getDocs(q);
+        const totalPedidos = querySnapshot.size;
 
-       if (totalPedidos >= 5) return "verde"; 
-       else if (totalPedidos >= 2) return "amarilla"; 
-       else return "morada";
-    } catch (error) {
-       console.error("Error al clasificar cliente registrado:", error);
-       return "morada";
-    }
+        if (totalPedidos >= 5) return "verde"; 
+        else if (totalPedidos >= 2) return "amarilla"; 
+        else return "morada";
+     } catch (error) {
+        console.error("Error al clasificas cliente registrado:", error);
+        return "morada";
+     }
 };
 
 const procesarEnvio = async (idDestino) => {
@@ -1381,8 +1382,7 @@ const guardarEvento = async (e) => {
             </div>
           )}
 
-          {/* TAB: TABLERO DE CONTROL FÍSICO */}
-          {tabBarra === 'mesas_fisicas' && (
+        {tabBarra === 'mesas_fisicas' && (
             <div className="no-print w-full space-y-4">
               <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
@@ -1396,16 +1396,16 @@ const guardarEvento = async (e) => {
 
                   <div className="flex gap-1.5 bg-slate-950 p-1 rounded-xl border border-white/5 w-full sm:w-auto overflow-x-auto no-scrollbar">
                     {[
+                      { id: "TODOS", label: "Ver Todo (1-50)" },
                       { id: "BAJA", label: "Planta Baja (1-25)" },
-                      { id: "TERRAZA", label: "Terraza (26-50)" },
-                      { id: "TODOS", label: "Ver Todo (1-50)" }
+                      { id: "TERRAZA", label: "Terraza (26-50)" }
                     ].map(piso => (
                       <button
                         key={piso.id}
                         type="button"
-                        onClick={() => setFiltroMesa(piso.id)}
+                        onClick={() => setFiltroPisoFisico(piso.id === "TODOS" ? "" : piso.id)}
                         className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all whitespace-nowrap ${
-                          (filtroMesa === piso.id || (filtroMesa !== "BAJA" && filtroMesa !== "TERRAZA" && piso.id === "TODOS"))
+                          (filtroPisoFisico === piso.id || (filtroPisoFisico === "" && piso.id === "TODOS"))
                             ? 'bg-orange-600 text-white shadow-md'
                             : 'text-slate-400 hover:text-white bg-transparent'
                         }`}
@@ -1417,10 +1417,10 @@ const guardarEvento = async (e) => {
               </div>
 
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-7 gap-2.5">
-                 {Array.from({ length: 50 }, (_, i) => i + 1)
+                  {Array.from({ length: 50 }, (_, i) => i + 1)
                    .filter(num => {
-                     if (filtroMesa === "BAJA") return num >= 1 && num <= 25;
-                     if (filtroMesa === "TERRAZA") return num >= 26 && num <= 50;
+                     if (filtroPisoFisico === "BAJA") return num >= 1 && num <= 25;
+                     if (filtroPisoFisico === "TERRAZA") return num >= 26 && num <= 50;
                      return true;
                    })
                    .map(num => {
@@ -1448,7 +1448,7 @@ const guardarEvento = async (e) => {
                           }}
                           className={`p-3.5 rounded-xl flex flex-col items-center justify-center border transition-all active:scale-95 ${
                               comandaActiva 
-                               ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-md animate-pulse-slow' 
+                               ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-md' 
                                : 'bg-[#0c111a] border-slate-800 text-slate-500 hover:border-slate-700'
                           }`}
                        >
@@ -1462,8 +1462,7 @@ const guardarEvento = async (e) => {
               </div>
             </div>
           )}
-
-          {/* TAB: INVENTARIO */}
+{/* TAB: INVENTARIO */}
           {tabBarra === 'inventario' && (
             <div className="no-print space-y-6 animate-fade-in font-sans">
               
@@ -1471,9 +1470,9 @@ const guardarEvento = async (e) => {
                 {["TODOS", "CERVEZA", "BOTELLAS", "BEBIDAS PREPARADAS", "SNACKS", "COMIDAS"].map(filtroInv => (
                   <button 
                     key={filtroInv}
-                    onClick={() => setFiltroMesa(filtroInv === "TODOS" ? "" : filtroInv)}
+                    onClick={() => setFiltroInventario(filtroInv === "TODOS" ? "" : filtroInv)}
                     className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all flex-shrink-0 ${
-                      (filtroMesa.toUpperCase() === filtroInv) || (filtroInv === "TODOS" && filtroMesa === "")
+                      (filtroInventario === filtroInv || (filtroInv === "TODOS" && filtroInventario === ""))
                         ? 'bg-orange-600 text-white shadow-md' 
                         : 'bg-slate-950 text-slate-400 hover:text-white'
                     }`}
@@ -1483,7 +1482,7 @@ const guardarEvento = async (e) => {
                 ))}
               </div>
 
-              {(filtroMesa === "" || filtroMesa.toUpperCase() === "BEBIDAS PREPARADAS") && (
+              {(filtroInventario === "" || filtroInventario === "BEBIDAS PREPARADAS") && (
                 <div className="bg-slate-950/40 border border-slate-800 p-4 rounded-3xl space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-900 pb-3">
                     <div>
@@ -1586,7 +1585,7 @@ const guardarEvento = async (e) => {
                 </div>
               )}
 
-              {(filtroMesa === "" || filtroMesa.toUpperCase() === "SNACKS" || filtroMesa.toUpperCase() === "COMIDAS") && (
+              {(filtroInventario === "" || filtroInventario === "SNACKS" || filtroInventario === "COMIDAS") && (
                 <div>
                   <h2 className="text-amber-500 font-black italic tracking-widest uppercase text-xs mb-3 flex items-center gap-2">
                     <div className="w-2 h-2 bg-amber-500 rounded-full"></div> 🍳 DESPACHO DE COCINA (SNACKS & PLATILLOS)
@@ -1621,7 +1620,7 @@ const guardarEvento = async (e) => {
                 </div>
               )}
               
-              {(filtroMesa === "" || filtroMesa.toUpperCase() === "CERVEZA" || filtroMesa.toUpperCase() === "BOTELLAS") && (
+              {(filtroInventario === "" || filtroInventario === "CERVEZA" || filtroInventario === "BOTELLAS") && (
                 <div className="pt-2">
                   <h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-3 flex items-center gap-2">
                     <div className="w-2 h-2 bg-orange-500 rounded-full"></div> 🍺 HIELERA PLANTA BAJA
@@ -1629,7 +1628,7 @@ const guardarEvento = async (e) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {productosMenu
                       .filter(p => ["cerveza", "botellas"].includes(p.categoria?.toLowerCase().trim()) && p.ubicacion === "PLANTA BAJA" && !p.esInsumoPeso)
-                      .filter(p => filtroMesa === "" || p.categoria?.toUpperCase().trim() === filtroMesa.toUpperCase())
+                      .filter(p => filtroInventario === "" || p.categoria?.toUpperCase().trim() === filtroInventario.toUpperCase())
                       .map(prod => (
                         <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-4 rounded-xl flex flex-col gap-2">
                           <div className="flex items-center justify-between gap-4">
@@ -1688,7 +1687,7 @@ const guardarEvento = async (e) => {
                 </div>
               )}
 
-              {(filtroMesa === "" || filtroMesa.toUpperCase() === "CERVEZA" || filtroMesa.toUpperCase() === "BOTELLAS") && (
+              {(filtroInventario === "" || filtroInventario === "CERVEZA" || filtroInventario === "BOTELLAS") && (
                 <div className="pt-2">
                   <h2 className="text-sky-400 font-black italic tracking-widest uppercase text-xs mb-3 flex items-center gap-2">
                     <div className="w-2 h-2 bg-sky-400 rounded-full"></div> ❄️ HIELERA TERRAZA
@@ -1696,7 +1695,7 @@ const guardarEvento = async (e) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {productosMenu
                       .filter(p => ["cerveza", "botellas"].includes(p.categoria?.toLowerCase().trim()) && p.ubicacion === "TERRAZA" && !p.esInsumoPeso)
-                      .filter(p => filtroMesa === "" || p.categoria?.toUpperCase().trim() === filtroMesa.toUpperCase())
+                      .filter(p => filtroInventario === "" || p.categoria?.toUpperCase().trim() === filtroInventario.toUpperCase())
                       .map(prod => (
                         <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-4 rounded-xl flex flex-col gap-2">
                           <div className="flex items-center justify-between gap-4">
@@ -1775,9 +1774,11 @@ const guardarEvento = async (e) => {
               </div>
             </div>
           )}
-        </div>
+        </div> {/* ─── FIN PANEL IZQUIERDO ─── */}
 
-        {/* 📊 PANEL DERECHO: CONTROL FINANCIERO Y BUSCADOR */}
+        {/* ─── PANEL DERECHO: CONTROL FINANCIERO Y BUSCADOR ─── */}
+
+        {/* ─── PANEL DERECHO: CONTROL FINANCIERO Y BUSCADOR ─── */}
         <div className="w-full lg:w-[350px] space-y-4 no-print flex-shrink-0">
           
           <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 shadow-xl">
@@ -2352,7 +2353,7 @@ const guardarEvento = async (e) => {
          ))} 
        </main>
        {carrito.length > 0 && !verCarrito && (<div className="fixed bottom-6 left-0 right-0 px-6 z-50 flex justify-center no-print"><button onClick={() => setVerCarrito(true)} className="w-full max-w-lg bg-orange-600 text-white py-4 rounded-2xl font-black flex justify-between px-8 shadow-2xl active:scale-95 transition-all shadow-orange-950/30"><span className="text-[10px] uppercase font-bold tracking-widest text-white leading-none flex items-center gap-2"><ShoppingCart size={14}/> MI PEDIDO ({carrito.reduce((a,b)=>a+b.cantidad,0)})</span><span className="font-black text-xl italic text-white tracking-tighter leading-none">${totalCarrito}</span></button></div>)}
-       <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible opacity-100' : 'invisible opacity-0'}`}><div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} /><div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}><div className="flex justify-between items-center border-b border-slate-800 pb-4 font-black text-white italic uppercase text-xl tracking-tighter leading-none"><h2>Mi Cuenta</h2><X onClick={() => setVerCarrito(false)} className="text-slate-500 cursor-pointer" /></div><div className="flex-1 overflow-y-auto py-4 space-y-6 no-scrollbar">{carrito.length > 0 && (<div><p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ShoppingCart size={12}/> Por pedir ahora:</p><div className="space-y-3">{carrito.map(item => (<div key={item.id} className="bg-orange-600/5 p-3 rounded-2xl flex flex-col gap-2 border border-orange-600/20 shadow-sm"><div className="flex justify-between font-bold text-xs text-white uppercase tracking-tight leading-none"><span>{item.nombre}</span><button onClick={() => setCarrito(carrito.filter(x => x.id !== item.id))}><Trash2 size={14} className="text-slate-600 hover:text-red-500 transition-colors"/></button></div><div className="flex justify-between items-center"><span className="text-orange-500 font-bold italic tracking-tighter">${item.precio * item.cantidad}</span><div className="flex items-center gap-3 bg-slate-800 rounded-full px-3 py-1 shadow-inner"><Minus onClick={() => restarDelCarrito(item.id)} size={12} className="cursor-pointer"/><span className="text-xs font-bold text-white">{item.cantidad}</span><Plus onClick={() => agregarAlCarrito(item)} size={12} className="cursor-pointer"/></div></div></div>))}</div></div>)}{consumoAcumulado.length > 0 && (<div><p className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-3 flex items-center gap-2"><History size={12}/> Ya consumido:</p><div className="space-y-2">{consumoAcumulado.map((item, idx) => (<div key={idx} className="bg-slate-900/50 p-3 rounded-xl flex justify-between items-center border border-slate-800 opacity-60"><span className="text-[11px] font-bold text-slate-300 uppercase">{item.amount || item.cantidad}x {item.nombre}</span><span className="text-[11px] font-black text-white">${item.precio * (item.amount || item.cantidad)}</span></div>))}</div></div>)}</div><div className="pt-4 border-t border-slate-800 space-y-4"><div className="flex justify-between font-black text-2xl text-orange-500 italic"><span>Total Cuenta</span><span>${totalCarrito + totalAcumulado}</span></div><button disabled={carrito.length === 0} onClick={intentarEnviar} className="w-full py-4 rounded-2xl font-black text-white bg-orange-600 active:scale-95 transition-all shadow-xl uppercase tracking-widest">Confirmar Pedido</button></div></div></div>
+       <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible opacity-100' : 'invisible opacity-0'}`}><div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} /><div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}><div className="flex justify-between items-center border-b border-slate-800 pb-4 font-black text-white italic uppercase text-xl tracking-tighter leading-none"><h2>Mi Cuenta</h2><X onClick={() => setVerCarrito(false)} className="text-slate-500 cursor-pointer" /></div><div className="flex-1 overflow-y-auto py-4 space-y-6 no-scrollbar">{carrito.length > 0 && (<div><p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ShoppingCart size={12}/> Por pedir ahora:</p><div className="space-y-3">{carrito.map(item => (<div key={item.id} className="bg-orange-600/5 p-3 rounded-2xl flex flex-col gap-2 border border-orange-600/20 shadow-sm"><div className="flex justify-between font-bold text-xs text-white uppercase tracking-tight leading-none"><span>{item.nombre}</span><button onClick={() => setCarrito(carrito.filter(x => x.id !== item.id))}><Trash2 size={14} className="text-slate-600 hover:text-red-500 transition-colors"/></button></div><div className="flex justify-between items-center"><span className="text-orange-500 font-bold italic tracking-tighter">${item.total * item.cantidad || item.precio * item.cantidad}</span><div className="flex items-center gap-3 bg-slate-800 rounded-full px-3 py-1 shadow-inner"><Minus onClick={() => restarDelCarrito(item.id)} size={12} className="cursor-pointer"/><span className="text-xs font-bold text-white">{item.cantidad}</span><Plus onClick={() => agregarAlCarrito(item)} size={12} className="cursor-pointer"/></div></div></div>))}</div></div>)}{consumoAcumulado.length > 0 && (<div><p className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-3 flex items-center gap-2"><History size={12}/> Ya consumido:</p><div className="space-y-2">{consumoAcumulado.map((item, idx) => (<div key={idx} className="bg-slate-900/50 p-3 rounded-xl flex justify-between items-center border border-slate-800 opacity-60"><span className="text-[11px] font-bold text-slate-300 uppercase">{item.amount || item.cantidad}x {item.nombre}</span><span className="text-[11px] font-black text-white">${item.precio * (item.amount || item.cantidad)}</span></div>))}</div></div>)}</div><div className="pt-4 border-t border-slate-800 space-y-4"><div className="flex justify-between font-black text-2xl text-orange-500 italic"><span>Total Cuenta</span><span>${totalCarrito + totalAcumulado}</span></div><button disabled={carrito.length === 0} onClick={intentarEnviar} className="w-full py-4 rounded-2xl font-black text-white bg-orange-600 active:scale-95 transition-all shadow-xl uppercase tracking-widest">Confirmar Pedido</button></div></div></div>
        <div className={`fixed inset-0 z-[200] bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans ${verModalTelefono ? 'visible' : 'hidden'}`}>
             <div className="mb-8 text-center"><Phone size={48} className="text-orange-600 mx-auto mb-4" /><h2 className="text-3xl font-black italic uppercase tracking-tighter">¿Tu Teléfono?</h2><p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Para identificar tu pedido externo</p></div>
             <div className="w-full max-w-[300px] mb-8"><div className="bg-slate-900 border-2 border-orange-600/50 rounded-2xl p-6 text-center shadow-2xl"><span className="text-4xl font-black tracking-widest text-white">{telefonoInput || "----------"}</span></div></div>
