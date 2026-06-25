@@ -1186,8 +1186,8 @@ const guardarEvento = async (e) => {
           </div>
         </div>
 
-        {/* MENÚ DE PESTAÑAS */}
-        <div className="w-full overflow-x-auto no-scrollbar flex justify-between items-center gap-4 flex-wrap">
+        {/* MENÚ DE PESTAÑAS (Aquí se agregaron de nuevo los botones en su lugar original) */}
+        <div className="w-full overflow-x-auto no-scrollbar flex justify-between items-center gap-4 flex-wrap border-t border-slate-900 pt-4">
           <div className="flex gap-3">
             <button 
               onClick={() => setTabBarra('comandas')} 
@@ -1215,7 +1215,6 @@ const guardarEvento = async (e) => {
             </button>
           </div>
 
-          {/* ACCIONES DE CREACIÓN */}
           <div className="flex gap-2">
             {tabBarra === 'inventario' && (
               <button 
@@ -1237,13 +1236,13 @@ const guardarEvento = async (e) => {
         </div>
      </header>
 
-     {/* 📦 DISTRIBUCIÓN PRINCIPAL EN DOS COLUMNAS A NIVEL GLOBAL */}
+     {/* ─── ESTRUCTURA DE DOS COLUMNAS REORDENADA ─── */}
      <div className="flex flex-col lg:flex-row gap-6 w-full items-start">
         
-        {/* 🏛️ PANEL IZQUIERDO: CONTENIDOS DINÁMICOS DE LAS PESTAÑAS */}
+        {/* PANEL IZQUIERDO: CONTENIDOS DINÁMICOS */}
         <div className="flex-1 w-full">
           
-          {/* VISTA: COMANDAS */}
+          {/* TAB: COMANDAS */}
           {tabBarra === 'comandas' && (
             <div className="no-print">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -1373,26 +1372,62 @@ const guardarEvento = async (e) => {
             </div>
           )}
 
-          {/* VISTA: CONTROL DE MESAS FISICAS (AQUÍ QUEDÓ EL GRID) */}
+ {/* TAB: TABLERO DE CONTROL FÍSICO ADAPTADO POR PISOS (1-25 y 26-50) */}
           {tabBarra === 'mesas_fisicas' && (
-            <div className="no-print w-full">
-              <div className="mb-4 bg-[#0c111a] p-4 rounded-2xl border border-slate-800">
-                 <h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-1">
-                    🗺️ Tablero de Control Físico
-                 </h2>
-                 <p className="text-slate-400 text-[10px] uppercase font-bold">
-                    Toca una mesa libre para abrir comanda o una ocupada para añadir artículos
-                 </p>
+            <div className="no-print w-full space-y-4">
+              
+              {/* ENCABEZADO CON FILTRO MINIMALISTA DE PISOS */}
+              <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                 <div>
+                   <h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-1">
+                     🗺️ Tablero de Control Físico
+                   </h2>
+                   <p className="text-slate-400 text-[10px] uppercase font-bold">
+                     Toca una mesa libre para abrir comanda o una ocupada para añadir artículos
+                   </p>
+                 </div>
+
+                 {/* Botones selectores de área */}
+                 <div className="flex gap-1.5 bg-slate-950 p-1 rounded-xl border border-white/5 w-full sm:w-auto overflow-x-auto no-scrollbar">
+                   {[
+                     { id: "BAJA", label: "Planta Baja (1-25)" },
+                     { id: "TERRAZA", label: "Terraza (26-50)" },
+                     { id: "TODOS", label: "Ver Todo (1-50)" }
+                   ].map(piso => (
+                     <button
+                       key={piso.id}
+                       type="button"
+                       // Usamos tu filtroMesa para no obligarte a declarar un useState nuevo arriba
+                       onClick={() => setFiltroMesa(piso.id)}
+                       className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all whitespace-nowrap ${
+                         (filtroMesa === piso.id || (filtroMesa !== "BAJA" && filtroMesa !== "TERRAZA" && piso.id === "TODOS"))
+                           ? 'bg-orange-600 text-white shadow-md'
+                           : 'text-slate-400 hover:text-white bg-transparent'
+                       }`}
+                     >
+                       {piso.label}
+                     </button>
+                   ))}
+                 </div>
               </div>
 
+              {/* REJILLA FILTRADA MATEMÁTICAMENTE */}
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-7 gap-2.5">
-                 {Array.from({ length: 50 }, (_, i) => {
-                    const numMesa = String(i + 1);
+                 {Array.from({ length: 50 }, (_, i) => i + 1)
+                   // 🧮 Aplicamos los rangos de corte exactos en base al botón pulsado
+                   .filter(num => {
+                     if (filtroMesa === "BAJA") return num >= 1 && num <= 25;
+                     if (filtroMesa === "TERRAZA") return num >= 26 && num <= 50;
+                     return true; // TODOS muestra de la 1 a la 50
+                   })
+                   .map(num => {
+                    const numMesa = String(num);
                     const comandaActiva = pedidosBarra.find(p => String(p.mesa) === numMesa);
                     
                     return (
                        <button
                           key={numMesa}
+                          type="button"
                           onClick={() => {
                              if (comandaActiva) {
                                 localStorage.setItem("tribu_comanda_id", comandaActiva.id);
@@ -1410,7 +1445,7 @@ const guardarEvento = async (e) => {
                           }}
                           className={`p-3.5 rounded-xl flex flex-col items-center justify-center border transition-all active:scale-95 ${
                              comandaActiva 
-                               ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-md' 
+                               ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-md animate-pulse-slow' 
                                : 'bg-[#0c111a] border-slate-800 text-slate-500 hover:border-slate-700'
                           }`}
                        >
@@ -1420,71 +1455,321 @@ const guardarEvento = async (e) => {
                           </span>
                        </button>
                     );
-                 })}
+                  })}
               </div>
             </div>
           )}
 
-          {/* VISTA: INVENTARIO */}
+{/* TAB: INVENTARIO CON FILTRO INTELIGENTE CORREGIDO EXCLUSIVO PARA CERVEZAS */}
           {tabBarra === 'inventario' && (
-            <div className="no-print space-y-8">
-              <div>
-                <h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div> HIELERA PLANTA BAJA
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {productosMenu.filter(p => p.ubicacion === "PLANTA BAJA" || !p.ubicacion || p.ubicacion === "HIELERA BAJA").map(prod => (
-                    <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex gap-3">
-                          <div className="w-16 h-16 rounded-xl border border-slate-800 bg-slate-900 flex-shrink-0 overflow-hidden">
-                            <img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/>
-                          </div>
-                          <div>
-                            <h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4>
-                            <p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p>
-                          </div>
-                        </div>
-                        <div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 mt-auto">
-                        <button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button>
-                        <button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
-                        <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="no-print space-y-6 animate-fade-in font-sans">
               
-              <div>
-                <h2 className="text-sky-400 font-black italic tracking-widest uppercase text-xs mb-4 flex items-center gap-2">
-                  <div className="w-2 h-2 bg-sky-400 rounded-full"></div> HIELERA TERRAZA
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {productosMenu.filter(p => p.ubicacion === "TERRAZA").map(prod => (
-                    <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between transition-all hover:border-slate-600">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex gap-3">
-                          <div className="w-16 h-16 rounded-xl border border-slate-800 bg-slate-900 flex-shrink-0 overflow-hidden">
-                            <img src={prod.imagen} className="w-full h-full object-cover opacity-80" alt=""/>
+              {/* Selector de sub-categorías minimalista */}
+              <div className="flex gap-2 overflow-x-auto no-scrollbar bg-[#0c111a] p-2 rounded-2xl border border-slate-800">
+                {["TODOS", "CERVEZA", "BOTELLAS", "BEBIDAS PREPARADAS", "SNACKS", "COMIDAS"].map(filtroInv => (
+                  <button 
+                    key={filtroInv}
+                    onClick={() => setFiltroMesa(filtroInv === "TODOS" ? "" : filtroInv)}
+                    className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all flex-shrink-0 ${
+                      (filtroMesa.toUpperCase() === filtroInv) || (filtroInv === "TODOS" && filtroMesa === "")
+                        ? 'bg-orange-600 text-white shadow-md' 
+                        : 'bg-slate-950 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {filtroInv}
+                  </button>
+                ))}
+              </div>
+
+              {/* ========================================================= */}
+              {/* 1. ⚖️ PANEL: MONITOR DE BÁSCULA (BEBIDAS PREPARADAS EN USO) */}
+              {/* ========================================================= */}
+              {(filtroMesa === "" || filtroMesa.toUpperCase() === "BEBIDAS PREPARADAS") && (
+                <div className="bg-slate-950/40 border border-slate-800 p-4 rounded-3xl space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-900 pb-3">
+                    <div>
+                      <h2 className="text-sky-400 font-black italic tracking-widest uppercase text-xs flex items-center gap-2">
+                        <div className="w-2 h-2 bg-sky-400 rounded-full animate-pulse"></div> 🍾 BÁSCULA: TRAGOS Y BEBIDAS EN USO
+                      </h2>
+                      <p className="text-[9px] text-slate-500 font-bold uppercase mt-0.5">Control de peso milimétrico para bebidas preparadas</p>
+                    </div>
+                    
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const botellasCerradas = productosMenu.filter(p => p.categoria?.toLowerCase().trim() === "botellas" && p.stock > 0);
+                        if(botellasCerradas.length === 0) {
+                          alert("No hay cajas de botellas cerradas con stock disponible para descorchar.");
+                          return;
+                        }
+                        
+                        const listaTexto = botellasCerradas.map((b, idx) => `${idx + 1}. ${b.nombre} (${b.ubicacion} - Quedan: ${b.stock} pz)`).join("\n");
+                        const seleccion = window.prompt(`Selecciona la botella a DESCORCHAR para preparar tragos:\n\n${listaTexto}`);
+                        
+                        if (seleccion && Number(seleccion) <= botellasCerradas.length && Number(seleccion) > 0) {
+                          const botellaElegida = botellasCerradas[Number(seleccion) - 1];
+                          const pisoDestino = window.prompt(`¿En qué barra se va a abrir?\n1. PLANTA BAJA\n2. TERRAZA`, "1");
+                          const ubicacionFinal = pisoDestino === "2" ? "TERRAZA" : "PLANTA BAJA";
+
+                          const tragoRelacionado = productosMenu.find(p => p.categoria?.toLowerCase().trim() === "bebidas preparadas" && p.botellaOriginalId === botellaElegida.id);
+
+                          const batch = writeBatch(db);
+                          batch.update(doc(db, "productos", botellaElegida.id), { stock: increment(-1) });
+                          
+                          if (tragoRelacionado) {
+                            batch.update(doc(db, "productos", tragoRelacionado.id), { 
+                              pesoActualGramos: Number(botellaElegida.pesoBotellaLleno || 1200),
+                              ubicacion: ubicacionFinal
+                            });
+                          }
+                          
+                          batch.commit().then(() => alert(`¡Listo! Descontada 1 unidad de ${botellaElegida.nombre} y enviada a la báscula de ${ubicacionFinal}.`));
+                        }
+                      }}
+                      className="bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-black uppercase px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-lg"
+                    >
+                      🍾 Descorchar para Barra
+                    </button>
+                  </div>
+
+                  {/* Tarjetas de Auditoría de Peso */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {productosMenu.filter(p => p.categoria?.toLowerCase().trim() === "bebidas preparadas" && p.esInsumoPeso).map(trago => {
+                      const gramosLiquidosActuales = Math.max(0, (trago.pesoActualGramos || 0) - (trago.pesoBotellaVacio || 0));
+                      const vasosDisponibles = trago.gramosPorVaso > 0 ? Math.floor(gramosLiquidosActuales / trago.gramosPorVaso) : 0;
+                      const litrosDisponibles = trago.gramosPorLitro > 0 ? Math.floor(gramosLiquidosActuales / trago.gramosPorLitro) : 0;
+                      
+                      return (
+                        <div key={trago.id} className="bg-[#0c111a] border border-slate-800 p-4 rounded-2xl flex flex-col justify-between hover:border-sky-500/30 transition-all">
+                          <div className="flex justify-between items-start gap-4">
+                            <div>
+                              <h4 className="font-black text-white uppercase text-sm">{trago.nombre}</h4>
+                              <p className="text-[8px] text-slate-500 font-black uppercase tracking-wider mt-0.5"> Barra: {trago.ubicacion} | Vaso: {trago.gramosPorVaso}g - Litro: {trago.gramosPorLitro}g</p>
+                            </div>
+                            <button type="button" onClick={async () => { if(window.confirm(`¿Eliminar trago preparado ${trago.nombre}?`)) await deleteDoc(doc(db, "productos", trago.id)); }} className="text-slate-700 hover:text-red-500 p-1 flex-shrink-0 transition-colors">
+                              <Trash2 size={14}/>
+                            </button>
                           </div>
-                          <div>
-                            <h4 className="font-black text-white uppercase tracking-tighter text-sm leading-tight">{prod.nombre}</h4>
-                            <p className="text-[10px] text-slate-500 uppercase font-bold mt-1">{prod.categoria} | {prod.subcategoria}</p>
+
+                          <div className="grid grid-cols-3 gap-2 bg-black/40 p-2.5 rounded-xl border border-white/5 text-center my-2">
+                            <div>
+                              <p className="text-[7px] font-black text-slate-500 uppercase">Báscula</p>
+                              <p className="text-xs font-black text-white">{trago.pesoActualGramos || 0}g</p>
+                            </div>
+                            <div>
+                              <p className="text-[7px] font-black text-orange-500 uppercase">Vasos</p>
+                              <p className="text-xs font-black text-orange-400">{vasosDisponibles} u.</p>
+                            </div>
+                            <div>
+                              <p className="text-[7px] font-black text-teal-500 uppercase">Litros</p>
+                              <p className="text-xs font-black text-teal-400">{litrosDisponibles} u.</p>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-900 mt-1">
+                            <span className="text-[9px] text-slate-400 font-bold uppercase">Neto: <span className="text-white font-black">{gramosLiquidosActuales}g</span></span>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const nuevoPeso = window.prompt(`⚖️ PESAR BOTELLA - ${trago.nombre}\n\nIngresa el peso actual de la báscula en gramos:`, trago.pesoActualGramos);
+                                if (nuevoPeso !== null && nuevoPeso !== "") {
+                                  updateDoc(doc(db, "productos", trago.id), { pesoActualGramos: Number(nuevoPeso) });
+                                }
+                              }}
+                              className="bg-sky-600/10 hover:bg-sky-600 text-sky-400 hover:text-white px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all"
+                            >
+                              ⚖️ Registrar Peso
+                            </button>
                           </div>
                         </div>
-                        <div className={`px-3 py-1 rounded-lg font-black text-xl ${prod.stock <= 5 ? 'bg-red-900/20 text-red-500 border border-red-800' : 'bg-green-900/20 text-green-500 border border-green-800'}`}>{prod.stock}</div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 mt-auto">
-                        <button onClick={() => updateDoc(doc(db, "productos", prod.id), { stock: increment(12) })} className="bg-slate-900 border border-slate-800 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all">+12</button>
-                        <button onClick={() => { const ex = window.prompt("Nueva cantidad:"); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-orange-600/10 text-orange-500 border border-orange-500/20 py-2 rounded-xl text-[10px] font-black uppercase">Editar</button>
-                        <button onClick={async () => { if(window.confirm(`Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="bg-red-900/10 text-red-500 border border-red-900/20 py-2 rounded-xl flex items-center justify-center col-span-2 hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14}/></button>
-                      </div>
-                    </div>
-                  ))}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* ========================================================= */}
+              {/* 2. 🍳 CONTENEDOR: DESPACHO DE COCINA (SNACKS & COMIDAS) */}
+              {/* ========================================================= */}
+              {(filtroMesa === "" || filtroMesa.toUpperCase() === "SNACKS" || filtroMesa.toUpperCase() === "COMIDAS") && (
+                <div>
+                  <h2 className="text-amber-500 font-black italic tracking-widest uppercase text-xs mb-3 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-amber-500 rounded-full"></div> 🍳 DESPACHO DE COCINA (SNACKS & PLATILLOS)
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {productosMenu.filter(p => ["snacks", "comidas"].includes(p.categoria?.toLowerCase().trim())).map(prod => (
+                      <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-4 rounded-xl flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 truncate">
+                          <img src={prod.imagen} className="w-12 h-12 rounded-lg object-cover bg-slate-900 border border-slate-800 flex-shrink-0" alt=""/>
+                          <div className="truncate">
+                            <h4 className="font-black text-white uppercase tracking-tight text-sm truncate leading-tight">{prod.nombre}</h4>
+                            <span className="text-[7px] font-black bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded uppercase border border-orange-500/10 mt-1 inline-block">
+                              {prod.subcategoria || 'INDIVIDUAL'} | {prod.departamento || 'COCINA'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="text-right">
+                            <p className="text-[10px] font-black text-slate-500">M: <span className="text-white">${prod.precioMesa}</span></p>
+                            <p className="text-[10px] font-black text-slate-500">D: <span className="text-white">${prod.precioDomicilio}</span></p>
+                          </div>
+                          <button type="button" onClick={() => { const ex = window.prompt("Actualizar Stock:", prod.stock); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className="bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg font-black text-sm text-orange-500 hover:border-orange-600 transition-colors">
+                            {prod.stock}
+                          </button>
+                          <button type="button" onClick={async () => { if(window.confirm(`¿Eliminar ${prod.nombre}?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="text-slate-700 hover:text-red-500 p-1 transition-colors">
+                            <Trash2 size={14}/>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* ========================================================= */}
+              {/* 3. 🍺 CONTENEDOR: HIELERA PLANTA BAJA */}
+              {/* ========================================================= */}
+              {(filtroMesa === "" || filtroMesa.toUpperCase() === "CERVEZA" || filtroMesa.toUpperCase() === "BOTELLAS") && (
+                <div className="pt-2">
+                  <h2 className="text-orange-500 font-black italic tracking-widest uppercase text-xs mb-3 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div> 🍺 HIELERA PLANTA BAJA
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {productosMenu
+                      .filter(p => ["cerveza", "botellas"].includes(p.categoria?.toLowerCase().trim()) && p.ubicacion === "PLANTA BAJA" && !p.esInsumoPeso)
+                      // 📍 CORRECCIÓN: Si el usuario pulsa el filtro exclusivo CERVEZA, bloqueamos que se cuelen las botellas
+                      .filter(p => filtroMesa === "" || p.categoria?.toUpperCase().trim() === filtroMesa.toUpperCase())
+                      .map(prod => (
+                        <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-4 rounded-xl flex flex-col gap-2">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 truncate">
+                              <img src={prod.imagen} className="w-12 h-12 rounded-lg object-cover bg-slate-900 border border-slate-800 flex-shrink-0" alt=""/>
+                              <div className="truncate">
+                                <h4 className="font-black text-white uppercase tracking-tight text-sm truncate leading-tight">{prod.nombre}</h4>
+                                <span className="text-[7px] font-black bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded uppercase mt-1 inline-block">
+                                  {prod.categoria} | {prod.subcategoria || 'PIEZA CERRADA'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              <div className="text-right">
+                                <p className="text-[10px] font-black text-slate-500">M: <span className="text-white">${prod.precioMesa}</span></p>
+                              </div>
+                              <button type="button" onClick={() => { const ex = window.prompt("Ajustar Stock Planta Baja:", prod.stock); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className={`px-2.5 py-1 rounded-lg font-black text-sm transition-colors ${prod.stock <= 5 ? 'bg-red-950 text-red-500 border border-red-900' : 'bg-slate-950 text-green-500 border border-slate-800'}`}>
+                                {prod.stock} pz
+                              </button>
+                              <button type="button" onClick={async () => { if(window.confirm(`¿Eliminar ${prod.nombre} de Planta Baja?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="text-slate-700 hover:text-red-500 p-1 transition-colors">
+                                <Trash2 size={14}/>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Configuración de calibración por peso en Planta Baja */}
+                          {prod.categoria?.toLowerCase().trim() === "botellas" && (
+                            <div className="mt-1 pt-2 border-t border-slate-900/60 flex flex-wrap items-center justify-between gap-2 bg-black/20 p-2 rounded-xl border border-white/5">
+                              <p className="text-[8px] font-black text-sky-400 uppercase tracking-wider">📐 Báscula: {prod.pesoBotellaLleno ? `${prod.pesoBotellaLleno}g / ${prod.pesoBotellaVacio}g` : 'Sin calibrar'}</p>
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  const lleno = window.prompt(`⚖️ CALIBRAR BOTELLA LLENA (g) - ${prod.nombre}:`, prod.pesoBotellaLleno || "1350");
+                                  const vacio = window.prompt(`⚖️ CALIBRAR TARA VACÍA (g) - ${prod.nombre}:`, prod.pesoBotellaVacio || "600");
+                                  const vaso = window.prompt(`⚖️ GRAMOS POR VASO (g):`, prod.gramosPorVaso || "45");
+                                  const litro = window.prompt(`⚖️ GRAMOS POR LITRO (g):`, prod.gramosPorLitro || "90");
+
+                                  if(lleno && vacio && vaso && litro) {
+                                    updateDoc(doc(db, "productos", prod.id), {
+                                      pesoBotellaLleno: Number(lleno),
+                                      pesoBotellaVacio: Number(vacio),
+                                      gramosPorVaso: Number(vaso),
+                                      gramosPorLitro: Number(litro)
+                                    });
+                                    alert("¡Configuración guardada en Planta Baja!");
+                                  }
+                                }}
+                                className="text-[8px] font-black bg-slate-900 text-slate-300 border border-slate-800 hover:border-sky-500 px-2 py-1 rounded-md uppercase tracking-tight transition-all"
+                              >
+                                ⚙️ Configurar Gramos
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ========================================================= */}
+              {/* 4. ❄️ CONTENEDOR: HIELERA TERRAZA */}
+              {/* ========================================================= */}
+              {(filtroMesa === "" || filtroMesa.toUpperCase() === "CERVEZA" || filtroMesa.toUpperCase() === "BOTELLAS") && (
+                <div className="pt-2">
+                  <h2 className="text-sky-400 font-black italic tracking-widest uppercase text-xs mb-3 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-sky-400 rounded-full"></div> ❄️ HIELERA TERRAZA
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {productosMenu
+                      .filter(p => ["cerveza", "botellas"].includes(p.categoria?.toLowerCase().trim()) && p.ubicacion === "TERRAZA" && !p.esInsumoPeso)
+                      // 📍 CORRECCIÓN: Si el usuario pulsa el filtro exclusivo CERVEZA, bloqueamos que se cuelen las botellas
+                      .filter(p => filtroMesa === "" || p.categoria?.toUpperCase().trim() === filtroMesa.toUpperCase())
+                      .map(prod => (
+                        <div key={prod.id} className="bg-[#0c111a] border border-slate-800 p-4 rounded-xl flex flex-col gap-2">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 truncate">
+                              <img src={prod.imagen} className="w-12 h-12 rounded-lg object-cover bg-slate-900 border border-slate-800 flex-shrink-0" alt=""/>
+                              <div className="truncate">
+                                <h4 className="font-black text-white uppercase tracking-tight text-sm truncate leading-tight">{prod.nombre}</h4>
+                                <span className="text-[7px] font-black bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded uppercase mt-1 inline-block">
+                                  {prod.categoria} | {prod.subcategoria || 'PIEZA CERRADA'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              <div className="text-right">
+                                <p className="text-[10px] font-black text-slate-500">M: <span className="text-white">${prod.precioMesa}</span></p>
+                              </div>
+                              <button type="button" onClick={() => { const ex = window.prompt("Ajustar Stock Terraza:", prod.stock); if(ex) updateDoc(doc(db, "productos", prod.id), { stock: Number(ex) }); }} className={`px-2.5 py-1 rounded-lg font-black text-sm transition-colors ${prod.stock <= 5 ? 'bg-red-950 text-red-500 border border-red-900' : 'bg-slate-950 text-green-500 border border-slate-800'}`}>
+                                {prod.stock} pz
+                              </button>
+                              <button type="button" onClick={async () => { if(window.confirm(`¿Eliminar ${prod.nombre} de Terraza?`)) await deleteDoc(doc(db, "productos", prod.id)); }} className="text-slate-700 hover:text-red-500 p-1 transition-colors">
+                                <Trash2 size={14}/>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Configuración de calibración por peso en Terraza */}
+                          {prod.categoria?.toLowerCase().trim() === "botellas" && (
+                            <div className="mt-1 pt-2 border-t border-slate-900/60 flex items-center justify-between bg-black/20 p-2 rounded-xl border border-white/5">
+                              <p className="text-[8px] font-black text-sky-400 uppercase tracking-wider">📐 Báscula: {prod.pesoBotellaLleno ? `${prod.pesoBotellaLleno}g / ${prod.pesoBotellaVacio}g` : 'Sin calibrar'}</p>
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  const lleno = window.prompt(`⚖️ CALIBRAR BOTELLA LLENA (g) - ${prod.nombre}:`, prod.pesoBotellaLleno || "1350");
+                                  const vacio = window.prompt(`⚖️ CALIBRAR TARA VACÍA (g) - ${prod.nombre}:`, prod.pesoBotellaVacio || "600");
+                                  const vaso = window.prompt(`⚖️ GRAMOS POR VASO (g):`, prod.gramosPorVaso || "45");
+                                  const litro = window.prompt(`⚖️ GRAMOS POR LITRO (g):`, prod.gramosPorLitro || "90");
+
+                                  if(lleno && vacio && vaso && litro) {
+                                    updateDoc(doc(db, "productos", prod.id), {
+                                      pesoBotellaLleno: Number(lleno),
+                                      pesoBotellaVacio: Number(vacio),
+                                      gramosPorVaso: Number(vaso),
+                                      gramosPorLitro: Number(litro)
+                                    });
+                                    alert("¡Configuración guardada en Terraza!");
+                                  }
+                                }}
+                                className="text-[8px] font-black bg-slate-900 text-slate-300 border border-slate-800 hover:border-sky-500 px-2 py-1 rounded-md uppercase tracking-tight transition-all"
+                              >
+                                ⚙️ Configurar Gramos
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
             </div>
           )}
 
@@ -1507,7 +1792,7 @@ const guardarEvento = async (e) => {
           )}
         </div>
 
-        {/* 📊 PANEL DERECHO: CONTROL FINANCIERO Y BUSCADOR (FIJO A LA DERECHA SIEMPRE) */}
+        {/* 📊 PANEL DERECHO: CONTROL FINANCIERO Y BUSCADOR (FIJO A LA DERECHA) */}
         <div className="w-full lg:w-[350px] space-y-4 no-print flex-shrink-0">
           
           <div className="bg-[#0c111a] p-4 rounded-3xl border border-slate-800 shadow-xl">
@@ -1566,7 +1851,217 @@ const guardarEvento = async (e) => {
 
         </div>
      </div>
-     {/* 🎫 AQUÍ ESTÁ TU MODAL DE REGRESO, IDÉNTICO A COMO TE FUNCIONABA */}
+
+{verModalNuevoProd && (
+       <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in">
+         <div className="bg-slate-900 border border-slate-800 w-full max-w-[450px] rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative text-left max-h-[90vh] overflow-y-auto no-scrollbar">
+           <button onClick={() => { setVerModalNuevoProd(false); setEsNuevaSub(false); }} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors">✕</button>
+           
+           <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-5 flex items-center gap-2">
+             <PlusCircle size={22}/> Nuevo Producto / Insumo
+           </h2>
+           
+           <form onSubmit={async (e) => { 
+               e.preventDefault(); 
+               const batch = writeBatch(db);
+               
+               const esBotellaCompleta = nuevoProd.categoria?.toLowerCase().trim() === "botellas";
+               const esBebidaPreparada = nuevoProd.categoria?.toLowerCase().trim() === "bebidas preparadas";
+               const esComidaOSnack = ["snacks", "comidas"].includes(nuevoProd.categoria?.toLowerCase().trim());
+               
+               const deptoBase = (esBebidaPreparada || esComidaOSnack) ? e.target.modalidadPreparacion.value : "";
+               const porcionOFormat = esBebidaPreparada ? e.target.modalidadPorcion.value : nuevoProd.subcategoria;
+
+               // Lógica de automatización: Si es bebida preparada, extrae los datos de la botella asociada
+               let datosBasculaAut = {};
+               if (esBebidaPreparada && e.target.botellaEnlaceId?.value) {
+                 const botellaSeleccionada = productosMenu.find(p => p.id === e.target.botellaEnlaceId.value);
+                 if (botellaSeleccionada) {
+                   datosBasculaAut = {
+                     esInsumoPeso: true,
+                     botellaOriginalId: botellaSeleccionada.id,
+                     pesoBotellaLleno: Number(botellaSeleccionada.pesoBotellaLleno || 1200),
+                     pesoBotellaVacio: Number(botellaSeleccionada.pesoBotellaVacio || 500),
+                     gramosPorVaso: Number(botellaSeleccionada.gramosPorVaso || 45),
+                     gramosPorLitro: Number(botellaSeleccionada.gramosPorLitro || 90),
+                     pesoActualGramos: Number(botellaSeleccionada.pesoActualGramos || botellaSeleccionada.pesoBotellaLleno || 1200)
+                   };
+                 }
+               }
+
+               // 1. REGISTRO PARA PLANTA BAJA
+               if (Number(nuevoProd.stockBaja) > 0 || esBebidaPreparada || esComidaOSnack) {
+                 const refBaja = doc(collection(db, "productos"));
+                 batch.set(refBaja, {
+                   nombre: nuevoProd.nombre,
+                   stock: Number(nuevoProd.stockBaja) || 0,
+                   ubicacion: "PLANTA BAJA",
+                   departamento: deptoBase,
+                   precioMesa: Number(nuevoProd.precioMesa),
+                   precioDomicilio: Number(nuevoProd.precioDomicilio),
+                   categoria: nuevoProd.categoria,
+                   subcategoria: porcionOFormat,
+                   imagen: nuevoProd.imagen || "https://images.unsplash.com/photo-1541532713592-79a0317b6b77?q=80&w=200",
+                   ...datosBasculaAut // Se inyectan las medidas automáticamente si se enlazó
+                 });
+               }
+
+               // 2. REGISTRO PARA TERRAZA
+               if (Number(nuevoProd.stockTerraza) > 0 && !esBebidaPreparada && !esComidaOSnack) {
+                 const refTerraza = doc(collection(db, "productos"));
+                 batch.set(refTerraza, {
+                   nombre: nuevoProd.nombre,
+                   stock: Number(nuevoProd.stockTerraza),
+                   ubicacion: "TERRAZA",
+                   departamento: deptoBase,
+                   precioMesa: Number(nuevoProd.precioMesa),
+                   precioDomicilio: Number(nuevoProd.precioDomicilio),
+                   categoria: nuevoProd.categoria,
+                   subcategoria: nuevoProd.subcategoria,
+                   imagen: nuevoProd.imagen || "https://images.unsplash.com/photo-1541532713592-79a0317b6b77?q=80&w=200",
+                   ...datosBasculaAut
+                 });
+               }
+
+               await batch.commit();
+               setVerModalNuevoProd(false);
+               setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", categoria: "Cerveza", subcategoria: "", imagen: "" });
+           }} className="space-y-4 font-sans">
+             
+             {/* 1. SELECCIÓN DE CATEGORÍA MÁSTER */}
+             <div>
+               <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Categoría del Producto</label>
+               <select 
+                 value={nuevoProd.categoria} 
+                 onChange={e => setNuevoProd({...nuevoProd, categoria: e.target.value})} 
+                 className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-300 font-bold outline-none focus:border-orange-500 shadow-inner"
+               >
+                 {CATEGORIAS.filter(c => c !== "Todos").map(c => <option key={c} value={c}>{c}</option>)}
+               </select>
+             </div>
+
+             {/* 2. DATOS BÁSICOS GENERALES */}
+             <div>
+               <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Nombre (Ej: Corona Familiar, Papas Fritas, Paloma Centenario)</label>
+               <input required placeholder="Nombre descriptivo" value={nuevoProd.nombre} onChange={e => setNuevoProd({...nuevoProd, nombre: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white font-medium shadow-inner" />
+             </div>
+             
+             {/* 3. PRECIOS DE VENTA (Normales e idénticos a la cerveza) */}
+             <div className="grid grid-cols-2 gap-3">
+               <div>
+                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Precio Mesa / Local</label>
+                 <input required type="number" placeholder="$ Local" value={nuevoProd.precioMesa} onChange={e => setNuevoProd({...nuevoProd, precioMesa: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-orange-500 font-bold shadow-inner" />
+               </div>
+               <div>
+                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Precio Domicilio</label>
+                 <input required type="number" placeholder="$ Delivery" value={nuevoProd.precioDomicilio} onChange={e => setNuevoProd({...nuevoProd, precioDomicilio: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm outline-none text-orange-500 font-bold shadow-inner" />
+               </div>
+             </div>
+
+             {/* 4. CONTROL DE STOCK UNIVERSAL (Igual para todos, incluyendo bebidas preparadas) */}
+             <div className="grid grid-cols-2 gap-3 bg-black/20 p-3 rounded-xl border border-white/5">
+               <div>
+                 <label className="text-[9px] font-black text-emerald-500 uppercase block mb-1">Stock Planta Baja</label>
+                 <input type="number" placeholder="Cantidad u." value={nuevoProd.stockBaja} onChange={e => setNuevoProd({...nuevoProd, stockBaja: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white outline-none focus:border-orange-500" />
+               </div>
+               <div>
+                 <label className="text-[9px] font-black text-sky-400 uppercase block mb-1">Stock Terraza</label>
+                 <input type="number" placeholder="Cantidad u." value={nuevoProd.stockTerraza} onChange={e => setNuevoProd({...nuevoProd, stockTerraza: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white outline-none focus:border-sky-500" />
+               </div>
+             </div>
+
+             {/* 5. SECCIÓN INTELIGENTE ADAPTATIVA (Sin saturación visual) */}
+             {nuevoProd.categoria?.toLowerCase().trim() === "bebidas preparadas" ? (
+               <div className="space-y-3 bg-orange-600/5 p-4 rounded-2xl border border-orange-500/10">
+                 <div className="grid grid-cols-2 gap-3">
+                   <div>
+                     <label className="text-[9px] font-black text-orange-500 uppercase block mb-1">🍳 Centro</label>
+                     <select name="modalidadPreparacion" className="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-xs text-white font-bold outline-none">
+                       <option value="BARRA">Barra / Cantina</option>
+                       <option value="COCINA">Cocina</option>
+                     </select>
+                   </div>
+                   <div>
+                     <label className="text-[9px] font-black text-orange-500 uppercase block mb-1">🥛 Servir en</label>
+                     <select name="modalidadPorcion" className="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-xs text-white font-bold outline-none">
+                       <option value="VASO">Vaso</option>
+                       <option value="LITRO">Litro</option>
+                     </select>
+                   </div>
+                 </div>
+
+                 {/* 🍾 ENLACE AUTOMÁTICO DE LICOR BASE */}
+                 <div className="pt-1">
+                   <label className="text-[9px] font-black text-sky-400 uppercase block mb-1">🍾 Botella Base para la Báscula</label>
+                   <select name="botellaEnlaceId" required className="w-full bg-slate-950 border border-sky-900/40 p-2.5 rounded-xl text-xs text-white font-bold outline-none focus:border-sky-500">
+                     <option value="">-- Seleccionar Botella Insumo --</option>
+                     {productosMenu
+                       .filter(p => p.categoria?.toLowerCase().trim() === "botellas")
+                       // Agrupamos por nombre para que no salgan duplicados si hay en ambos pisos
+                       .filter((v, i, a) => a.findIndex(t => t.nombre === v.nombre) === i)
+                       .map(botella => (
+                         <option key={botella.id} value={botella.id}>{botella.nombre}</option>
+                       ))
+                     }
+                   </select>
+                 </div>
+               </div>
+             ) : ["snacks", "comidas"].includes(nuevoProd.categoria?.toLowerCase().trim()) ? (
+               <div className="bg-orange-600/5 p-4 rounded-2xl border border-orange-500/10 space-y-3 animate-fade-in">
+                 <div className="grid grid-cols-2 gap-3">
+                   <div>
+                     <label className="text-[9px] font-black text-orange-500 uppercase block mb-1">🍳 Centro Preparación</label>
+                     <select name="modalidadPreparacion" className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white font-bold outline-none">
+                       <option value="COCINA">Cocina Caliente</option>
+                       <option value="BARRA">Barra / Fríos</option>
+                     </select>
+                   </div>
+                   <div>
+                     <label className="text-[9px] font-black text-orange-500 uppercase block mb-1">🥛 Porción</label>
+                     <select name="modalidadPorcion" className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white font-bold outline-none">
+                       <option value="INDIVIDUAL">Individual</option>
+                       <option value="COMPARTIR">Para Compartir</option>
+                     </select>
+                   </div>
+                 </div>
+               </div>
+             ) : (
+               /* Caso para Cervezas o Botellas Cerradas */
+               <div className="animate-fade-in">
+                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Formato / Subcategoría</label>
+                 <input placeholder="Ej: Latón, Media, Servicio Cerrado" value={nuevoProd.subcategoria} onChange={e => setNuevoProd({...nuevoProd, subcategoria: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-white outline-none focus:border-orange-500" />
+               </div>
+             )}
+
+             {/* 6. IMAGEN DEL PRODUCTO */}
+             <div>
+               <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Imagen del Producto (URL)</label>
+               <input placeholder="https://ejemplo.com/foto.jpg" value={nuevoProd.imagen} onChange={e => setNuevoProd({...nuevoProd, imagen: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-xs outline-none text-white shadow-inner focus:border-orange-500" />
+             </div>
+             
+             <button type="submit" className="w-full bg-orange-600 hover:bg-orange-500 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest text-white shadow-xl active:scale-95 transition-all mt-2">
+               ✨ Registrar Producto
+             </button>
+           </form>
+         </div>
+       </div>
+     )}
+
+     {verModalNuevoEvent && (
+       <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
+         <div className="bg-slate-900 border border-slate-800 w-full max-w-[350px] rounded-[2.5rem] p-8 shadow-2xl relative text-left">
+           <button onClick={() => setVerModalNuevoEvento(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white">✕</button>
+           <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-600 mb-6 flex items-center gap-2"><Calendar/> Nuevo Evento</h2>
+           <form onSubmit={guardarEvento} className="space-y-4">
+             <input required placeholder="Título" value={nuevoEvento.titulo} onChange={e => setNuevoEvento({...nuevoEvento, titulo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm focus:border-orange-500 outline-none text-white shadow-inner" />
+             <input required type="date" value={nuevoEvento.fecha} onChange={e => setNuevoEvento({...nuevoEvento, fecha: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
+             <input required type="time" value={nuevoEvento.hora} onChange={e => setNuevoEvento({...nuevoEvento, hora: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-sm text-slate-400 outline-none shadow-inner" />
+             <button type="submit" className="w-full bg-orange-600 py-4 rounded-2xl font-black uppercase text-white shadow-xl active:scale-95">Guardar</button>
+           </form>
+         </div>
+       </div>
+     )}
+
      {ticketParaReimprimir && (
        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
          <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-orange-600 print:border-none">
@@ -1610,8 +2105,8 @@ const guardarEvento = async (e) => {
          </div>
        </div>
      )}
+
    </div>
-   
 )}
 
 {view === 'welcome' && (
