@@ -685,121 +685,129 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  let mesaId = params.get("mesa");
-  
-  const mapaMesas = {
-    "o3pvdzac": "1", "1hs61le7": "2", "6uri5fma": "3", "3l12b2ip": "4",
-    "0p0rvh65": "5", "e4jbnq9e": "6", "ht3zdvne": "7", "sv5ee5id": "8",
-    "y7q3j49y": "9", "cn97d9e2": "10", "splcfc9c": "11", "oskwo4hm": "12",
-    "h9pve9vo": "13", "exl0zpz0": "14", "xirj4tak": "15", "ppotpg8p": "16",
-    "ffaad9lu": "17", "qnsuk3nx": "18", "gpb7s9yx": "19", "isbwypqb": "20",
-    "qe0wn8oh": "21", "4ewlnlrh": "22", "i4smmljs": "23", "gmyfc6km": "24",
-    "jj8j9hli": "25", "choaq8tg": "26", "dwqzrz76": "27", "j5q3kyy7": "28",
-    "rsvnbj86": "29", "jp02r7cz": "30", "zh23ozpf": "31", "7yloueec": "32",
-    "7bf03w7j": "33", "gtae074f": "34", "3f8vyhom": "35", "awnud16d": "36",
-    "ckyjst7f": "37", "vhjzokg9": "38", "xphki5a6": "39", "rhk7lp7a": "40",
-    "f47j11md": "41", "i0j9kt4s": "42", "03hn45yd": "43", "r88o1mbk": "44",
-    "ru50unaf": "45", "7rqdxilz": "46", "1qtcsszs": "47", "y0yrnzm8": "48",
-    "eb0db9e2": "49", "low0c63e": "50",
-  };
+    const params = new URLSearchParams(window.location.search);
+    let mesaId = params.get("mesa");
+    
+    const mapaMesas = {
+      "o3pvdzac": "1", "1hs61le7": "2", "6uri5fma": "3", "3l12b2ip": "4",
+      "0p0rvh65": "5", "e4jbnq9e": "6", "ht3zdvne": "7", "sv5ee5id": "8",
+      "y7q3j49y": "9", "cn97d9e2": "10", "splcfc9c": "11", "oskwo4hm": "12",
+      "h9pve9vo": "13", "exl0zpz0": "14", "xirj4tak": "15", "ppotpg8p": "16",
+      "ffaad9lu": "17", "qnsuk3nx": "18", "gpb7s9yx": "19", "isbwypqb": "20",
+      "qe0wn8oh": "21", "4ewlnlrh": "22", "i4smmljs": "23", "gmyfc6km": "24",
+      "jj8j9hli": "25", "choaq8tg": "26", "dwqzrz76": "27", "j5q3kyy7": "28",
+      "rsvnbj86": "29", "jp02r7cz": "30", "zh23ozpf": "31", "7yloueec": "32",
+      "7bf03w7j": "33", "gtae074f": "34", "3f8vyhom": "35", "awnud16d": "36",
+      "ckyjst7f": "37", "vhjzokg9": "38", "xphki5a6": "39", "rhk7lp7a": "40",
+      "f47j11md": "41", "i0j9kt4s": "42", "03hn45yd": "43", "r88o1mbk": "44",
+      "ru50unaf": "45", "7rqdxilz": "46", "1qtcsszs": "47", "y0yrnzm8": "48",
+      "eb0db9e2": "49", "low0c63e": "50",
+    };
 
-  const traducirTextoQR = (texto) => {
-    if (!texto) return null;
-    let limpio = String(texto).trim();
-    
-    if (limpio.includes("me-qr.com/")) {
-      const partes = limpio.split("me-qr.com/");
-      limpio = partes[partes.length - 1].replace("/", "").trim();
-    }
-    
-    return mapaMesas[limpio] ? mapaMesas[limpio] : limpio;
-  };
-
-  if (mesaId) {
-    mesaId = traducirTextoQR(mesaId);
-    localStorage.setItem("tribu_mesa", mesaId);
-    
-    if (window.history.replaceState) {
-      window.history.replaceState(null, '', window.location.pathname);
-    }
-  } else {
-    const guardada = localStorage.getItem("tribu_mesa");
-    mesaId = traducirTextoQR(guardada);
-    if (mesaId !== guardada && mesaId) {
-      localStorage.setItem("tribu_mesa", mesaId);
-    }
-  }
-  
-  if (mesaId && mesaId !== "null" && mesaId !== "undefined") {
-    setMesa(mesaId);
-  }
-  if (params.get("view") === 'barra') setView('barra');
-  if (window.location.pathname === '/equipo/barra') {
-    setView('login_staff');
-  }
-  
-  onSnapshot(collection(db, "productos"), (snap) => setProductosMenu(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-  onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
-    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setPedidosBarra(data);
-    
-    const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
-    let pedidoMesa = null;
-
-    if (comandaIdGuardada) {
-      pedidoMesa = data.find(p => p.id === comandaIdGuardada);
+    const traducirTextoQR = (texto) => {
+      if (!texto) return null;
+      let limpio = String(texto).trim();
       
-      if (mesaId && pedidoMesa && String(pedidoMesa.mesa) !== String(mesaId) && !pedidoMesa.pideTraslado) {
-        console.log(`✅ Traslado completado por el staff. Nueva Mesa: ${pedidoMesa.mesa}`);
-        localStorage.setItem("tribu_mesa", pedidoMesa.mesa);
-        setMesa(pedidoMesa.mesa);
-        mesaId = pedidoMesa.mesa;
+      if (limpio.includes("me-qr.com/")) {
+        const partes = limpio.split("me-qr.com/");
+        limpio = partes[partes.length - 1].replace("/", "").trim();
       }
-    } else if (mesaId) {
-      pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
-      if (pedidoMesa) {
-        localStorage.setItem("tribu_comanda_id", pedidoMesa.id);
+      
+      return mapaMesas[limpio] ? mapaMesas[limpio] : limpio;
+    };
+
+    // 🚨 RESTABLECIMIENTO DE FLUJO: Si viene de QR externo, limpiamos traslados fantasmas
+    if (mesaId) {
+      mesaId = traducirTextoQR(mesaId);
+      localStorage.setItem("tribu_mesa", mesaId);
+      
+      // Si es un escaneo directo de QR en mesa, no es un traslado de la barra
+      localStorage.removeItem("tribu_comanda_id"); 
+      
+      if (window.history.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname);
       }
-    }
-
-    if (mesaId && !pedidoMesa && consumoAcumulado.length > 0) {
-      console.log("♻️ Cuenta cobrada en barra. Restableciendo a modo EXTERNO automáticamente.");
-      localStorage.removeItem("tribu_comanda_id");
-      localStorage.removeItem("tribu_mesa");
-      setMesa(null);
-      setConsumoAcumulado([]);
-      setMesaValidada(false);
-      setPinCorrectoMesa(null);
-      return;
-    }
-
-    if (pedidoMesa && pedidoMesa.pinMesa) {
-        setPinCorrectoMesa(pedidoMesa.pinMesa);
-        const items = pedidoMesa.detalle.split('\n').map(linea => {
-            const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
-            if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
-            return null;
-        }).filter(i => i !== null);
-        setConsumoAcumulado(items);
-    } else if (pedidoMesa) { 
-        setMesaValidada(true); 
-        const items = pedidoMesa.detalle.split('\n').map(linea => {
-            const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
-            if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
-            return null;
-        }).filter(i => i !== null);
-        setConsumoAcumulado(items);
-        setPinCorrectoMesa(null);
     } else {
-        setMesaValidada(true); 
-        setConsumoAcumulado([]); 
-        setPinCorrectoMesa(null);
+      const guardada = localStorage.getItem("tribu_mesa");
+      mesaId = traducirTextoQR(guardada);
+      if (mesaId !== guardada && mesaId) {
+        localStorage.setItem("tribu_mesa", mesaId);
+      }
     }
-  });
-  onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
-  onSnapshot(query(collection(db, "recordatorios"), orderBy("fecha", "asc")), (snap) => setRecordatorios(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-}, [mesa]);
+    
+    if (mesaId && mesaId !== "null" && mesaId !== "undefined") {
+      setMesa(mesaId);
+    }
+    if (params.get("view") === 'barra') setView('barra');
+    if (window.location.pathname === '/equipo/barra') {
+      setView('login_staff');
+    }
+    
+    // Escucha de productos en tiempo real (Báscula e Inventario)
+    onSnapshot(collection(db, "productos"), (snap) => setProductosMenu(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    
+    // Escucha de pedidos pendientes con control estricto de traslado
+    onSnapshot(query(collection(db, "pedidos"), where("estado", "==", "pendiente")), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPedidosBarra(data);
+      
+      const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
+      let pedidoMesa = null;
+
+      if (comandaIdGuardada) {
+        pedidoMesa = data.find(p => p.id === comandaIdGuardada);
+        
+        if (mesaId && pedidoMesa && String(pedidoMesa.mesa) !== String(mesaId) && !pedidoMesa.pideTraslado) {
+          console.log(`✅ Traslado completado por el staff. Nueva Mesa: ${pedidoMesa.mesa}`);
+          localStorage.setItem("tribu_mesa", pedidoMesa.mesa);
+          setMesa(pedidoMesa.mesa);
+          mesaId = pedidoMesa.mesa;
+        }
+      } else if (mesaId) {
+        pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
+        if (pedidoMesa) {
+          localStorage.setItem("tribu_comanda_id", pedidoMesa.id);
+        }
+      }
+
+      if (mesaId && !pedidoMesa && consumoAcumulado.length > 0) {
+        console.log("♻️ Cuenta cobrada en barra. Restableciendo automáticamente.");
+        localStorage.removeItem("tribu_comanda_id");
+        localStorage.removeItem("tribu_mesa");
+        setMesa(null);
+        setConsumoAcumulado([]);
+        setMesaValidada(false);
+        setPinCorrectoMesa(null);
+        return;
+      }
+
+      if (pedidoMesa && pedidoMesa.pinMesa) {
+          setPinCorrectoMesa(pedidoMesa.pinMesa);
+          const items = pedidoMesa.detalle.split('\n').map(linea => {
+              const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
+              if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
+              return null;
+          }).filter(i => i !== null);
+          setConsumoAcumulado(items);
+      } else if (pedidoMesa) { 
+          setMesaValidada(true); 
+          const items = pedidoMesa.detalle.split('\n').map(linea => {
+              const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
+              if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
+              return null;
+          }).filter(i => i !== null);
+          setConsumoAcumulado(items);
+          setPinCorrectoMesa(null);
+      } else {
+          setMesaValidada(true); 
+          setConsumoAcumulado([]); 
+          setPinCorrectoMesa(null);
+      }
+    });
+
+    onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+    onSnapshot(query(collection(db, "recordatorios"), orderBy("fecha", "asc")), (snap) => setRecordatorios(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+  }, [mesa]);
 
  const manejarPinMesa = (num) => {
    if (pinMesaInput.length < 4) {
