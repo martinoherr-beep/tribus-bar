@@ -85,6 +85,7 @@ function App() {
  const [historialHoy, setHistorialHoy] = useState([]);
  const [pasoAuth, setPasoAuth] = useState('telefono'); // 'telefono' o 'codigo'
  const [codigoOTP, setCodigoOTP] = useState("");
+ const [verModalBeneficios, setVerModalBeneficios] = useState(false);
  const [confirmacionResultado, setConfirmacionResult] = useState(null);
  const [password, setPassword] = useState('');
  const [areaStaff, setAreaStaff] = useState('TODOS');
@@ -2122,6 +2123,20 @@ const guardarEvento = async (e) => {
              <p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p>
            </div>
          </button>
+         {/* ✨ BOTÓN NUEVO: BENEFICIOS DE LA TRIBU */}
+        <button 
+          onClick={() => setVerModalBeneficios(true)} 
+          className="flex items-center gap-5 bg-gradient-to-r from-amber-600/20 to-orange-600/20 border border-orange-500/30 p-5 rounded-3xl backdrop-blur-sm active:scale-95 hover:border-orange-500 transition-all duration-300 group shadow-lg shadow-orange-950/10"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-600/30 group-hover:scale-105 transition-transform">
+            <Tag className="text-black font-black animate-pulse" size={22} />
+          </div>
+          <div className="text-left flex-1">
+            <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">👑 Beneficios Exclusivos</p>
+            <p className="text-lg text-white font-black uppercase tracking-tight leading-none mt-0.5">¿Por qué registrarse?</p>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">Descubre lo que ganas al unirte a la Tribu</p>
+          </div>
+        </button>
 
          {!usuarioLogueado ? (
            <button onClick={() => setView('registro')} className="flex items-center gap-5 bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-sm active:scale-95 hover:bg-white/10 hover:border-orange-500/50 transition-all duration-300 group">
@@ -2455,6 +2470,109 @@ const guardarEvento = async (e) => {
         <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
       </div>
  )}
+
+{/* ─── MODAL VISUAL DE BENEFICIOS TRIBU ─── */}
+       {verModalBeneficios && (
+         <div className="fixed inset-0 z-[250] bg-slate-950/95 backdrop-blur-md text-white flex flex-col items-center justify-center p-4 font-sans animate-fade-in">
+           <div className="w-full max-w-md space-y-6 relative max-h-[90vh] overflow-y-auto no-scrollbar py-6 px-2">
+             
+             {/* Botón Cerrar */}
+             <button 
+               onClick={() => setVerModalBeneficios(false)} 
+               className="absolute top-0 right-2 bg-slate-900 border border-slate-800 p-2 rounded-full text-slate-400 hover:text-white transition-colors shadow-xl"
+             >
+               <X size={20}/>
+             </button>
+
+             {/* Encabezado */}
+             <div className="text-center space-y-2">
+               <div className="w-16 h-16 bg-gradient-to-tr from-orange-600 to-amber-500 rounded-2xl flex items-center justify-center mx-auto shadow-xl shadow-orange-600/10 transform rotate-6">
+                 <Zap className="text-black -rotate-6" size={32} />
+               </div>
+               <h3 className="text-3xl font-black italic uppercase text-orange-500 tracking-tighter pt-2">BENEFICIOS DE LA TRIBU</h3>
+               <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.2em]">El registro toma 30 segundos • 100% Gratis</p>
+             </div>
+
+             {/* Contenedor de Tarjetas (Grid Visual) */}
+             <div className="space-y-3.5">
+               
+               {/* Tarjeta 1 */}
+               <div className="bg-[#0c111a] border border-slate-800/80 p-4 rounded-2xl flex gap-4 shadow-xl relative overflow-hidden group">
+                 <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                 <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 flex-shrink-0">
+                   <CheckCircle size={20} />
+                 </div>
+                 <div className="text-left">
+                   <h4 className="font-black text-sm uppercase tracking-tight text-white flex items-center gap-2">
+                     Prioridad VIP en Barra
+                   </h4>
+                   <p className="text-xs text-slate-400 font-medium leading-relaxed mt-1">
+                     El sistema te asigna un cintillo de color en la pantalla de la barra (Regular o VIP). Los encargados priorizan la preparación de tus tragos y snacks automáticamente.
+                   </p>
+                 </div>
+               </div>
+
+               {/* Tarjeta 2 */}
+               <div className="bg-[#0c111a] border border-slate-800/80 p-4 rounded-2xl flex gap-4 shadow-xl relative overflow-hidden group">
+                 <div className="absolute top-0 left-0 w-1 h-full bg-orange-500"></div>
+                 <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400 flex-shrink-0">
+                   <Lock size={20} />
+                 </div>
+                 <div className="text-left">
+                   <h4 className="font-black text-sm uppercase tracking-tight text-white">Cuenta Totalmente Blindada</h4>
+                   <p className="text-xs text-slate-400 font-medium leading-relaxed mt-1">
+                     ¿Te cambiaste de mesa en la terraza o Planta Baja? ¿Tu cel se quedó sin batería? Tu cuenta no se pierde. Todo se queda guardado bajo tu contraseña de forma segura.
+                   </p>
+                 </div>
+               </div>
+
+               {/* Tarjeta 3 */}
+               <div className="bg-[#0c111a] border border-slate-800/80 p-4 rounded-2xl flex gap-4 shadow-xl relative overflow-hidden group">
+                 <div className="absolute top-0 left-0 w-1 h-full bg-sky-500"></div>
+                 <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 flex-shrink-0">
+                   <History size={20} />
+                 </div>
+                 <div className="text-left">
+                   <h4 className="font-black text-sm uppercase tracking-tight text-white">Historial de Órdenes</h4>
+                   <p className="text-xs text-slate-400 font-medium leading-relaxed mt-1">
+                     Accede a un panel exclusivo para ver tus comandas activas en tiempo real, revisar qué pediste anteriormente y validar tus comprobantes bancarios al instante.
+                   </p>
+                 </div>
+               </div>
+
+               {/* Tarjeta 4 */}
+               <div className="bg-[#0c111a] border border-slate-800/80 p-4 rounded-2xl flex gap-4 shadow-xl relative overflow-hidden group opacity-75">
+                 <div className="absolute top-0 left-0 w-1 h-full bg-purple-500"></div>
+                 <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 flex-shrink-0">
+                   <Zap size={20} />
+                 </div>
+                 <div className="text-left">
+                   <h4 className="font-black text-sm uppercase tracking-tight text-slate-300 flex items-center gap-2">
+                     Sistema de Puntos Tribu <span className="text-[7px] font-black bg-purple-500 text-white px-1 rounded uppercase tracking-wider">Próximamente</span>
+                   </h4>
+                   <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1">
+                     Cada bebida o platillo que ordenes acumulará puntos directo en tu perfil. Podrás canjearlos después por souvenirs oficiales del bar o bebidas de cortesía.
+                   </p>
+                 </div>
+               </div>
+
+             </div>
+
+             {/* Botón de Acción Directo al Registro */}
+             <div className="pt-2">
+               <button 
+                 onClick={() => { setVerModalBeneficios(false); setView('registro'); }} 
+                 className="w-full bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs transition-all shadow-lg shadow-orange-600/10 active:scale-95"
+               >
+                 ✨ Crear mi Cuenta Gratis Ahora
+               </button>
+             </div>
+
+             <p className="text-[9px] text-slate-600 font-semibold uppercase tracking-wider text-center">Tribu's Bar • Comunidad & Fidelización</p>
+           </div>
+         </div>
+       )}
+
       <div id="recaptcha-container"></div>
    </>
  );
