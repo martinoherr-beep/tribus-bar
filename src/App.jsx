@@ -1495,36 +1495,63 @@ const guardarEvento = async (e) => {
                     
                     <button 
                       type="button"
-                      onClick={() => {
-                        const botellasCerradas = productosMenu.filter(p => p.categoria?.toLowerCase().trim() === "botellas" && p.stock > 0);
-                        if(botellasCerradas.length === 0) {
-                          alert("No hay cajas de botellas cerradas con stock disponible para descorchar.");
-                          return;
-                        }
-                        
-                        const listaTexto = botellasCerradas.map((b, idx) => `${idx + 1}. ${b.nombre} (${b.ubicacion} - Quedan: ${b.stock} pz)`).join("\n");
-                        const seleccion = window.prompt(`Selecciona la botella a DESCORCHAR para preparar tragos:\n\n${listaTexto}`);
-                        
-                        if (seleccion && Number(seleccion) <= botellasCerradas.length && Number(seleccion) > 0) {
-                          const botellaElegida = botellasCerradas[Number(seleccion) - 1];
-                          const pisoDestino = window.prompt(`¿En qué barra se va a abrir?\n1. PLANTA BAJA\n2. TERRAZA`, "1");
-                          const ubicacionFinal = pisoDestino === "2" ? "TERRAZA" : "PLANTA BAJA";
+                    onClick={() => {
+  const botellasCerradas = productosMenu.filter(p => p.categoria?.toLowerCase().trim() === "botellas" && p.stock > 0);
+  if(botellasCerradas.length === 0) {
+    alert("No hay cajas de botellas cerradas con stock disponible para descorchar.");
+    return;
+  }
+  
+  // 1. Armamos la lista de botellas para el prompt tradicional
+  const listaTexto = botellasCerradas.map((b, idx) => `${idx + 1}. ${b.nombre} (${b.ubicacion} - Quedan: ${b.stock} pz)`).join("\n");
+  
+  // 2. Abrimos la ventana. El barman puede teclear el número O disparar el lector de códigos sobre este cuadro
+  const entradaUsuario = window.prompt(`🍾 DESCORCHE DE BOTELLAS\n\nOpción 1: Escribe el número de la botella.\nOpción 2: Deja el cursor aquí y dispara el LECTOR FIJO.\n\n${listaTexto}`);
+  
+  if (entradaUsuario) {
+    const valorLimpio = entradaUsuario.trim();
+    let botellaElegida = null;
 
-                          const tragoRelacionado = productosMenu.find(p => p.categoria?.toLowerCase().trim() === "bebidas preparadas" && p.botellaOriginalId === botellaElegida.id);
+    // 🌟 LÓGICA INTELIGENTE: ¿Es una selección por número o es el código QR largo del lector?
+    if (isNaN(valorLimpio)) {
+      // Si NO es un número, buscamos directamente la botella que tenga ese código QR guardado
+      botellaElegida = botellasCerradas.find(b => String(b.codigoQR).trim() === valorLimpio);
+      
+      if (!botellaElegida) {
+        alert(`El código QR [${valorLimpio}] leído no coincide con ninguna botella cerrada en stock.`);
+        return;
+      }
+    } else {
+      // Si SÍ es un número, procesamos el índice de la lista como siempre
+      const indice = Number(valorLimpio);
+      if (indice <= botellasCerradas.length && indice > 0) {
+        botellaElegida = botellasCerradas[indice - 1];
+      } else {
+        alert("Número de opción inválido.");
+        return;
+      }
+    }
 
-                          const batch = writeBatch(db);
-                          batch.update(doc(db, "productos", botellaElegida.id), { stock: increment(-1) });
-                          
-                          if (tragoRelacionado) {
-                            batch.update(doc(db, "productos", tragoRelacionado.id), { 
-                              pesoActualGramos: Number(botellaElegida.pesoBotellaLleno || 1200),
-                              ubicacion: ubicacionFinal
-                            });
-                          }
-                          
-                          batch.commit().then(() => alert(`¡Listo! Descontada 1 unidad de ${botellaElegida.nombre} y enviada a la báscula de ${ubicacionFinal}.`));
-                        }
-                      }}
+    // 3. Una vez identificada la botella (ya sea por número o por QR), se ejecuta tu lógica original
+    const pisoDestino = window.prompt(`¿En qué barra se va a abrir?\n1. PLANTA BAJA\n2. TERRAZA`, "1");
+    if (!pisoDestino) return;
+    const ubicacionFinal = pisoDestino === "2" ? "TERRAZA" : "PLANTA BAJA";
+
+    const tragoRelacionado = productosMenu.find(p => p.categoria?.toLowerCase().trim() === "bebidas preparadas" && p.botellaOriginalId === botellaElegida.id);
+
+    const batch = writeBatch(db);
+    batch.update(doc(db, "productos", botellaElegida.id), { stock: increment(-1) });
+    
+    if (tragoRelacionado) {
+      batch.update(doc(db, "productos", tragoRelacionado.id), { 
+        pesoActualGramos: Number(botellaElegida.pesoBotellaLleno || 1200),
+        ubicacion: ubicacionFinal
+      });
+    }
+    
+    batch.commit().then(() => alert(`¡Listo! Descontada 1 unidad de ${botellaElegida.nombre} y enviada a la báscula de ${ubicacionFinal}.`));
+  }
+}}
                       className="bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-black uppercase px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-lg"
                     >
                       🍾 Descorchar para Barra
@@ -2013,7 +2040,16 @@ const guardarEvento = async (e) => {
                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Imagen del Producto (URL)</label>
                 <input placeholder="https://ejemplo.com/foto.jpg" value={nuevoProd.imagen} onChange={e => setNuevoProd({...nuevoProd, imagen: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-xs outline-none text-white shadow-inner focus:border-orange-500" />
               </div>
-              
+              {/* 📦 NUEVO CAMPO: CÓDIGO QR / MARBETE CON LECTOR FIJO */}
+              <div>
+                <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">📦 Código QR / Marbete (Lector Fijo)</label>
+                <input 
+                  placeholder="Haz click aquí y pasa la botella por el escáner..." 
+                  value={nuevoProd.codigoQR || ""} 
+                  onChange={e => setNuevoProd({...nuevoProd, codigoQR: e.target.value.trim()})} 
+                  className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-xs outline-none text-white shadow-inner focus:border-purple-500 font-bold transition-all" 
+                />
+              </div>
               <button type="submit" className="w-full bg-orange-600 hover:bg-orange-500 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest text-white shadow-xl active:scale-95 transition-all mt-2">
                 ✨ Registrar Producto
               </button>
