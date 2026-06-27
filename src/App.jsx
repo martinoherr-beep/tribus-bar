@@ -2322,17 +2322,41 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
 )}
 
 {view === 'menu' && (() => {
-   const ubicacionActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
+   // 🌟 CORRECCIÓN DE ÁREAS: Detecta correctamente si 'mesa' ya es el nombre del área o una mesa física
+   const obtenerPlantaMejorado = (valorMesa) => {
+     if (!valorMesa) return "EXTERNO";
+     const mesaStr = String(valorMesa).toUpperCase().trim();
+     
+     // Si el usuario seleccionó directamente el área en los botones de externo
+     if (mesaStr.includes("TERRAZA")) return "TERRAZA";
+     if (mesaStr.includes("BAJA") || mesaStr.includes("PLANTA")) return "PLANTA BAJA";
+     
+     // Si es una mesa numérica, usamos tu lógica original (ajusta los números si es necesario)
+     const numMesa = parseInt(valorMesa, 10);
+     if (!isNaN(numMesa)) {
+       return numMesa >= 10 ? "TERRAZA" : "PLANTA BAJA"; // Ejemplo: mesas de la 10 en adelante son terraza
+     }
+     
+     return "EXTERNO";
+   };
+
+   const ubicacionActual = obtenerPlantaMejorado(mesa);
    
-   // 🌟 1. FILTRO DE PLANTA OPTIMIZADO: Si es Snack o Comida, pasa libre de qué barra venga.
+   // 🌟 FILTRO DE PLANTA: Separa estrictamente el menú por área, excepto snacks/comidas
    const menuPorPlanta = productosMenu.filter(p => {
      const catLimpia = (p.categoria || "").toUpperCase().trim();
      if (catLimpia === "SNACKS" || catLimpia === "COMIDAS") return true; 
      
-     return (ubicacionActual === "EXTERNO" || !p.ubicacion || p.ubicacion === "" || p.ubicacion === ubicacionActual);
+     const prodUbicacion = (p.ubicacion || "").toUpperCase().trim();
+     
+     // Si el cliente es externo real (sin área), ve todo. Si eligió área, filtramos estrictamente.
+     if (ubicacionActual === "EXTERNO") return true;
+     if (!prodUbicacion || prodUbicacion === "") return true; // Productos universales
+     
+     return prodUbicacion === ubicacionActual;
    });
 
-   // 🌟 2. FILTRO DE CATEGORÍA: Todo en mayúsculas y sin espacios
+   // 🌟 FILTRO DE CATEGORÍA (Se mantiene igual)
    const menuFiltrado = menuPorPlanta.filter(p => {
      const coincideCategoria = catSeleccionada === "Todos" || 
        (p.categoria || "").toUpperCase().trim() === catSeleccionada.toUpperCase().trim();
