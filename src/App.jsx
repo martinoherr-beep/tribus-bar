@@ -100,6 +100,8 @@ function App() {
  const [esSuperAdmin, setEsSuperAdmin] = useState(false);
  const [esStaff, setEsStaff] = useState(false);
  const [eventoInstalacion, setEventoInstalacion] = useState(null);
+ // 🔥 NUEVA BANDERA DE CONTROL: Evita que el limpiador borre las mesas nuevas del QR
+  const limpiezaInicialHecha = useRef(false);
  const [verModalEscaner, setVerModalEscaner] = useState(false);
  const html5QrCodeRef = useRef(null);
 
@@ -761,8 +763,7 @@ const verificarCodigo = async () => {
       const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
       let pedidoMesa = null;
 
-      // 🌟 REGLA DE RESTABLECIMIENTO A EXTERNO SI NO HAY COMANDA ACTIVA
-    // 🌟 ESCUCHA DE COMANDAS ACTIVAS DESDE FIREBASE
+  // 🌟 ESCUCHA DE COMANDAS ACTIVAS DESDE FIREBASE
       if (comandaIdGuardada) {
         pedidoMesa = data.find(p => p.id === comandaIdGuardada);
         
@@ -779,10 +780,10 @@ const verificarCodigo = async () => {
         }
       }
 
-   // 🔥 PARCHE DEFINITIVO: Si hay una mesa en memoria pero Firebase confirma que está libre en barra,
-      // la limpiamos de inmediato para que el cliente inicie como EXTERNO.
-      if (mesaId && !pedidoMesa) {
-        console.log("♻️ La mesa en memoria no tiene comanda activa en barra. Restableciendo a EXTERNO.");
+      // 🔥 REGLA DE CAJA EN TIEMPO REAL: Si el cliente tenía una comanda activa con consumo 
+      // y la barra la cobró, se limpia la pantalla y regresa a EXTERNO de inmediato.
+      if (mesaId && !pedidoMesa && consumoAcumulado.length > 0) {
+        console.log("♻️ Cuenta cobrada en barra. Restableciendo a EXTERNO.");
         localStorage.removeItem("tribu_comanda_id");
         localStorage.removeItem("tribu_mesa");
         setMesa(null);
@@ -791,6 +792,28 @@ const verificarCodigo = async () => {
         setPinCorrectoMesa(null);
         return;
       }
+
+      // 🔥 LIMPIADOR DE INICIO (CORRE SOLO UNA VEZ AL CARGAR): 
+      // Si abren la app con una mesa vieja en memoria que ya no tiene cuenta activa en barra, 
+      // la borramos para que inicien como EXTERNO limpios, pero NO afecta a los QR nuevos escaneados.
+      if (mesaId && !pedidoMesa && !limpiezaInicialHecha.current) {
+        console.log("♻️ Limpieza de arranque: Mesa vieja sin comanda detectada. Reseteando a EXTERNO.");
+        localStorage.removeItem("tribu_comanda_id");
+        localStorage.removeItem("tribu_mesa");
+        setMesa(null);
+        setConsumoAcumulado([]);
+        setMesaValidada(false);
+        setPinCorrectoMesa(null);
+        limpiezaInicialHecha.current = true; // Marcamos que la revisión inicial ya se ejecutó
+        return;
+      }
+
+      // Si pasa la revisión inicial sin disparar el limpiador, desactivamos la bandera para proteger los QR futuros
+      if (!limpiezaInicialHecha.current) {
+        limpiezaInicialHecha.current = true;
+      }
+
+      // ─── TU PROCESADOR DE TEXTO ORIGINAL (MANTENIDO SEGURO) ───
       if (pedidoMesa && pedidoMesa.pinMesa) {
           setPinCorrectoMesa(pedidoMesa.pinMesa);
           const items = pedidoMesa.detalle.split('\n').map(linea => {
@@ -815,7 +838,7 @@ const verificarCodigo = async () => {
       }
     });
 
-    onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+   onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     onSnapshot(query(collection(db, "recordatorios"), orderBy("fecha", "asc")), (snap) => setRecordatorios(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 
     return () => unsubPedidos();
