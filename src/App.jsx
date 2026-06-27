@@ -761,6 +761,7 @@ const verificarCodigo = async () => {
       const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
       let pedidoMesa = null;
 
+      // 🌟 REGLA DE RESTABLECIMIENTO A EXTERNO SI NO HAY COMANDA ACTIVA
       if (comandaIdGuardada) {
         pedidoMesa = data.find(p => p.id === comandaIdGuardada);
         
@@ -771,21 +772,23 @@ const verificarCodigo = async () => {
           mesaId = pedidoMesa.mesa;
         }
       } else if (mesaId) {
+        // Si hay una mesa en memoria, verificamos si realmente tiene una comanda abierta en la barra
         pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
         if (pedidoMesa) {
           localStorage.setItem("tribu_comanda_id", pedidoMesa.id);
         }
       }
 
-      if (mesaId && !pedidoMesa && consumoAcumulado.length > 0) {
-        console.log("♻️ Cuenta cobrada en barra. Restableciendo automáticamente.");
+      // 🔥 CORRECCIÓN CRÍTICA: Si entran y no hay comanda activa para esa mesa, vuelve a ser EXTERNO de inmediato
+      if (mesaId && !pedidoMesa) {
+        console.log("♻️ Sin comanda activa en barra. Restableciendo cliente a modo EXTERNO.");
         localStorage.removeItem("tribu_comanda_id");
         localStorage.removeItem("tribu_mesa");
         setMesa(null);
         setConsumoAcumulado([]);
         setMesaValidada(false);
         setPinCorrectoMesa(null);
-        return;
+        return; // Cortamos la ejecución aquí para que se limpie el estado de inmediato
       }
 
       if (pedidoMesa && pedidoMesa.pinMesa) {
@@ -2320,9 +2323,32 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
 
 {view === 'menu' && (() => {
    const ubicacionActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
-   const menuPorPlanta = productosMenu.filter(p => (ubicacionActual === "EXTERNO" || !p.ubicacion || p.ubicacion === "" || p.ubicacion === ubicacionActual));
-   const menuFiltrado = menuPorPlanta.filter(p => (catSeleccionada === "Todos" || p.categoria === catSeleccionada) && (subCatSeleccionada === "Todas" || p.subcategoria === subCatSeleccionada));
-   const subcategoriasDisponibles = Array.from(new Set(menuPorPlanta.filter(p => p.categoria === catSeleccionada && p.subcategoria).map(p => p.subcategoria)));
+   
+   // 🌟 1. FILTRO DE PLANTA OPTIMIZADO: Si es Snack o Comida, pasa libre de qué barra venga.
+   const menuPorPlanta = productosMenu.filter(p => {
+     const catLimpia = (p.categoria || "").toUpperCase().trim();
+     if (catLimpia === "SNACKS" || catLimpia === "COMIDAS") return true; 
+     
+     return (ubicacionActual === "EXTERNO" || !p.ubicacion || p.ubicacion === "" || p.ubicacion === ubicacionActual);
+   });
+
+   // 🌟 2. FILTRO DE CATEGORÍA: Todo en mayúsculas y sin espacios
+   const menuFiltrado = menuPorPlanta.filter(p => {
+     const coincideCategoria = catSeleccionada === "Todos" || 
+       (p.categoria || "").toUpperCase().trim() === catSeleccionada.toUpperCase().trim();
+       
+     const coincideSubcategoria = subCatSeleccionada === "Todas" || 
+       p.subcategoria === subCatSeleccionada;
+
+     return coincideCategoria && coincideSubcategoria;
+   });
+
+   // 🌟 3. ACTUALIZACIÓN DE SUBCATEGORÍAS DISPONIBLES
+   const subcategoriasDisponibles = Array.from(new Set(
+     menuPorPlanta
+       .filter(p => (p.categoria || "").toUpperCase().trim() === catSeleccionada.toUpperCase().trim() && p.subcategoria)
+       .map(p => p.subcategoria)
+   ));
 
    return (
      <div className="min-h-screen bg-slate-900 pb-32 text-slate-100 flex flex-col items-center font-sans w-full">
