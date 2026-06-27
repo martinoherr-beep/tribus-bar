@@ -762,6 +762,7 @@ const verificarCodigo = async () => {
       let pedidoMesa = null;
 
       // 🌟 REGLA DE RESTABLECIMIENTO A EXTERNO SI NO HAY COMANDA ACTIVA
+    // 🌟 ESCUCHA DE COMANDAS ACTIVAS DESDE FIREBASE
       if (comandaIdGuardada) {
         pedidoMesa = data.find(p => p.id === comandaIdGuardada);
         
@@ -772,25 +773,23 @@ const verificarCodigo = async () => {
           mesaId = pedidoMesa.mesa;
         }
       } else if (mesaId) {
-        // Si hay una mesa en memoria, verificamos si realmente tiene una comanda abierta en la barra
         pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
         if (pedidoMesa) {
           localStorage.setItem("tribu_comanda_id", pedidoMesa.id);
         }
       }
 
-      // 🔥 CORRECCIÓN CRÍTICA: Si entran y no hay comanda activa para esa mesa, vuelve a ser EXTERNO de inmediato
-      if (mesaId && !pedidoMesa) {
-        console.log("♻️ Sin comanda activa en barra. Restableciendo cliente a modo EXTERNO.");
+      // 🔥 REGLA CORREGIDA: Solo regresamos a EXTERNO si la cuenta existía con consumo y fue cobrada (total y acumulado en 0)
+      if (mesaId && !pedidoMesa && consumoAcumulado.length > 0) {
+        console.log("♻️ Cuenta cobrada en barra. Restableciendo cliente a modo EXTERNO.");
         localStorage.removeItem("tribu_comanda_id");
         localStorage.removeItem("tribu_mesa");
         setMesa(null);
         setConsumoAcumulado([]);
         setMesaValidada(false);
         setPinCorrectoMesa(null);
-        return; // Cortamos la ejecución aquí para que se limpie el estado de inmediato
+        return;
       }
-
       if (pedidoMesa && pedidoMesa.pinMesa) {
           setPinCorrectoMesa(pedidoMesa.pinMesa);
           const items = pedidoMesa.detalle.split('\n').map(linea => {
