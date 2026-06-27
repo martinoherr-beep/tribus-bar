@@ -779,9 +779,10 @@ const verificarCodigo = async () => {
         }
       }
 
-      // 🔥 REGLA CORREGIDA: Solo regresamos a EXTERNO si la cuenta existía con consumo y fue cobrada (total y acumulado en 0)
-      if (mesaId && !pedidoMesa && consumoAcumulado.length > 0) {
-        console.log("♻️ Cuenta cobrada en barra. Restableciendo cliente a modo EXTERNO.");
+   // 🔥 PARCHE DEFINITIVO: Si hay una mesa en memoria pero Firebase confirma que está libre en barra,
+      // la limpiamos de inmediato para que el cliente inicie como EXTERNO.
+      if (mesaId && !pedidoMesa) {
+        console.log("♻️ La mesa en memoria no tiene comanda activa en barra. Restableciendo a EXTERNO.");
         localStorage.removeItem("tribu_comanda_id");
         localStorage.removeItem("tribu_mesa");
         setMesa(null);
