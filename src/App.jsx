@@ -43,7 +43,11 @@ const estilosImpresion = `
    }
    .no-print { display: none !important; }
  }
-`;
+`
+// 🗓️ CONFIGURACIÓN DE APERTURA: 0=Domingo, 4=Jueves, 5=Viernes, 6=Sábado
+const DIAS_APERTURA_TERRAZA = [0, 4, 5, 6]; 
+const LINK_RESERVACIONES_WA = "https://wa.me/521234567890?text=Hola!%20Me%20gustar%C3%ADa%20hacer%20una%20reservaci%C3%B3n%20para%20la%20Terraza%20de%20Tribus%20Bar.";
+;
 
 function App() {
  const [view, setView] = useState('welcome');
@@ -78,6 +82,7 @@ function App() {
  // 💡 NUEVO ESTADO AGREGADO PARA SEPARAR EL INVENTARIO DEL BUSCADOR DE COMANDAS
  const [filtroInventario, setFiltroInventario] = useState(""); 
  const [filtroPisoFisico, setFiltroPisoFisico] = useState("");
+ const [mostrarSeleccionPiso, setMostrarSeleccionPiso] = useState(false);
  const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
  const [nombreRegistro, setNombreRegistro] = useState('');
  const [usuarioLogueado, setUsuarioLogueado] = useState(null);
@@ -1493,69 +1498,70 @@ const guardarEvento = async (e) => {
                       <p className="text-[9px] text-slate-500 font-bold uppercase mt-0.5">Control de peso milimétrico para bebidas preparadas</p>
                     </div>
                     
-                    <button 
-                      type="button"
-                    onClick={() => {
-  const botellasCerradas = productosMenu.filter(p => p.categoria?.toLowerCase().trim() === "botellas" && p.stock > 0);
-  if(botellasCerradas.length === 0) {
-    alert("No hay cajas de botellas cerradas con stock disponible para descorchar.");
-    return;
-  }
-  
-  // 1. Armamos la lista de botellas para el prompt tradicional
-  const listaTexto = botellasCerradas.map((b, idx) => `${idx + 1}. ${b.nombre} (${b.ubicacion} - Quedan: ${b.stock} pz)`).join("\n");
-  
-  // 2. Abrimos la ventana. El barman puede teclear el número O disparar el lector de códigos sobre este cuadro
-  const entradaUsuario = window.prompt(`🍾 DESCORCHE DE BOTELLAS\n\nOpción 1: Escribe el número de la botella.\nOpción 2: Deja el cursor aquí y dispara el LECTOR FIJO.\n\n${listaTexto}`);
-  
-  if (entradaUsuario) {
-    const valorLimpio = entradaUsuario.trim();
-    let botellaElegida = null;
+                   {/* ─── BUSCA ESTE BOTÓN EXACTO EN TU INVENTARIO Y REEMPLÁZALO COMPLETITO ─── */}
+<button 
+  type="button"
+  onClick={() => {
+    const botellasCerradas = productosMenu.filter(p => p.categoria?.toLowerCase().trim() === "botellas" && p.stock > 0);
+    if(botellasCerradas.length === 0) {
+      alert("No hay cajas de botellas cerradas con stock disponible para descorchar.");
+      return;
+    }
+    
+    // 1. Armamos la lista de botellas para el prompt
+    const listaTexto = botellasCerradas.map((b, idx) => `${idx + 1}. ${b.nombre} (${b.ubicacion} - Quedan: ${b.stock} pz)`).join("\n");
+    
+    // 2. Abrimos la ventana. El cursor se posiciona solo. El barman puede disparar el lector aquí directo.
+    const entradaUsuario = window.prompt(`🍾 DESCORCHE DE BOTELLAS\n\nOpción 1: Escribe el número de la opción.\nOpción 2: Deja el cursor aquí y dispara el LECTOR FIJO.\n\n${listaTexto}`);
+    
+    if (entradaUsuario) {
+      const valorLimpio = entradaUsuario.trim();
+      let botellaElegida = null;
 
-    // 🌟 LÓGICA INTELIGENTE: ¿Es una selección por número o es el código QR largo del lector?
-    if (isNaN(valorLimpio)) {
-      // Si NO es un número, buscamos directamente la botella que tenga ese código QR guardado
-      botellaElegida = botellasCerradas.find(b => String(b.codigoQR).trim() === valorLimpio);
-      
-      if (!botellaElegida) {
-        alert(`El código QR [${valorLimpio}] leído no coincide con ninguna botella cerrada en stock.`);
-        return;
-      }
-    } else {
-      // Si SÍ es un número, procesamos el índice de la lista como siempre
-      const indice = Number(valorLimpio);
-      if (indice <= botellasCerradas.length && indice > 0) {
-        botellaElegida = botellasCerradas[indice - 1];
+      // 🌟 Analizamos el disparo del lector fijo
+      if (isNaN(valorLimpio)) {
+        // Si no es un número de opción, buscamos en la base de datos la botella con ese código QR exacto
+        botellaElegida = botellasCerradas.find(b => String(b.codigoQR).trim() === valorLimpio);
+        
+        if (!botellaElegida) {
+          alert(`El código QR [${valorLimpio}] leído no coincide con ninguna botella cerrada en stock.`);
+          return;
+        }
       } else {
-        alert("Número de opción inválido.");
-        return;
+        // Si ingresaron un número de opción manual
+        const indice = Number(valorLimpio);
+        if (indice <= botellasCerradas.length && indice > 0) {
+          botellaElegida = botellasCerradas[indice - 1];
+        } else {
+          alert("Número de opción inválido.");
+          return;
+        }
       }
+
+      // 3. Flujo normal de asignación de área
+      const pisoDestino = window.prompt(`Botella identificada: ${botellaElegida.nombre}\n¿En qué barra se va a abrir?\n1. PLANTA BAJA\n2. TERRAZA`, "1");
+      if (!pisoDestino) return;
+      const ubicacionFinal = pisoDestino === "2" ? "TERRAZA" : "PLANTA BAJA";
+
+      const tragoRelacionado = productosMenu.find(p => p.categoria?.toLowerCase().trim() === "bebidas preparadas" && p.botellaOriginalId === botellaElegida.id);
+
+      const batch = writeBatch(db);
+      batch.update(doc(db, "productos", botellaElegida.id), { stock: increment(-1) });
+      
+      if (tragoRelacionado) {
+        batch.update(doc(db, "productos", tragoRelacionado.id), { 
+          pesoActualGramos: Number(botellaElegida.pesoBotellaLleno || 1200),
+          ubicacion: ubicacionFinal
+        });
+      }
+      
+      batch.commit().then(() => alert(`¡Listo! Descontada 1 unidad de ${botellaElegida.nombre} y enviada a la báscula de ${ubicacionFinal}.`));
     }
-
-    // 3. Una vez identificada la botella (ya sea por número o por QR), se ejecuta tu lógica original
-    const pisoDestino = window.prompt(`¿En qué barra se va a abrir?\n1. PLANTA BAJA\n2. TERRAZA`, "1");
-    if (!pisoDestino) return;
-    const ubicacionFinal = pisoDestino === "2" ? "TERRAZA" : "PLANTA BAJA";
-
-    const tragoRelacionado = productosMenu.find(p => p.categoria?.toLowerCase().trim() === "bebidas preparadas" && p.botellaOriginalId === botellaElegida.id);
-
-    const batch = writeBatch(db);
-    batch.update(doc(db, "productos", botellaElegida.id), { stock: increment(-1) });
-    
-    if (tragoRelacionado) {
-      batch.update(doc(db, "productos", tragoRelacionado.id), { 
-        pesoActualGramos: Number(botellaElegida.pesoBotellaLleno || 1200),
-        ubicacion: ubicacionFinal
-      });
-    }
-    
-    batch.commit().then(() => alert(`¡Listo! Descontada 1 unidad de ${botellaElegida.nombre} y enviada a la báscula de ${ubicacionFinal}.`));
-  }
-}}
-                      className="bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-black uppercase px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-lg"
-                    >
-                      🍾 Descorchar para Barra
-                    </button>
+  }}
+  className="bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-black uppercase px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-lg"
+>
+  🍾 Descorchar para Barra
+</button>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1902,41 +1908,52 @@ const guardarEvento = async (e) => {
                   }
                 }
 
-                if (Number(nuevoProd.stockBaja) > 0 || esBebidaPreparada || esComidaOSnack) {
-                  const refBaja = doc(collection(db, "productos"));
-                  batch.set(refBaja, {
-                    nombre: nuevoProd.nombre,
-                    stock: Number(nuevoProd.stockBaja) || 0,
-                    ubicacion: "PLANTA BAJA",
-                    departamento: deptoBase,
-                    precioMesa: Number(nuevoProd.precioMesa),
-                    precioDomicilio: Number(nuevoProd.precioDomicilio),
-                    categoria: nuevoProd.categoria,
-                    subcategoria: porcionOFormat,
-                    imagen: nuevoProd.imagen || "https://images.unsplash.com/photo-1541532713592-79a0317b6b77?q=80&w=200",
-                    ...datosBasculaAut
-                  });
-                }
+                // ─── BUSCA ESTA SECCIÓN DENTRO DEL FORMULARIO DE NUEVO PRODUCTO Y REEMPLÁZALA ───
 
-                if (Number(nuevoProd.stockTerraza) > 0 && !esBebidaPreparada && !esComidaOSnack) {
-                  const refTerraza = doc(collection(db, "productos"));
-                  batch.set(refTerraza, {
-                    nombre: nuevoProd.nombre,
-                    stock: Number(nuevoProd.stockTerraza),
-                    ubicacion: "TERRAZA",
-                    departamento: deptoBase,
-                    precioMesa: Number(nuevoProd.precioMesa),
-                    precioDomicilio: Number(nuevoProd.precioDomicilio),
-                    categoria: nuevoProd.categoria,
-                    subcategoria: nuevoProd.subcategoria,
-                    imagen: nuevoProd.imagen || "https://images.unsplash.com/photo-1541532713592-79a0317b6b77?q=80&w=200",
-                    ...datosBasculaAut
-                  });
-                }
+if (Number(nuevoProd.stockBaja) > 0 || esBebidaPreparada || esComidaOSnack) {
+  const refBaja = doc(collection(db, "productos"));
+  batch.set(refBaja, {
+    nombre: nuevoProd.nombre,
+    stock: Number(nuevoProd.stockBaja) || 0,
+    ubicacion: "PLANTA BAJA",
+    departamento: deptoBase,
+    precioMesa: Number(nuevoProd.precioMesa),
+    precioDomicilio: Number(nuevoProd.precioDomicilio),
+    categoria: nuevoProd.categoria,
+    subcategoria: porcionOFormat,
+    imagen: nuevoProd.imagen || "https://images.unsplash.com/photo-1541532713592-79a0317b6b77?q=80&w=200",
+    
+    // 🌟 ENLACE DE QR PARA PLANTA BAJA
+    codigoQR: nuevoProd.codigoQR || "", 
+    
+    ...datosBasculaAut
+  });
+}
 
-                await batch.commit();
-                setVerModalNuevoProd(false);
-                setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", categoria: "Cerveza", subcategoria: "", imagen: "" });
+if (Number(nuevoProd.stockTerraza) > 0 && !esBebidaPreparada && !esComidaOSnack) {
+  const refTerraza = doc(collection(db, "productos"));
+  batch.set(refTerraza, {
+    nombre: nuevoProd.nombre,
+    stock: Number(nuevoProd.stockTerraza),
+    ubicacion: "TERRAZA",
+    departamento: deptoBase,
+    precioMesa: Number(nuevoProd.precioMesa),
+    precioDomicilio: Number(nuevoProd.precioDomicilio),
+    categoria: nuevoProd.categoria,
+    subcategoria: nuevoProd.subcategoria,
+    imagen: nuevoProd.imagen || "https://images.unsplash.com/photo-1541532713592-79a0317b6b77?q=80&w=200",
+    
+    // 🌟 ENLACE DE QR PARA TERRAZA
+    codigoQR: nuevoProd.codigoQR || "", 
+    
+    ...datosBasculaAut
+  });
+}
+
+await batch.commit();
+setVerModalNuevoProd(false);
+// 🌟 LIMPIAMOS EL ESTADO INCLUYENDO EL QR
+setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", categoria: "Cerveza", subcategoria: "", imagen: "", codigoQR: "" });
             }} className="space-y-4 font-sans">
               
               <div>
@@ -2152,13 +2169,25 @@ const guardarEvento = async (e) => {
            </div>
          </button>
 
-         <button onClick={() => { setEsComandaManual(false); setView('menu'); }} className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 transition-all duration-300 group">
-           <UtensilsCrossed className="text-white" size={28} />
-           <div className="text-left font-bold uppercase text-[10px] text-orange-200">
-             <p>Menú Digital</p>
-             <p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p>
-           </div>
-         </button>
+      <button 
+            onClick={() => { 
+              setEsComandaManual(false); 
+              if (mesa) {
+                // Si ya escaneó QR de mesa, pasa directo al menú de su piso
+                setView('menu'); 
+              } else {
+                // Si es externo, le preguntamos a qué piso va
+                setMostrarSeleccionPiso(true);
+              }
+            }} 
+            className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 transition-all duration-300 group w-full"
+          >
+            <UtensilsCrossed className="text-white" size={28} />
+            <div className="text-left font-bold uppercase text-[10px] text-orange-200">
+              <p>Menú Digital</p>
+              <p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p>
+            </div>
+          </button>
          {/* ✨ BOTÓN NUEVO: BENEFICIOS DE LA TRIBU */}
         <button 
           onClick={() => setVerModalBeneficios(true)} 
@@ -2506,7 +2535,99 @@ const guardarEvento = async (e) => {
         <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
       </div>
  )}
+{/* ─── MODAL INTERMEDIO: SELECCIÓN DE PISO PARA EXTERNOS ─── */}
+       {mostrarSeleccionPiso && (() => {
+         const diaHoy = new Date().getDay(); // 0-6
+         const terrazaAbiertaHoy = DIAS_APERTURA_TERRAZA.includes(diaHoy);
 
+         return (
+           <div className="fixed inset-0 z-[220] bg-slate-950/95 backdrop-blur-md text-white flex flex-col items-center justify-center p-6 font-sans animate-fade-in">
+             <div className="w-full max-w-sm space-y-6 relative text-center">
+               
+               {/* Encabezado */}
+               <div className="space-y-2">
+                 <div className="w-14 h-14 bg-orange-600/10 border border-orange-500/20 rounded-2xl flex items-center justify-center mx-auto shadow-xl">
+                   <Boxes className="text-orange-500" size={26} />
+                 </div>
+                 <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white">¿Dónde te ubicarás?</h3>
+                 <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Selecciona tu área para mostrarte el menú correcto</p>
+               </div>
+
+               {/* Opciones de Piso */}
+               <div className="space-y-4 pt-2">
+                 
+                 {/* Opción 1: Planta Baja */}
+                 <button
+                   onClick={() => {
+                     setMesa(null); // Asegura estado externo limpio
+                     setMostrarSeleccionPiso(false);
+                     setView('menu');
+                   }}
+                   className="w-full bg-[#0c111a] border border-slate-800 hover:border-orange-500 p-5 rounded-3xl text-left transition-all active:scale-95 flex items-center justify-between group shadow-xl"
+                 >
+                   <div className="space-y-0.5">
+                     <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest block">Planta Baja</span>
+                     <span className="text-lg font-black uppercase text-white leading-tight">🍻 Barra Principal</span>
+                     <span className="text-[11px] text-slate-400 block mt-1 font-medium">Abierto hoy con servicio completo</span>
+                   </div>
+                   <span className="text-xl font-bold text-slate-700 group-hover:text-orange-500 transition-colors">➔</span>
+                 </button>
+
+                 {/* Opción 2: Terraza (Planta Alta) Dinámica */}
+                 <div className="space-y-2">
+                   <button
+                     disabled={!terrazaAbiertaHoy}
+                     onClick={() => {
+                       // Simulamos temporalmente que está en la terraza para filtrar los productos correctos
+                       localStorage.setItem("tribu_mesa", "26"); // Mesa inicial simulada de Terraza
+                       setMesa("26"); 
+                       setMostrarSeleccionPiso(false);
+                       setView('menu');
+                     }}
+                     className={`w-full p-5 rounded-3xl text-left border flex items-center justify-between transition-all shadow-xl ${
+                       terrazaAbiertaHoy 
+                         ? 'bg-[#0c111a] border-slate-800 hover:border-sky-400 active:scale-95 group' 
+                         : 'bg-slate-900/40 border-slate-950 opacity-40 cursor-not-allowed'
+                     }`}
+                   >
+                     <div className="space-y-0.5">
+                       <span className="text-[9px] font-black text-sky-400 uppercase tracking-widest block">Planta Alta</span>
+                       <span className="text-lg font-black uppercase text-white leading-tight">❄️ Terraza Sky Barra</span>
+                       <span className="text-[11px] text-slate-400 block mt-1 font-medium">
+                         {terrazaAbiertaHoy ? "Zona activa al aire libre" : "Cerrado el día de hoy"}
+                       </span>
+                     </div>
+                     {terrazaAbiertaHoy && <span className="text-xl font-bold text-slate-700 group-hover:text-sky-400 transition-colors">➔</span>}
+                   </button>
+
+                   {/* Botón de Reservas Exclusivo si la terraza está cerrada hoy */}
+                   {!terrazaAbiertaHoy && (
+                     <button
+                       type="button"
+                       onClick={() => window.open(LINK_RESERVACIONES_WA, '_blank')}
+                       className="w-full bg-purple-600/10 hover:bg-purple-600 border border-purple-500/20 text-purple-400 hover:text-white font-black py-3 rounded-2xl uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 animate-fade-in shadow-lg"
+                     >
+                       📅 Reservar Mesa para el fin de semana
+                     </button>
+                   )}
+                 </div>
+
+               </div>
+
+               {/* Botón Atrás */}
+               <div className="pt-4">
+                 <button 
+                   onClick={() => setMostrarSeleccionPiso(false)} 
+                   className="text-[10px] font-black uppercase text-slate-500 hover:text-slate-300 tracking-widest underline transition-colors"
+                 >
+                   Volver Atrás
+                 </button>
+               </div>
+
+             </div>
+           </div>
+         );
+       })()}
 {/* ─── MODAL VISUAL DE BENEFICIOS TRIBU ─── */}
        {verModalBeneficios && (
          <div className="fixed inset-0 z-[250] bg-slate-950/95 backdrop-blur-md text-white flex flex-col items-center justify-center p-4 font-sans animate-fade-in">
