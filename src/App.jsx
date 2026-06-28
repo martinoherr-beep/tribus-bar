@@ -2345,36 +2345,32 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
 )}
 
 {view === 'menu' && (() => {
-   // 🌟 CORRECCIÓN DE ÁREAS: Detecta correctamente si 'mesa' ya es el nombre del área o una mesa física
+   // 🌟 LOGICA MEJORADA: Entiende "B", "T", números de mesa o externos reales
    const obtenerPlantaMejorado = (valorMesa) => {
      if (!valorMesa) return "EXTERNO";
      const mesaStr = String(valorMesa).toUpperCase().trim();
      
-     // Si el usuario seleccionó directamente el área en los botones de externo
-     if (mesaStr.includes("TERRAZA")) return "TERRAZA";
-     if (mesaStr.includes("BAJA") || mesaStr.includes("PLANTA")) return "PLANTA BAJA";
+     if (mesaStr === "T" || mesaStr.includes("TERRAZA")) return "TERRAZA";
+     if (mesaStr === "B" || mesaStr.includes("BAJA") || mesaStr.includes("PLANTA")) return "PLANTA BAJA";
      
-     // Si es una mesa numérica, usamos tu lógica original (ajusta los números si es necesario)
      const numMesa = parseInt(valorMesa, 10);
      if (!isNaN(numMesa)) {
-       return numMesa >= 10 ? "TERRAZA" : "PLANTA BAJA"; // Ejemplo: mesas de la 10 en adelante son terraza
+       return (numMesa >= 26 && numMesa <= 50) ? "TERRAZA" : "PLANTA BAJA";
      }
-     
      return "EXTERNO";
    };
 
    const ubicacionActual = obtenerPlantaMejorado(mesa);
    
-   // 🌟 FILTRO DE PLANTA: Separa estrictamente el menú por área, excepto snacks/comidas
+   // 🌟 SEPARACIÓN ESTRICTA DE HIERLERAS/BARRAS
    const menuPorPlanta = productosMenu.filter(p => {
      const catLimpia = (p.categoria || "").toUpperCase().trim();
-     if (catLimpia === "SNACKS" || catLimpia === "COMIDAS") return true; 
+     if (catLimpia === "SNACKS" || catLimpia === "COMIDAS") return true; // Cocina pasa libre siempre
      
      const prodUbicacion = (p.ubicacion || "").toUpperCase().trim();
      
-     // Si el cliente es externo real (sin área), ve todo. Si eligió área, filtramos estrictamente.
      if (ubicacionActual === "EXTERNO") return true;
-     if (!prodUbicacion || prodUbicacion === "") return true; // Productos universales
+     if (!prodUbicacion || prodUbicacion === "") return true;
      
      return prodUbicacion === ubicacionActual;
    });
@@ -2407,12 +2403,13 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
                 <div onClick={() => { if(esComandaManual) { setView('barra'); setTabBarra('mesas_fisicas'); } else { setView('welcome'); } }} className="cursor-pointer font-black text-xl text-orange-500 italic uppercase tracking-tighter leading-none whitespace-nowrap">
                   {nombreBarDinamico}
                 </div>
-                <button 
-                 onClick={() => { setMesaEscaneadaInput(""); encenderCamaraPWA(); }}
-                  className="bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-lg shadow-orange-600/10 active:scale-95 transition-transform"
-                >
-                  📷 {mesa ? `Mesa ${mesa}` : "Escanear QR / Mesa"}
-                </button>
+               {/* 🌟 CORRECCIÓN VISUAL: Solo dice 'Mesa X' si es un número, de lo contrario muestra el nombre del área */}
+<button 
+  onClick={() => { setMesaEscaneadaInput(""); encenderCamaraPWA(); }}
+  className="bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-lg shadow-orange-600/10 active:scale-95 transition-transform"
+>
+  📷 {mesa && mesa !== "B" && mesa !== "T" ? `Mesa ${mesa}` : "Escanear QR / Mesa"}
+</button>
 
               </div>
 
@@ -2629,15 +2626,16 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
                {/* Opciones de Piso */}
                <div className="space-y-4 pt-2">
                  
-                 {/* Opción 1: Planta Baja */}
-                 <button
-                   onClick={() => {
-                     setMesa(null); // Asegura estado externo limpio
-                     setMostrarSeleccionPiso(false);
-                     setView('menu');
-                   }}
-                   className="w-full bg-[#0c111a] border border-slate-800 hover:border-orange-500 p-5 rounded-3xl text-left transition-all active:scale-95 flex items-center justify-between group shadow-xl"
-                 >
+              {/* Opción 1: Planta Baja */}
+<button
+  onClick={() => {
+    localStorage.removeItem("tribu_mesa"); // Limpiamos mesa vieja
+    setMesa("B"); // 🌟 Asignamos la variable fija de Planta Baja
+    setMostrarSeleccionPiso(false);
+    setView('menu');
+  }}
+  className="w-full bg-[#0c111a] border border-slate-800 hover:border-orange-500 p-5 rounded-3xl text-left transition-all active:scale-95 flex items-center justify-between group shadow-xl"
+>
                    <div className="space-y-0.5">
                      <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest block">Planta Baja</span>
                      <span className="text-lg font-black uppercase text-white leading-tight">🍻 Barra Principal</span>
@@ -2649,23 +2647,22 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
                  {/* Opción 2: Terraza (Planta Alta) Dinámica */}
                  <div className="space-y-2">
                    <button
-                     disabled={!terrazaAbiertaHoy}
-                     onClick={() => {
-                       // Simulamos temporalmente que está en la terraza para filtrar los productos correctos
-                       localStorage.setItem("tribu_mesa", "26"); // Mesa inicial simulada de Terraza
-                       setMesa("26"); 
-                       setMostrarSeleccionPiso(false);
-                       setView('menu');
-                     }}
-                     className={`w-full p-5 rounded-3xl text-left border flex items-center justify-between transition-all shadow-xl ${
-                       terrazaAbiertaHoy 
-                         ? 'bg-[#0c111a] border-slate-800 hover:border-sky-400 active:scale-95 group' 
-                         : 'bg-slate-900/40 border-slate-950 opacity-40 cursor-not-allowed'
-                     }`}
-                   >
+  disabled={!terrazaAbiertaHoy}
+  onClick={() => {
+    localStorage.removeItem("tribu_mesa"); // Limpiamos mesa vieja
+    setMesa("T"); // 🌟 Asignamos la variable fija de Terraza (Adios al '26' automático)
+    setMostrarSeleccionPiso(false);
+    setView('menu');
+  }}
+  className={`w-full p-5 rounded-3xl text-left border flex items-center justify-between transition-all shadow-xl ${
+    terrazaAbiertaHoy 
+      ? 'bg-[#0c111a] border-slate-800 hover:border-sky-400 active:scale-95 group' 
+      : 'bg-slate-900/40 border-slate-950 opacity-40 cursor-not-allowed'
+  }`}
+>
                      <div className="space-y-0.5">
                        <span className="text-[9px] font-black text-sky-400 uppercase tracking-widest block">Planta Alta</span>
-                       <span className="text-lg font-black uppercase text-white leading-tight">❄️ Terraza Sky Barra</span>
+                       <span className="text-lg font-black uppercase text-white leading-tight">❄️ Terraza Tribus</span>
                        <span className="text-[11px] text-slate-400 block mt-1 font-medium">
                          {terrazaAbiertaHoy ? "Zona activa al aire libre" : "Cerrado el día de hoy"}
                        </span>
