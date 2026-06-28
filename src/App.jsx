@@ -545,8 +545,15 @@ const verificarCodigo = async () => {
  }
 };
 
- const plantaActual = mesa ? obtenerPlanta(mesa) : "EXTERNO";
- const nombreBarDinamico = plantaActual === "TERRAZA" ? "TRIBU'S BAR TERRAZA" : "TRIBU'S BAR";
+// 🌟 CABECERA DINÁMICA CORREGIDA (Sin espacios en el nombre)
+const plantaActualCabecera = () => {
+  if (!mesa) return "EXTERNO";
+  const mStr = String(mesa).toUpperCase().trim();
+  if (mStr === "T" || (parseInt(mStr, 10) >= 26 && parseInt(mStr, 10) <= 50)) return "TERRAZA";
+  return "PLANTA BAJA";
+};
+
+const nombreBarDinamico = plantaActualCabecera() === "TERRAZA" ? "TRIBU'S BAR TERRAZA" : "TRIBU'S BAR";
 
  const obtenerPrecioItem = (item) => mesa ? item.precioMesa : item.precioDomicilio;
  const totalCarrito = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
