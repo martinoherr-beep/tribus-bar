@@ -2757,7 +2757,7 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
 >
                    <div className="space-y-0.5">
                      <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest block">Planta Baja</span>
-                     <span className="text-lg font-black uppercase text-white leading-tight">🍻 Barra Principal</span>
+                     <span className="text-lg font-black uppercase text-white leading-tight">🍻 Tribu´s Bar</span>
                      <span className="text-[11px] text-slate-400 block mt-1 font-medium">Abierto hoy con servicio completo</span>
                    </div>
                    <span className="text-xl font-bold text-slate-700 group-hover:text-orange-500 transition-colors">➔</span>
