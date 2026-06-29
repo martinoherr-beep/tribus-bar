@@ -977,7 +977,11 @@ const procesarEnvio = async (idDestino) => {
 };
 
 const cobrarCuenta = async (p) => {
-   await addDoc(collection(db, "historial_tickets"), { 
+   const batch = writeBatch(db);
+   
+   // 1. Creamos la referencia del ticket en el historial como ya lo hacías
+   const ticketRef = doc(collection(db, "historial_tickets"));
+   batch.set(ticketRef, { 
       mesa: p.mesa, 
       detalle: p.detalle, 
       total: Number(p.total), 
@@ -987,7 +991,44 @@ const cobrarCuenta = async (p) => {
       telefono: p.telefono || "N/A",
       uid: p.uid || null 
    });
-   await deleteDoc(doc(db, "pedidos", p.id));
+
+   // 2. 📊 ANALIZADOR DE VENTAS DE BÁSCULA: Escanea el ticket buscando Vasos o Litros vendidos
+   const lineas = p.detalle.split('\n');
+   lineas.forEach(linea => {
+     // Buscamos patrones como: "2x Trago Ejemplo (VASO)" o "1x Trago Ejemplo (LITRO)"
+     const matchCantidad = linea.match(/^(\d+)x/);
+     if (matchCantidad) {
+       const cantidadVendida = parseInt(matchCantidad[1], 10);
+       const textoLinea = linea.toUpperCase();
+       
+       // Determinamos si es un vaso o un litro analizando la subcategoría/formato en el texto
+       let campoFirebase = null;
+       if (textoLinea.includes("(VASO)") || textoLinea.includes("VASO")) {
+         campoFirebase = "totalVasosVendidos";
+       } else if (textoLinea.includes("(LITRO)") || textoLinea.includes("LITRO")) {
+         campoFirebase = "totalLitrosVendidos";
+       }
+       
+       if (campoFirebase) {
+         // Buscamos el producto base en tus productos para saber a cuál sumarle la venta
+         const nombreProducto = linea.replace(/^\d+x\s+/, "").split("(")[0].trim().toUpperCase();
+         const prodOriginal = productosMenu.find(prod => prod.nombre.toUpperCase().trim() === nombreProducto);
+         
+         if (prodOriginal) {
+           // Le sumamos las cantidades vendidas directamente al contador histórico del producto
+           batch.update(doc(db, "productos", prodOriginal.id), {
+             [campoFirebase]: increment(cantidadVendida)
+           });
+         }
+       }
+     }
+   });
+
+   // 3. Borramos la comanda activa de la barra
+   batch.delete(doc(db, "pedidos", p.id));
+
+   // 4. Ejecutamos todos los cambios juntos de forma segura
+   await batch.commit();
 
    localStorage.removeItem("tribu_comanda_id");
    localStorage.removeItem("tribu_mesa");
@@ -1547,23 +1588,24 @@ const guardarEvento = async (e) => {
     // 2. Abrimos la ventana. El cursor se posiciona solo. El barman puede disparar el lector aquí directo.
     const entradaUsuario = window.prompt(`🍾 DESCORCHE DE BOTELLAS\n\nOpción 1: Escribe el número de la opción.\nOpción 2: Deja el cursor aquí y dispara el LECTOR FIJO.\n\n${listaTexto}`);
     
+   // ... dentro del onClick de Descorchar para Barra
     if (entradaUsuario) {
-      const valorLimpio = entradaUsuario.trim();
+      // Forzamos la limpieza absoluta eliminando saltos de línea (\n, \r) que meten los lectores físicos
+      const valorLimpio = entradaUsuario.replace(/[\n\r]/g, "").trim();
       let botellaElegida = null;
 
-      // 🌟 Analizamos el disparo del lector fijo
-      if (isNaN(valorLimpio)) {
-        // Si no es un número de opción, buscamos en la base de datos la botella con ese código QR exacto
+      // 🌟 REGLA SEGURA: Si mide más de 2 caracteres, es un código QR/Marbete del Lector Fijo
+      if (valorLimpio.length > 2) {
         botellaElegida = botellasCerradas.find(b => String(b.codigoQR).trim() === valorLimpio);
         
         if (!botellaElegida) {
-          alert(`El código QR [${valorLimpio}] leído no coincide con ninguna botella cerrada en stock.`);
+          alert(`El código leído [${valorLimpio}] no coincide con ninguna botella cerrada en stock.`);
           return;
         }
       } else {
-        // Si ingresaron un número de opción manual
+        // Si ingresaron 1 o 2 dígitos, es una opción numérica del menú manual
         const indice = Number(valorLimpio);
-        if (indice <= botellasCerradas.length && indice > 0) {
+        if (!isNaN(indice) && indice <= botellasCerradas.length && indice > 0) {
           botellaElegida = botellasCerradas[indice - 1];
         } else {
           alert("Número de opción inválido.");
@@ -1571,7 +1613,7 @@ const guardarEvento = async (e) => {
         }
       }
 
-      // 3. Flujo normal de asignación de área
+      // 3. Flujo normal de asignación de área (Se queda igual)
       const pisoDestino = window.prompt(`Botella identificada: ${botellaElegida.nombre}\n¿En qué barra se va a abrir?\n1. PLANTA BAJA\n2. TERRAZA`, "1");
       if (!pisoDestino) return;
       const ubicacionFinal = pisoDestino === "2" ? "TERRAZA" : "PLANTA BAJA";
@@ -1581,7 +1623,7 @@ const guardarEvento = async (e) => {
       const batch = writeBatch(db);
       batch.update(doc(db, "productos", botellaElegida.id), { stock: increment(-1) });
       
-      if (tragoRelacionado) {
+      if (tragoRelacion0ado) {
         batch.update(doc(db, "productos", tragoRelacionado.id), { 
           pesoActualGramos: Number(botellaElegida.pesoBotellaLleno || 1200),
           ubicacion: ubicacionFinal
@@ -1597,58 +1639,120 @@ const guardarEvento = async (e) => {
 </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {productosMenu.filter(p => p.categoria?.toLowerCase().trim() === "bebidas preparadas" && p.esInsumoPeso).map(trago => {
-                      const gramosLiquidosActuales = Math.max(0, (trago.pesoActualGramos || 0) - (trago.pesoBotellaVacio || 0));
-                      const vasosDisponibles = trago.gramosPorVaso > 0 ? Math.floor(gramosLiquidosActuales / trago.gramosPorVaso) : 0;
-                      const litrosDisponibles = trago.gramosPorLitro > 0 ? Math.floor(gramosLiquidosActuales / trago.gramosPorLitro) : 0;
-                      
-                      return (
-                        <div key={trago.id} className="bg-[#0c111a] border border-slate-800 p-4 rounded-2xl flex flex-col justify-between hover:border-sky-500/30 transition-all">
-                          <div className="flex justify-between items-start gap-4">
-                            <div>
-                              <h4 className="font-black text-white uppercase text-sm">{trago.nombre}</h4>
-                              <p className="text-[8px] text-slate-500 font-black uppercase tracking-wider mt-0.5"> Barra: {trago.ubicacion} | Vaso: {trago.gramosPorVaso}g - Litro: {trago.gramosPorLitro}g</p>
-                            </div>
-                            <button type="button" onClick={async () => { if(window.confirm(`¿Eliminar trago preparado ${trago.nombre}?`)) await deleteDoc(doc(db, "productos", trago.id)); }} className="text-slate-700 hover:text-red-500 p-1 flex-shrink-0 transition-colors">
-                              <Trash2 size={14}/>
-                            </button>
-                          </div>
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  {productosMenu.filter(p => p.categoria?.toLowerCase().trim() === "bebidas preparadas" && p.esInsumoPeso).map(trago => {
+    // ─── CÁLCULO DE STOCK CONSIDERANDO LA MERMA PERMITIDA ───
+    const gramosLiquidosTotales = Math.max(0, (trago.pesoActualGramos || 0) - (trago.pesoBotellaVacio || 0));
+    const mermaConfigurada = Number(trago.mermaPermitidaGramos || 0);
 
-                          <div className="grid grid-cols-3 gap-2 bg-black/40 p-2.5 rounded-xl border border-white/5 text-center my-2">
-                            <div>
-                              <p className="text-[7px] font-black text-slate-500 uppercase">Báscula</p>
-                              <p className="text-xs font-black text-white">{trago.pesoActualGramos || 0}g</p>
-                            </div>
-                            <div>
-                              <p className="text-[7px] font-black text-orange-500 uppercase">Vasos</p>
-                              <p className="text-xs font-black text-orange-400">{vasosDisponibles} u.</p>
-                            </div>
-                            <div>
-                              <p className="text-[7px] font-black text-teal-500 uppercase">Litros</p>
-                              <p className="text-xs font-black text-teal-400">{litrosDisponibles} u.</p>
-                            </div>
-                          </div>
+    // Restamos la merma para obtener el líquido neto efectivo que se puede vender
+    const gramosLiquidosActuales = Math.max(0, gramosLiquidosTotales - mermaConfigurada);
 
-                          <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-800 mt-1">
-                            <span className="text-[9px] text-slate-400 font-bold uppercase">Neto: <span className="text-white font-black">{gramosLiquidosActuales}g</span></span>
-                            <button 
-                              type="button"
-                              onClick={() => {
-                                const nuevoPeso = window.prompt(`⚖️ PESAR BOTELLA - ${trago.nombre}\n\nIngresa el peso actual de la báscula en gramos:`, trago.pesoActualGramos);
-                                if (nuevoPeso !== null && nuevoPeso !== "") {
-                                  updateDoc(doc(db, "productos", trago.id), { pesoActualGramos: Number(nuevoPeso) });
-                                }
-                              }}
-                              className="bg-sky-600/10 hover:bg-sky-600 text-sky-400 hover:text-white px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all"
-                            >
-                              ⚖️ Registrar Peso
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+    const vasosDisponibles = trago.gramosPorVaso > 0 ? Math.floor(gramosLiquidosActuales / trago.gramosPorVaso) : 0;
+    const litrosDisponibles = trago.gramosPorLitro > 0 ? Math.floor(gramosLiquidosActuales / trago.gramosPorLitro) : 0;
+    
+    return (
+      <div key={trago.id} className="bg-[#0c111a] border border-slate-800 p-4 rounded-2xl flex flex-col justify-between hover:border-sky-500/30 transition-all">
+        <div className="flex justify-between items-start gap-4">
+          <div>
+            <h4 className="font-black text-white uppercase text-sm">{trago.nombre}</h4>
+            <p className="text-[8px] text-slate-500 font-black uppercase tracking-wider mt-0.5"> Barra: {trago.ubicacion} | Vaso: {trago.gramosPorVaso}g - Litro: {trago.gramosPorLitro}g</p>
+          </div>
+          <button type="button" onClick={async () => { if(window.confirm(`¿Eliminar trago preparado ${trago.nombre}?`)) await deleteDoc(doc(db, "productos", trago.id)); }} className="text-slate-700 hover:text-red-500 p-1 flex-shrink-0 transition-colors">
+            <Trash2 size={14}/>
+          </button>
+        </div>
+
+        {/* ─── 1. SECCIÓN DE CONTADORES CON ALERTAS INTEGRADAS ─── */}
+        <div className="grid grid-cols-3 gap-2 bg-black/40 p-2.5 rounded-xl border border-white/5 text-center my-2">
+          <div>
+            <p className="text-[7px] font-black text-slate-500 uppercase">Báscula</p>
+            <p className="text-xs font-black text-white">{trago.pesoActualGramos || 0}g</p>
+          </div>
+          
+          {/* Alerta roja si quedan 5 vasos o menos */}
+          <div className={`p-1 rounded-lg transition-all ${vasosDisponibles <= 5 ? 'bg-red-500/10 border border-red-500/30 animate-pulse' : ''}`}>
+            <p className={`text-[7px] font-black uppercase ${vasosDisponibles <= 5 ? 'text-red-500' : 'text-orange-500'}`}>
+              {vasosDisponibles <= 5 ? '⚠️ Vasos' : 'Vasos'}
+            </p>
+            <p className={`text-xs font-black ${vasosDisponibles <= 5 ? 'text-red-400 text-sm' : 'text-orange-400'}`}>
+              {vasosDisponibles} u.
+            </p>
+          </div>
+          
+          {/* Alerta roja si quedan 3 litros o menos */}
+          <div className={`p-1 rounded-lg transition-all ${litrosDisponibles <= 3 ? 'bg-red-500/10 border border-red-500/30 animate-pulse' : ''}`}>
+            <p className={`text-[7px] font-black uppercase ${litrosDisponibles <= 3 ? 'text-red-500' : 'text-teal-500'}`}>
+              {litrosDisponibles <= 3 ? '⚠️ Litros' : 'Litros'}
+            </p>
+            <p className={`text-xs font-black ${litrosDisponibles <= 3 ? 'text-red-400 text-sm' : 'text-teal-400'}`}>
+              {litrosDisponibles} u.
+            </p>
+          </div>
+        </div>
+
+        {/* Letrero rápido de aviso si el stock es crítico */}
+        {(vasosDisponibles <= 5 || litrosDisponibles <= 3) && (
+          <p className="text-[9px] text-red-500 font-black uppercase tracking-wider text-center bg-red-950/30 py-1 rounded-md border border-red-900/20 mb-2">
+            🚨 ¡Stock Crítico! Preparar descorche
+          </p>
+        )}
+
+        <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-800 mt-1">
+          <div className="flex flex-col text-left">
+            <span className="text-[9px] text-slate-400 font-bold uppercase">
+              Neto Físico: <span className="text-white font-black">{gramosLiquidosTotales}g</span>
+            </span>
+            {/* 📉 Muestra la merma autorizada si se configuró una */}
+            {mermaConfigurada > 0 && (
+              <span className="text-[8px] text-red-400 font-medium uppercase tracking-tight">
+                📉 Merma Tol: -{mermaConfigurada}g
+              </span>
+            )}
+          </div>
+          
+          {/* ─── 2. REPORTE HISTÓRICO DE VASOS Y LITROS VENDIDOS ─── */}
+          <div className="text-right text-[8px] font-black uppercase text-slate-500 tracking-tight">
+            <span>Vendidos: </span>
+            <span className="text-orange-400">{trago.totalVasosVendidos || 0} V</span>
+            <span className="text-slate-600"> | </span>
+            <span className="text-teal-400">{trago.totalLitrosVendidos || 0} L</span>
+          </div>
+
+          <div className="flex gap-1.5">
+            {/* 🌟 BOTÓN 1: Ajustar la Merma Permitida */}
+            <button 
+              type="button"
+              onClick={() => {
+                const merma = window.prompt(`📉 CONFIGURAR MERMA - ${trago.nombre}\n\nIngresa los gramos de tolerancia por merma (se restarán del cálculo de vasos y litros):`, trago.mermaPermitidaGramos || "0");
+                if (merma !== null && merma !== "") {
+                  updateDoc(doc(db, "productos", trago.id), { mermaPermitidaGramos: Number(merma) });
+                }
+              }}
+              className="bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white px-2 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all"
+            >
+              📉 Merma
+            </button>
+
+            {/* ⚖️ BOTÓN 2: Pesar Botella */}
+            <button 
+              type="button"
+              onClick={() => {
+                const nuevoPeso = window.prompt(`⚖️ PESAR BOTELLA - ${trago.nombre}\n\nIngresa el peso actual de la báscula en gramos:`, trago.pesoActualGramos);
+                if (nuevoPeso !== null && nuevoPeso !== "") {
+                  updateDoc(doc(db, "productos", trago.id), { pesoActualGramos: Number(nuevoPeso) });
+                }
+              }}
+              className="bg-sky-600/10 hover:bg-sky-600 text-sky-400 hover:text-white px-2 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all"
+            >
+              ⚖️ Peso
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  })}
+</div>
                 </div>
               )}
 
@@ -2090,16 +2194,24 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">Imagen del Producto (URL)</label>
                 <input placeholder="https://ejemplo.com/foto.jpg" value={nuevoProd.imagen} onChange={e => setNuevoProd({...nuevoProd, imagen: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-xs outline-none text-white shadow-inner focus:border-orange-500" />
               </div>
-              {/* 📦 NUEVO CAMPO: CÓDIGO QR / MARBETE CON LECTOR FIJO */}
-              <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">📦 Código QR / Marbete (Lector Fijo)</label>
-                <input 
-                  placeholder="Haz click aquí y pasa la botella por el escáner..." 
-                  value={nuevoProd.codigoQR || ""} 
-                  onChange={e => setNuevoProd({...nuevoProd, codigoQR: e.target.value.trim()})} 
-                  className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-xs outline-none text-white shadow-inner focus:border-purple-500 font-bold transition-all" 
-                />
-              </div>
+            {/* 📦 NUEVO CAMPO: CÓDIGO QR / MARBETE CON LECTOR FIJO */}
+<div>
+  <label className="text-[9px] font-black text-slate-500 uppercase ml-1 block mb-1">📦 Código QR / Marbete (Lector Fijo)</label>
+  <input 
+    placeholder="Haz click aquí y pasa la botella por el escáner..." 
+    value={nuevoProd.codigoQR || ""} 
+    onChange={e => setNuevoProd({...nuevoProd, codigoQR: e.target.value.trim()})} 
+    
+    // 🌟 PARCHE DE SEGURIDAD: Bloquea el autoguardado del lector de barras
+    onKeyDown={(e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault(); // Evita que el 'Enter' del escáner dispare el submit del formulario
+      }
+    }}
+    
+    className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-xs outline-none text-white shadow-inner focus:border-purple-500 font-bold transition-all" 
+  />
+</div>
               <button type="submit" className="w-full bg-orange-600 hover:bg-orange-500 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest text-white shadow-xl active:scale-95 transition-all mt-2">
                 ✨ Registrar Producto
               </button>
