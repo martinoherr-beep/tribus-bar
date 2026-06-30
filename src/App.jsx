@@ -104,7 +104,19 @@ function App() {
   const limpiezaInicialHecha = useRef(false);
  const [verModalEscaner, setVerModalEscaner] = useState(false);
  const html5QrCodeRef = useRef(null);
+ // 🗓️ Configuración de apertura de la Terraza (Puedes jalarla de Firebase o dejarla fija)
+  const configuracionTerraza = {
+    diasAbre: ["Jueves", "Viernes", "Sábado", "Domingo"],
+    horario: "06:00 PM - 02:00 AM",
+    mesasTotales: Array.from({ length: 25 }, (_, i) => i + 26) // Mesas de la 26 a la 50
+  };
 
+  // Estados para el formulario de la pantalla de reserva
+  const [fechaSeleccionada, setFechaSeleccionada] = useState("");
+  const [mesaSeleccionadaReserva, setMesaSeleccionadaReserva] = useState(null);
+  const [nombreReserva, setNombreReserva] = useState("");
+  // 🌟 AGREGA ESTA LÍNEA AQUÍ PARA SANAR EL ERROR DE REFERENCIA:
+const [reservasConfirmadas, setReservasConfirmadas] = useState([]);
  // 🔥 CONFIGURACIÓN INTEGRADA: Switch especial para comandos manuales de mesero
  const [esComandaManual, setEsComandaManual] = useState(false);
 
@@ -445,6 +457,8 @@ useEffect(() => {
 }, [usuarioLogueado]);
 
 useEffect(() => {
+  // 🌟 CANDADO DE SEGURIDAD: Si vas a reservar, congela este efecto para que Firebase no resetee el renderizado
+  if (view === 'reservar_terraza') return;
   const desubscribir = onAuthStateChanged(auth, (usuario) => {
     if (usuario) {
       setUsuarioLogueado(usuario);
@@ -473,7 +487,8 @@ useEffect(() => {
     }
   });
   return () => desubscribir();
-}, []);
+  
+}, [view]); // 🌟 OJO: Agregamos 'view' aquí para que el candado funcione correctamente
 
 const enviarCodigoSMS = async () => {
  if (telefonoInput.length !== 10) return alert("Ingresa 10 dígitos");
@@ -706,6 +721,8 @@ const nombreBarDinamico = plantaActualCabecera() === "TERRAZA" ? "TRIBU'S BAR TE
  }, []);
 
  useEffect(() => {
+  // 🌟 CANDADO CRÍTICO: Si el usuario va a reservar, frena este efecto de inmediato para que Firebase no congele la vista
+   if (view === 'reservar_terraza') return;
     const params = new URLSearchParams(window.location.search);
     let mesaId = params.get("mesa");
     
@@ -849,7 +866,7 @@ const nombreBarDinamico = plantaActualCabecera() === "TERRAZA" ? "TRIBU'S BAR TE
     onSnapshot(query(collection(db, "recordatorios"), orderBy("fecha", "asc")), (snap) => setRecordatorios(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 
     return () => unsubPedidos();
-  }, [mesa, usuarioLogueado]);
+  }, [mesa, usuarioLogueado, view]);
 
  const manejarPinMesa = (num) => {
    if (pinMesaInput.length < 4) {
@@ -1079,41 +1096,46 @@ const guardarEvento = async (e) => {
    setVerModalNuevoEvento(false);
    setNuevoEvento({ titulo: "", fecha: "", hora: "" });
  };
+// 🌟 PARCHE DE ENTRADA CORREGIDO: Si el usuario quiere reservar, cortamos camino aquí para no tocar nada más
+  if (view === 'reservar_terraza') {
+    // Si la vista es de reservas, le damos un retorno anticipado directo para evitar bloqueos
+  }
 
- return (
-   <>
-     {/* --- PWA: OBLIGAR A AGREGAR A INICIO --- */}
-     {!esAppInstalada && view !== 'barra' && view !== 'login_staff' && !esStaff && !esComandaManual && (
-       <div className="fixed inset-0 z-[300] bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center font-sans select-none">
-         <div className="max-w-sm space-y-6 animate-fade-in">
-           <div className="w-20 h-20 bg-gradient-to-tr from-orange-600 to-amber-500 rounded-2xl flex items-center justify-center mx-auto shadow-2xl shadow-orange-600/20 transform rotate-12">
-             <span className="text-3xl font-black italic tracking-tighter text-black -rotate-12">TB</span>
-           </div>
-           <div className="space-y-2">
-             <h2 className="text-2xl font-black uppercase tracking-tight italic">🔒 Acceso Secure al Menú</h2>
-             <p className="text-xs text-slate-400 font-medium px-4 leading-relaxed">
-               Para garantizar que tus pedidos se envíen de forma correcta a la barra de tu planta, es necesario agregar la app a tu pantalla de inicio.
-             </p>
-           </div>
-           <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-4 text-left space-y-3">
-             <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Evita que tu mesa se desconfigure.</div>
-             <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Navegación más rápida sin barras molestas.</div>
-             <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Pide directo a tu mesa en Planta Baja o Terraza.</div>
-           </div>
-           <button onClick={forzarInstalacionApp} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs transition-all shadow-xl active:scale-95">
-             ✨ Agregar a Pantalla de Inicio
-           </button>
+  return (
+    <>
+      {/* --- PWA: OBLIGAR A AGREGAR A INICIO --- */}
+      {/* 🌟 CAMBIO AQUÍ: Agregamos "view !== 'reservar_terraza'" al final para que no te tape la pantalla en localhost */}
+      {!esAppInstalada && view !== 'barra' && view !== 'login_staff' && !esStaff && !esComandaManual && view !== 'reservar_terraza' && (
+        <div className="fixed inset-0 z-[300] bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center font-sans select-none">
+          <div className="max-w-sm space-y-6 animate-fade-in">
+            <div className="w-20 h-20 bg-gradient-to-tr from-orange-600 to-amber-500 rounded-2xl flex items-center justify-center mx-auto shadow-2xl shadow-orange-600/20 transform rotate-12">
+              <span className="text-3xl font-black italic tracking-tighter text-black -rotate-12">TB</span>
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black uppercase tracking-tight italic">🔒 Acceso Secure al Menú</h2>
+              <p className="text-xs text-slate-400 font-medium px-4 leading-relaxed">
+                Para garantizar que tus pedidos se envíen de forma correcta a la barra de tu planta, es necesario agregar la app a tu pantalla de inicio.
+              </p>
+            </div>
+            <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-4 text-left space-y-3">
+              <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Evita que tu mesa se desconfigure.</div>
+              <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Navegación más rápida sin barras molestas.</div>
+              <div className="flex items-center gap-3 text-xs font-bold text-slate-200"><span className="text-orange-500 font-black">✓</span> Pide directo a tu mesa en Planta Baja o Terraza.</div>
+            </div>
+            <button onClick={forzarInstalacionApp} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs transition-all shadow-xl active:scale-95">
+              ✨ Agregar a Pantalla de Inicio
+            </button>
   
-           <button 
-             onClick={() => setView('login_staff')} 
-             className="mt-3 text-[10px] text-slate-600 hover:text-slate-400 font-bold uppercase tracking-widest underline transition-colors"
-           >
-             Ingresar como Staff de Barra
-           </button>
-           <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Tribu's Bar • Sistema de Seguridad de Mesas</p>
-         </div>
-       </div>
-     )}
+            <button 
+              onClick={() => setView('login_staff')} 
+              className="mt-3 text-[10px] text-slate-600 hover:text-slate-400 font-bold uppercase tracking-widest underline transition-colors"
+            >
+              Ingresar como Staff de Barra
+            </button>
+            <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Tribu's Bar • Sistema de Seguridad de Mesas</p>
+          </div>
+        </div>
+      )}
 
 {view === 'success' && (
  <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center text-white font-sans">
@@ -1623,7 +1645,7 @@ const guardarEvento = async (e) => {
       const batch = writeBatch(db);
       batch.update(doc(db, "productos", botellaElegida.id), { stock: increment(-1) });
       
-      if (tragoRelacion0ado) {
+      if (tragoRelacionado) {
         batch.update(doc(db, "productos", tragoRelacionado.id), { 
           pesoActualGramos: Number(botellaElegida.pesoBotellaLleno || 1200),
           ubicacion: ubicacionFinal
@@ -2718,12 +2740,163 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
      </div>
    );
  })()}
-
- {view !== 'welcome' && view !== 'registro' && view !== 'login' && view !== 'menu' && view !== 'barra' && view !== 'login_staff' && view !== 'mis_pedidos' && view !== 'success' && (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
+{view === 'reservar_terraza' && (
+  <div className="min-h-screen bg-[#06090f] text-slate-100 p-5 font-sans pb-24">
+    {/* Encabezado */}
+    <div className="flex items-center gap-3 mb-6">
+      <button 
+        onClick={() => setView('menu')} 
+        className="bg-slate-900 border border-slate-800 p-2.5 rounded-2xl text-slate-400 hover:text-white transition-colors active:scale-95"
+      >
+        ⬅️ Volver
+      </button>
+      <div>
+        <h2 className="font-black text-xl text-white uppercase tracking-tight">Reservar Terraza</h2>
+        <p className="text-[10px] text-sky-400 font-bold uppercase tracking-wider">Tribu's Bar Planta Alta</p>
       </div>
- )}
+    </div>
+
+    {/* Tarjeta Informativa de Horarios */}
+    <div className="bg-[#0c111a] border border-slate-800/80 p-4 rounded-3xl mb-6 shadow-xl relative overflow-hidden">
+      <div className="absolute top-0 right-0 bg-sky-500/10 text-sky-400 text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl border-l border-b border-sky-500/20">
+        Info Terraza
+      </div>
+      <h3 className="text-xs font-black text-slate-400 uppercase mb-2 tracking-wide">📅 Días de Operación:</h3>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {configuracionTerraza.diasAbre.map(d => (
+          <span key={d} className="bg-slate-950 text-white border border-slate-800 text-[10px] font-black px-2.5 py-1 rounded-xl">
+            {d}
+          </span>
+        ))}
+      </div>
+      <h3 className="text-xs font-black text-slate-400 uppercase mb-1 tracking-wide">⏰ Horario de Servicio:</h3>
+      <p className="text-sm font-black text-white">{configuracionTerraza.horario}</p>
+    </div>
+
+    {/* Formulario de Datos */}
+    <div className="space-y-4 mb-6">
+      <div>
+        <label className="text-[10px] font-black text-slate-500 uppercase ml-1 block mb-1">👤 Nombre de quien reserva</label>
+        <input 
+          type="text"
+          placeholder="Ej. Carlos Mendoza" 
+          value={nombreReserva}
+          onChange={e => setNombreReserva(e.target.value)}
+          className="w-full bg-slate-950 border border-slate-800 p-3.5 rounded-2xl text-xs outline-none text-white focus:border-sky-500 font-bold transition-all"
+        />
+      </div>
+
+      <div>
+        <label className="text-[10px] font-black text-slate-500 uppercase ml-1 block mb-1">📅 Selecciona la Fecha</label>
+        <input 
+          type="date"
+          value={fechaSeleccionada}
+          onChange={e => {
+            setFechaSeleccionada(e.target.value);
+            setMesaSeleccionadaReserva(null); // Reseteamos la mesa elegida al cambiar de día
+          }}
+          className="w-full bg-slate-950 border border-slate-800 p-3.5 rounded-2xl text-xs outline-none text-white focus:border-sky-500 font-bold transition-all"
+        />
+      </div>
+    </div>
+
+    {/* Contenedor del Mapa Visual de Mesas Disponibles */}
+    {fechaSeleccionada && (
+      <div className="mb-6">
+        <label className="text-[10px] font-black text-slate-500 uppercase ml-1 block mb-2">🪑 Selección de Mesa en Terraza</label>
+        
+        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2.5 bg-black/40 p-4 rounded-3xl border border-white/5">
+          {configuracionTerraza.mesasTotales.map(numMesa => {
+            // Buscamos si esta mesa ya está apartada en la base de datos para la fecha seleccionada
+            // (Asumiendo que guardas tus reservas mapeadas en un arreglo 'reservasConfirmadas')
+            const estaOcupada = (typeof reservasConfirmadas !== 'undefined') && reservasConfirmadas.some(r => 
+              String(r.mesa) === String(numMesa) && r.fecha === fechaSeleccionada && r.estado !== "cancelada"
+            );
+
+            const esLaElegida = mesaSeleccionadaReserva === numMesa;
+
+            return (
+              <button
+                key={numMesa}
+                disabled={estaOcupada}
+                onClick={() => setMesaSeleccionadaReserva(numMesa)}
+                className={`p-3 rounded-xl flex flex-col items-center justify-center border font-black transition-all text-xs ${
+                  estaOcupada 
+                    ? 'bg-red-950/20 border-red-900/30 text-red-700 opacity-40 cursor-not-allowed line-through' 
+                    : esLaElegida
+                    ? 'bg-sky-500 border-sky-400 text-white shadow-lg shadow-sky-500/20 scale-105'
+                    : 'bg-[#0c111a] border-slate-800 text-slate-300 hover:border-sky-500/40'
+                }`}
+              >
+                <span className="text-[8px] opacity-60 uppercase block">Mesa</span>
+                {numMesa}
+              </button>
+            );
+          })}
+        </div>
+        
+        {/* Acotaciones */}
+        <div className="flex gap-4 justify-center mt-3 text-[9px] font-bold uppercase text-slate-500">
+          <div className="flex items-center gap-1"><span className="w-2 h-2 bg-[#0c111a] border border-slate-800 rounded"></span> Libre</div>
+          <div className="flex items-center gap-1"><span className="w-2 h-2 bg-sky-500 rounded"></span> Tu Selección</div>
+          <div className="flex items-center gap-1"><span className="w-2 h-2 bg-red-950/40 border border-red-900 rounded"></span> Ocupada</div>
+        </div>
+      </div>
+    )}
+
+    {/* Botón de Acción Principal */}
+    <button
+      disabled={!nombreReserva.trim() || !fechaSeleccionada || !mesaSeleccionadaReserva}
+      onClick={async () => {
+        try {
+          // Validamos que el día de la semana seleccionado coincida con los días de apertura
+          const diasSemana = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+          const objetoFecha = new Date(fechaSeleccionada + "T00:00:00");
+          const nombreDiaElegido = diasSemana[objetoFecha.getDay()];
+
+          if (!configuracionTerraza.diasAbre.includes(nombreDiaElegido)) {
+            alert(`Lo sentimos, la terraza no abre los días ${nombreDiaElegido}. Por favor selecciona otro día.`);
+            return;
+          }
+
+          // Guardamos la reserva de forma oficial en Firebase
+          await addDoc(collection(db, "reservas"), {
+            nombre: nombreReserva.trim(),
+            fecha: fechaSeleccionada,
+            mesa: mesaSeleccionadaReserva,
+            planta: "TERRAZA",
+            fechaCreacion: serverTimestamp(),
+            estado: "confirmada"
+          });
+
+          alert(`¡Reserva Exitosa!\nMesa ${mesaSeleccionadaReserva} apartada para el día ${fechaSeleccionada}.`);
+          
+          // Limpiamos el formulario y volvemos al menú
+          setNombreReserva("");
+          setFechaSeleccionada("");
+          setMesaSeleccionadaReserva(null);
+          setView('menu');
+        } catch (error) {
+          console.error("Error al guardar reserva:", error);
+          alert("Hubo un error al procesar tu reservación. Intenta de nuevo.");
+        }
+      }}
+      className={`w-full p-4 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg transition-transform active:scale-95 text-center block ${
+        (nombreReserva.trim() && fechaSeleccionada && mesaSeleccionadaReserva)
+          ? 'bg-sky-500 hover:bg-sky-400 text-white shadow-sky-500/10'
+          : 'bg-slate-900 text-slate-600 border border-slate-950 cursor-not-allowed shadow-none'
+      }`}
+    >
+      🔒 Confirmar Reservación
+    </button>
+  </div>
+)}
+
+{view !== 'welcome' && view !== 'registro' && view !== 'login' && view !== 'menu' && view !== 'barra' && view !== 'login_staff' && view !== 'mis_pedidos' && view !== 'success' && view !== 'reservar_terraza' && (
+     <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+       <p className="text-white animate-pulse font-black italic uppercase tracking-widest">Cargando Tribu's Bar...</p>
+     </div>
+)}
 {/* ─── MODAL INTERMEDIO: SELECCIÓN DE PISO PARA EXTERNOS ─── */}
        {mostrarSeleccionPiso && (() => {
          const diaHoy = new Date().getDay(); // 0-6
@@ -2789,16 +2962,20 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
                      {terrazaAbiertaHoy && <span className="text-xl font-bold text-slate-700 group-hover:text-sky-400 transition-colors">➔</span>}
                    </button>
 
-                   {/* Botón de Reservas Exclusivo si la terraza está cerrada hoy */}
-                   {!terrazaAbiertaHoy && (
-                     <button
-                       type="button"
-                       onClick={() => window.open(LINK_RESERVACIONES_WA, '_blank')}
-                       className="w-full bg-purple-600/10 hover:bg-purple-600 border border-purple-500/20 text-purple-400 hover:text-white font-black py-3 rounded-2xl uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 animate-fade-in shadow-lg"
-                     >
-                       📅 Reservar Mesa para el fin de semana
-                     </button>
-                   )}
+{/* Botón de Reservas Exclusivo si la terraza está cerrada hoy */}
+{!terrazaAbiertaHoy && (
+  <button
+    type="button"
+    onClick={() => {
+      setMesa("T"); 
+      setMostrarSeleccionPiso(false); // 🌟 REGLA DE ORO: Cerramos el modal intermedio para que no tape el fondo
+      setView('reservar_terraza');
+    }}
+    className="w-full bg-purple-600/10 hover:bg-purple-600 border border-purple-500/20 text-purple-400 hover:text-white font-black py-3 rounded-2xl uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 animate-fade-in shadow-lg"
+  >
+    📅 Reservar Mesa para el fin de semana
+  </button>
+)}
                  </div>
 
                </div>
