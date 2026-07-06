@@ -916,16 +916,22 @@ const nombreBarDinamico = plantaActualCabecera() === "TERRAZA" ? "TRIBU'S BAR TE
 // REEMPLÁZALA POR ESTA VERSIÓN CORREGIDA:
 const intentarEnviar = () => {
   if (carrito.length === 0) return;
-  
-  // Si la mesa es "T" o "B", significa que está desde su casa (es externo)
-  const esMesaFisica = mesa && mesa !== "T" && mesa !== "B";
 
-  // Solo pasa directo si es una mesa física real o si el usuario ya está logueado con su cuenta
-  if (esMesaFisica || usuarioLogueado) {
-      procesarEnvio(mesa || null);
+  // Forzamos el string en mayúsculas para evitar errores de dedo ("t" o "b")
+  const mesaLimpia = mesa ? String(mesa).toUpperCase().trim() : "";
+  
+  // Condición infalible: Si no hay mesa, o es "T", o es "B", ES DE CASA (EXTERNO)
+  const esDeCasa = !mesaLimpia || mesaLimpia === "T" || mesaLimpia === "B";
+
+  if (usuarioLogueado) {
+    // Si ya inició sesión con su cuenta de la Tribu, tiene teléfono guardado; pasa directo
+    procesarEnvio(mesa);
+  } else if (esDeCasa) {
+    // 📲 Si es de casa y no está logueado, forzar pantalla de teléfono
+    setVerModalTelefono(true);
   } else {
-      // 📲 Si es "T", "B" o null, lo manda a la pantalla para meter su teléfono
-      setVerModalTelefono(true);
+    // Si es una mesa física numérica (ej: "12"), pasa directo
+    procesarEnvio(mesa);
   }
 };
 
@@ -2915,7 +2921,19 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
          ))} 
        </main>
        {carrito.length > 0 && !verCarrito && (<div className="fixed bottom-6 left-0 right-0 px-6 z-50 flex justify-center no-print"><button onClick={() => setVerCarrito(true)} className="w-full max-w-lg bg-orange-600 text-white py-4 rounded-2xl font-black flex justify-between px-8 shadow-2xl active:scale-95 transition-all shadow-orange-950/30"><span className="text-[10px] uppercase font-bold tracking-widest text-white leading-none flex items-center gap-2"><ShoppingCart size={14}/> MI PEDIDO ({carrito.reduce((a,b)=>a+b.cantidad,0)})</span><span className="font-black text-xl italic text-white tracking-tighter leading-none">${totalCarrito}</span></button></div>)}
-       <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible opacity-100' : 'invisible opacity-0'}`}><div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} /><div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}><div className="flex justify-between items-center border-b border-slate-800 pb-4 font-black text-white italic uppercase text-xl tracking-tighter leading-none"><h2>Mi Cuenta</h2><X onClick={() => setVerCarrito(false)} className="text-slate-500 cursor-pointer" /></div><div className="flex-1 overflow-y-auto py-4 space-y-6 no-scrollbar">{carrito.length > 0 && (<div><p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ShoppingCart size={12}/> Por pedir ahora:</p><div className="space-y-3">{carrito.map(item => (<div key={item.id} className="bg-orange-600/5 p-3 rounded-2xl flex flex-col gap-2 border border-orange-600/20 shadow-sm"><div className="flex justify-between font-bold text-xs text-white uppercase tracking-tight leading-none"><span>{item.nombre}</span><button onClick={() => setCarrito(carrito.filter(x => x.id !== item.id))}><Trash2 size={14} className="text-slate-600 hover:text-red-500 transition-colors"/></button></div><div className="flex justify-between items-center"><span className="text-orange-500 font-bold italic tracking-tighter">${item.total * item.cantidad || item.precio * item.cantidad}</span><div className="flex items-center gap-3 bg-slate-800 rounded-full px-3 py-1 shadow-inner"><Minus onClick={() => restarDelCarrito(item.id)} size={12} className="cursor-pointer"/><span className="text-xs font-bold text-white">{item.cantidad}</span><Plus onClick={() => agregarAlCarrito(item)} size={12} className="cursor-pointer"/></div></div></div>))}</div></div>)}{consumoAcumulado.length > 0 && (<div><p className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-3 flex items-center gap-2"><History size={12}/> Ya consumido:</p><div className="space-y-2">{consumoAcumulado.map((item, idx) => (<div key={idx} className="bg-slate-900/50 p-3 rounded-xl flex justify-between items-center border border-slate-800 opacity-60"><span className="text-[11px] font-bold text-slate-300 uppercase">{item.amount || item.cantidad}x {item.nombre}</span><span className="text-[11px] font-black text-white">${item.precio * (item.amount || item.cantidad)}</span></div>))}</div></div>)}</div><div className="pt-4 border-t border-slate-800 space-y-4"><div className="flex justify-between font-black text-2xl text-orange-500 italic"><span>Total Cuenta</span><span>${totalCarrito + totalAcumulado}</span></div><button disabled={carrito.length === 0} onClick={intentarEnviar} className="w-full py-4 rounded-2xl font-black text-white bg-orange-600 active:scale-95 transition-all shadow-xl uppercase tracking-widest">Confirmar Pedido</button></div></div></div>
+       <div className={`fixed inset-0 z-[60] transition-all ${verCarrito ? 'visible opacity-100' : 'invisible opacity-0'}`}><div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setVerCarrito(false)} /><div className={`absolute right-0 top-0 h-full w-[85%] md:w-[400px] bg-slate-950 p-6 flex flex-col transition-transform duration-300 ${verCarrito ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-800 shadow-2xl`}><div className="flex justify-between items-center border-b border-slate-800 pb-4 font-black text-white italic uppercase text-xl tracking-tighter leading-none"><h2>Mi Cuenta</h2><X onClick={() => setVerCarrito(false)} className="text-slate-500 cursor-pointer" /></div><div className="flex-1 overflow-y-auto py-4 space-y-6 no-scrollbar">{carrito.length > 0 && (<div><p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ShoppingCart size={12}/> Por pedir ahora:</p><div className="space-y-3">{carrito.map(item => (<div key={item.id} className="bg-orange-600/5 p-3 rounded-2xl flex flex-col gap-2 border border-orange-600/20 shadow-sm"><div className="flex justify-between font-bold text-xs text-white uppercase tracking-tight leading-none"><span>{item.nombre}</span><button onClick={() => setCarrito(carrito.filter(x => x.id !== item.id))}><Trash2 size={14} className="text-slate-600 hover:text-red-500 transition-colors"/></button></div><div className="flex justify-between items-center"><span className="text-orange-500 font-bold italic tracking-tighter">${item.total * item.cantidad || item.precio * item.cantidad}</span><div className="flex items-center gap-3 bg-slate-800 rounded-full px-3 py-1 shadow-inner"><Minus onClick={() => restarDelCarrito(item.id)} size={12} className="cursor-pointer"/><span className="text-xs font-bold text-white">{item.cantidad}</span><Plus onClick={() => agregarAlCarrito(item)} size={12} className="cursor-pointer"/></div></div></div>))}</div></div>)}{consumoAcumulado.length > 0 && (<div><p className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-3 flex items-center gap-2"><History size={12}/> Ya consumido:</p><div className="space-y-2">{consumoAcumulado.map((item, idx) => (<div key={idx} className="bg-slate-900/50 p-3 rounded-xl flex justify-between items-center border border-slate-800 opacity-60"><span className="text-[11px] font-bold text-slate-300 uppercase">{item.amount || item.cantidad}x {item.nombre}</span><span className="text-[11px] font-black text-white">${item.precio * (item.amount || item.cantidad)}</span></div>))}</div></div>)}</div><div className="pt-4 border-t border-slate-800 space-y-4">
+  <div className="flex justify-between font-black text-2xl text-orange-500 italic">
+    <span>Total Cuenta</span>
+    <span>${totalCarrito + totalAcumulado}</span>
+  </div>
+  <button 
+    disabled={carrito.length === 0} 
+    onClick={intentarEnviar} // 🎯 Esto obligará al carrito a evaluar si pide teléfono o no
+    className="w-full py-4 rounded-2xl font-black text-white bg-orange-600 active:scale-95 transition-all shadow-xl uppercase tracking-widest"
+  >
+    Confirmar Pedido
+  </button>
+</div></div></div>
        <div className={`fixed inset-0 z-[200] bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans ${verModalTelefono ? 'visible' : 'hidden'}`}>
             <div className="mb-8 text-center"><Phone size={48} className="text-orange-600 mx-auto mb-4" /><h2 className="text-3xl font-black italic uppercase tracking-tighter">¿Tu Teléfono?</h2><p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Para identificar tu pedido externo</p></div>
             <div className="w-full max-w-[300px] mb-8"><div className="bg-slate-900 border-2 border-orange-600/50 rounded-2xl p-6 text-center shadow-2xl"><span className="text-4xl font-black tracking-widest text-white">{telefonoInput || "----------"}</span></div></div>
