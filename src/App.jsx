@@ -955,15 +955,21 @@ const obtenerAlertaCliente = async (telefonoCliente, uidCliente) => {
 };
 
 const procesarEnvio = async (idDestino) => {
+  // 🌟 CANDADO INVIOLABLE DE RAÍZ:
+  const mesaLimpia = idDestino ? String(idDestino).toUpperCase().trim() : "";
+  const esDeCasa = !mesaLimpia || mesaLimpia === "T" || mesaLimpia === "B";
+  const telActual = telefonoUsuarioLogueado || usuarioLogueado?.phoneNumber || telefonoInput || "";
+
+  // Si viene desde casa, no está logueado y no ha metido un teléfono de 10 dígitos, frena el pedido aquí:
+  if (esDeCasa && !usuarioLogueado && (!telActual || telActual === "S/N" || telActual.length < 10)) {
+    setVerModalTelefono(true);
+    return; // 🔥 Bloquea el envío a Firebase de inmediato
+  }
+
+  // --- El resto de tu función procesarEnvio se queda exactamente igual ---
   const batch = writeBatch(db);
-  const telFinal = telefonoUsuarioLogueado || usuarioLogueado?.phoneNumber || telefonoInput || "S/N";
-  
-  // 🌟 DETECTAMOS SI ES EXTERNO: Si el destino es "T", "B" o viene vacío
-  const esClienteExterno = !idDestino || idDestino === "T" || idDestino === "B";
-  
-  // El ID de la mesa se queda exactamente como "T" o "B" en Firebase para no romper tus hieleras
+  const telFinal = telActual || "S/N";
   const idFinal = idDestino ? String(idDestino) : `TEL:${telFinal}`;
-  
   const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
   
   try {
@@ -974,8 +980,6 @@ const procesarEnvio = async (idDestino) => {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
-    // Buscamos si ya hay una comanda para este ID ("T" o "B")
-    // NOTA: Si usas "T" o "B", las órdenes desde casa se agruparán en la comanda "T" o "B" de la barra.
     const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
     let idComandaActual = ""; 
     
@@ -988,7 +992,6 @@ const procesarEnvio = async (idDestino) => {
         cliente: nombreUsuarioLogueado || existente.cliente || (esComandaManual ? "Comanda Manual" : "Cliente"),
         uid: uidFinal || existente.uid || null,
         alertaPrioridad: colorAlerta,
-        // Guardamos o actualizamos el teléfono para asegurar que la barra lo lea
         telefono: telFinal 
       });
     } else {
@@ -1003,13 +1006,12 @@ const procesarEnvio = async (idDestino) => {
         fecha: serverTimestamp(), 
         archivado: false,
         cliente: nombreUsuarioLogueado || (esComandaManual ? "Comanda Manual" : "Cliente"),
-        telefono: telFinal, // 🎯 AQUÍ ESTÁ LA LLAVE: Obligamos a Firebase a guardar el teléfono del cliente desde casa
+        telefono: telFinal,
         uid: uidFinal,
         alertaPrioridad: colorAlerta 
       };
 
-      // Solo mesas físicas numéricas llevan PIN dinámico
-      if (!esClienteExterno && !isNaN(idFinal)) {
+      if (!esDeCasa && !isNaN(idFinal)) {
          datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
       }
       batch.set(nuevoPedidoRef, datosNuevoPedido);
