@@ -913,13 +913,20 @@ const nombreBarDinamico = plantaActualCabecera() === "TERRAZA" ? "TRIBU'S BAR TE
    else setCarrito(carrito.map(x => x.id === id ? { ...ex, cantidad: ex.cantidad - 1 } : x));
  };
 
- const intentarEnviar = () => {
- if (carrito.length === 0) return;
- if (mesa || usuarioLogueado) {
-     procesarEnvio(mesa || null);
- } else {
-     setVerModalTelefono(true);
- }
+// REEMPLÁZALA POR ESTA VERSIÓN CORREGIDA:
+const intentarEnviar = () => {
+  if (carrito.length === 0) return;
+  
+  // Si la mesa es "T" o "B", significa que está desde su casa (es externo)
+  const esMesaFisica = mesa && mesa !== "T" && mesa !== "B";
+
+  // Solo pasa directo si es una mesa física real o si el usuario ya está logueado con su cuenta
+  if (esMesaFisica || usuarioLogueado) {
+      procesarEnvio(mesa || null);
+  } else {
+      // 📲 Si es "T", "B" o null, lo manda a la pantalla para meter su teléfono
+      setVerModalTelefono(true);
+  }
 };
 
 const obtenerAlertaCliente = async (telefonoCliente, uidCliente) => {
@@ -2918,7 +2925,15 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
                 <button onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + "0")} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black">0</button>
                 <button onClick={() => setVerModalTelefono(false)} className="w-16 h-16 rounded-full flex items-center justify-center text-slate-500 border border-slate-800"><X size={24}/></button>
             </div>
-            {telefonoInput.length >= 10 && (<button onClick={() => procesarEnvio()} className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse">Confirmar Pedido</button>)}
+            // REEMPLÁZALA POR ESTA (Le pasamos "mesa" para que conserve el piso "T" o "B"):
+{telefonoInput.length >= 10 && (
+  <button 
+    onClick={() => procesarEnvio(mesa)} 
+    className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse"
+  >
+    Confirmar Pedido
+  </button>
+)}
        </div>
 
        {verModalEscaner && (
