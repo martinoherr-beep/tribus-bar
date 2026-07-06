@@ -100,6 +100,7 @@ function App() {
  const [esSuperAdmin, setEsSuperAdmin] = useState(false);
  const [esStaff, setEsStaff] = useState(false);
  const [eventoInstalacion, setEventoInstalacion] = useState(null);
+ const [listaReservas, setListaReservas] = useState([]);
  // 🔥 NUEVA BANDERA DE CONTROL: Evita que el limpiador borre las mesas nuevas del QR
   const limpiezaInicialHecha = useRef(false);
  const [verModalEscaner, setVerModalEscaner] = useState(false);
@@ -337,6 +338,25 @@ useEffect(() => {
     return () => unsub();
  }
 }, [usuarioLogueado]);
+
+useEffect(() => {
+  const q = query(
+    collection(db, "reservas"), 
+    orderBy("fecha", "asc") // Las ordena por la fecha de la reservación
+  );
+
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const reservasTmp = [];
+    snapshot.forEach((doc) => {
+      reservasTmp.push({ id: doc.id, ...doc.data() });
+    });
+    setListaReservas(reservasTmp);
+  }, (error) => {
+    console.error("Error al escuchar reservas:", error);
+  });
+
+  return () => unsubscribe();
+}, []);
 
 useEffect(() => {
   const capturarPrompt = (e) => {
@@ -922,75 +942,85 @@ const obtenerAlertaCliente = async (telefonoCliente, uidCliente) => {
 };
 
 const procesarEnvio = async (idDestino) => {
- const batch = writeBatch(db);
- const telFinal = telefonoUsuarioLogueado || usuarioLogueado?.phoneNumber || telefonoInput || "S/N";
- const idFinal = idDestino ? idDestino : `TEL:${telFinal}`;
- const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
+  const batch = writeBatch(db);
+  const telFinal = telefonoUsuarioLogueado || usuarioLogueado?.phoneNumber || telefonoInput || "S/N";
   
- try {
-   const uidFinal = usuarioLogueado?.uid || null;
-   
-   let colorAlerta = "morada";
-   if (uidFinal) {
-      colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
-   }
+  // 🌟 DETECTAMOS SI ES EXTERNO: Si el destino es "T", "B" o viene vacío
+  const esClienteExterno = !idDestino || idDestino === "T" || idDestino === "B";
+  
+  // El ID de la mesa se queda exactamente como "T" o "B" en Firebase para no romper tus hieleras
+  const idFinal = idDestino ? String(idDestino) : `TEL:${telFinal}`;
+  
+  const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
+  
+  try {
+    const uidFinal = usuarioLogueado?.uid || null;
+    
+    let colorAlerta = "morada";
+    if (uidFinal) {
+       colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
+    }
 
-   const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
-   let idComandaActual = ""; 
-   
-   if (existente) {
-     idComandaActual = existente.id; 
-     batch.update(doc(db, "pedidos", existente.id), { 
-       detalle: existente.detalle + "\n" + detalleNuevo, 
-       total: Number(existente.total) + Number(totalCarrito), 
-       fecha: serverTimestamp(),
-       cliente: nombreUsuarioLogueado || existente.cliente || (esComandaManual ? "Comanda Manual" : "Cliente"),
-       uid: uidFinal || existente.uid || null,
-       alertaPrioridad: colorAlerta 
-     });
-   } else {
-     const nuevoPedidoRef = doc(collection(db, "pedidos"));
-     idComandaActual = nuevoPedidoRef.id; 
-     
-     const datosNuevoPedido = { 
-       mesa: String(idFinal), 
-       detalle: detalleNuevo, 
-       total: Number(totalCarrito), 
-       estado: "pendiente", 
-       fecha: serverTimestamp(), 
-       archivado: false,
-       cliente: nombreUsuarioLogueado || (esComandaManual ? "Comanda Manual" : "Cliente"),
-       telefono: telFinal,
-       uid: uidFinal,
-       alertaPrioridad: colorAlerta 
-     };
+    // Buscamos si ya hay una comanda para este ID ("T" o "B")
+    // NOTA: Si usas "T" o "B", las órdenes desde casa se agruparán en la comanda "T" o "B" de la barra.
+    const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
+    let idComandaActual = ""; 
+    
+    if (existente) {
+      idComandaActual = existente.id; 
+      batch.update(doc(db, "pedidos", existente.id), { 
+        detalle: existente.detalle + "\n" + detalleNuevo, 
+        total: Number(existente.total) + Number(totalCarrito), 
+        fecha: serverTimestamp(),
+        cliente: nombreUsuarioLogueado || existente.cliente || (esComandaManual ? "Comanda Manual" : "Cliente"),
+        uid: uidFinal || existente.uid || null,
+        alertaPrioridad: colorAlerta,
+        // Guardamos o actualizamos el teléfono para asegurar que la barra lo lea
+        telefono: telFinal 
+      });
+    } else {
+      const nuevoPedidoRef = doc(collection(db, "pedidos"));
+      idComandaActual = nuevoPedidoRef.id; 
+      
+      const datosNuevoPedido = { 
+        mesa: String(idFinal), 
+        detalle: detalleNuevo, 
+        total: Number(totalCarrito), 
+        estado: "pendiente", 
+        fecha: serverTimestamp(), 
+        archivado: false,
+        cliente: nombreUsuarioLogueado || (esComandaManual ? "Comanda Manual" : "Cliente"),
+        telefono: telFinal, // 🎯 AQUÍ ESTÁ LA LLAVE: Obligamos a Firebase a guardar el teléfono del cliente desde casa
+        uid: uidFinal,
+        alertaPrioridad: colorAlerta 
+      };
 
-     if (idDestino && !String(idDestino).startsWith("TEL:")) {
-        datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
-     }
-     batch.set(nuevoPedidoRef, datosNuevoPedido);
-   }
+      // Solo mesas físicas numéricas llevan PIN dinámico
+      if (!esClienteExterno && !isNaN(idFinal)) {
+         datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
+      }
+      batch.set(nuevoPedidoRef, datosNuevoPedido);
+    }
 
-   localStorage.setItem("tribu_comanda_id", idComandaActual);
+    localStorage.setItem("tribu_comanda_id", idComandaActual);
+    await batch.commit();
 
-   await batch.commit();
-
-   if (esComandaManual) {
-      setView('barra');
-      setTabBarra('comandas');
-      setCarrito([]); 
-      setVerCarrito(false); 
-      alert("¡Artículos añadidos a la comanda correctamente!");
-   } else {
-      setView('success'); 
-      setCarrito([]); 
-      setVerCarrito(false); 
-      setVerModalTelefono(false);
-   }
- } catch (e) { 
-   console.error("Error crítico en Firebase:", e);
-   alert("Error al procesar el pedido.");
- }
+    if (esComandaManual) {
+       setView('barra');
+       setTabBarra('comandas');
+       setCarrito([]); 
+       setVerCarrito(false); 
+       alert("¡Artículos añadidos a la comanda correctamente!");
+    } else {
+       setView('success'); 
+       setCarrito([]); 
+       setVerCarrito(false); 
+       setVerModalTelefono(false);
+    }
+  } catch (e) { 
+    console.error("Error crítico en Firebase:", e);
+    alert("Error al procesar el pedido.");
+  }
 };
 
 const cobrarCuenta = async (p) => {
@@ -1096,11 +1126,231 @@ const guardarEvento = async (e) => {
    setVerModalNuevoEvento(false);
    setNuevoEvento({ titulo: "", fecha: "", hora: "" });
  };
-// 🌟 PARCHE DE ENTRADA CORREGIDO: Si el usuario quiere reservar, cortamos camino aquí para no tocar nada más
+// 🌟 PARCHE DE ENTRADA CORREGIDO: Retorno anticipado real para aislar la vista de reservas
   if (view === 'reservar_terraza') {
-    // Si la vista es de reservas, le damos un retorno anticipado directo para evitar bloqueos
-  }
+    return (
+      <div className="min-h-screen bg-[#06090f] text-slate-100 p-5 font-sans pb-24">
+        {/* Encabezado */}
+        <div className="flex items-center gap-3 mb-6">
+          <button 
+            onClick={() => setView('menu')} 
+            className="bg-slate-900 border border-slate-800 p-2.5 rounded-2xl text-slate-400 hover:text-white transition-colors active:scale-95"
+          >
+            ⬅️ Volver
+          </button>
+          <div>
+            <h2 className="font-black text-xl text-white uppercase tracking-tight">Reservar Terraza</h2>
+            <p className="text-[10px] text-sky-400 font-bold uppercase tracking-wider">Tribu's Bar Planta Alta</p>
+          </div>
+        </div>
 
+        {/* Tarjeta Informativa de Horarios */}
+        <div className="bg-[#0c111a] border border-slate-800/80 p-4 rounded-3xl mb-6 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 bg-sky-500/10 text-sky-400 text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl border-l border-b border-sky-500/20">
+            Info Terraza
+          </div>
+          <h3 className="text-xs font-black text-slate-400 uppercase mb-2 tracking-wide">📅 Días de Operación:</h3>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {configuracionTerraza.diasAbre.map(d => (
+              <span key={d} className="bg-slate-950 text-white border border-slate-800 text-[10px] font-black px-2.5 py-1 rounded-xl">
+                {d}
+              </span>
+            ))}
+          </div>
+          <h3 className="text-xs font-black text-slate-400 uppercase mb-1 tracking-wide">⏰ Horario de Servicio:</h3>
+          <p className="text-sm font-black text-white">{configuracionTerraza.horario}</p>
+        </div>
+
+        {/* Formulario de Datos */}
+        <div className="space-y-4 mb-6">
+          <div>
+            <label className="text-[10px] font-black text-slate-500 uppercase ml-1 block mb-1">👤 Nombre de quien reserva</label>
+            <input 
+              type="text"
+              placeholder="Ej. Carlos Mendoza" 
+              value={nombreReserva}
+              onChange={e => setNombreReserva(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 p-3.5 rounded-2xl text-xs outline-none text-white focus:border-sky-500 font-bold transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-black text-slate-500 uppercase ml-1 block mb-1">📅 Selecciona la Fecha</label>
+            <input 
+              type="date"
+              value={fechaSeleccionada}
+              onChange={e => {
+                setFechaSeleccionada(e.target.value);
+                setMesaSeleccionadaReserva(null);
+              }}
+              className="w-full bg-slate-950 border border-slate-800 p-3.5 rounded-2xl text-xs outline-none text-white focus:border-sky-500 font-bold transition-all"
+            />
+          </div>
+        </div>
+
+        {/* Contenedor del Mapa Visual de Mesas Disponibles */}
+        {fechaSeleccionada && (
+          <div className="mb-6">
+            <label className="text-[10px] font-black text-slate-500 uppercase ml-1 block mb-2">🪑 Selección de Mesa en Terraza</label>
+            
+            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2.5 bg-black/40 p-4 rounded-3xl border border-white/5">
+              {configuracionTerraza.mesasTotales.map(numMesa => {
+                const estaOcupada = (typeof reservasConfirmadas !== 'undefined') && reservasConfirmadas.some(r => 
+                  String(r.mesa) === String(numMesa) && r.fecha === fechaSeleccionada && r.estado !== "cancelada"
+                );
+
+                const esLaElegida = mesaSeleccionadaReserva === numMesa;
+
+                return (
+                  <button
+                    key={numMesa}
+                    disabled={estaOcupada}
+                    onClick={() => setMesaSeleccionadaReserva(numMesa)}
+                    className={`p-3 rounded-xl flex flex-col items-center justify-center border font-black transition-all text-xs ${
+                      estaOcupada 
+                        ? 'bg-red-950/20 border-red-900/30 text-red-700 opacity-40 cursor-not-allowed line-through' 
+                        : esLaElegida
+                        ? 'bg-sky-500 border-sky-400 text-white shadow-lg shadow-sky-500/20 scale-105'
+                        : 'bg-[#0c111a] border-slate-800 text-slate-300 hover:border-sky-500/40'
+                    }`}
+                  >
+                    <span className="text-[8px] opacity-60 uppercase block">Mesa</span>
+                    {numMesa}
+                  </button>
+                );
+              })}
+            </div>
+            
+            {/* Acotaciones */}
+            <div className="flex gap-4 justify-center mt-3 text-[9px] font-bold uppercase text-slate-500">
+              <div className="flex items-center gap-1"><span className="w-2 h-2 bg-[#0c111a] border border-slate-800 rounded"></span> Libre</div>
+              <div className="flex items-center gap-1"><span className="w-2 h-2 bg-sky-500 rounded"></span> Tu Selección</div>
+              <div className="flex items-center gap-1"><span className="w-2 h-2 bg-red-950/40 border border-red-900 rounded"></span> Ocupada</div>
+            </div>
+          </div>
+        )}
+
+        {/* Botón de Acción Principal */}
+        <button
+          disabled={!nombreReserva.trim() || !fechaSeleccionada || !mesaSeleccionadaReserva}
+          onClick={async () => {
+            try {
+              const diasSemana = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+              const objetoFecha = new Date(fechaSeleccionada + "T00:00:00");
+              const nombreDiaElegido = diasSemana[objetoFecha.getDay()];
+
+              if (!configuracionTerraza.diasAbre.includes(nombreDiaElegido)) {
+                alert(`Lo sentimos, la terraza no abre los días ${nombreDiaElegido}. Por favor selecciona otro día.`);
+                return;
+              }
+
+              await addDoc(collection(db, "reservas"), {
+                nombre: nombreReserva.trim(),
+                fecha: fechaSeleccionada,
+                mesa: mesaSeleccionadaReserva,
+                planta: "TERRAZA",
+                fechaCreacion: serverTimestamp(),
+                estado: "confirmada"
+              });
+
+              alert(`¡Reserva Exitosa!\nMesa ${mesaSeleccionadaReserva} apartada para el día ${fechaSeleccionada}.`);
+              
+              setNombreReserva("");
+              setFechaSeleccionada("");
+              setMesaSeleccionadaReserva(null);
+              setView('menu');
+            } catch (error) {
+              console.error("Error al guardar reserva:", error);
+              alert("Hubo un error al procesar tu reservación. Intenta de nuevo.");
+            }
+          }}
+          className={`w-full p-4 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg transition-transform active:scale-95 text-center block ${
+            (nombreReserva.trim() && fechaSeleccionada && mesaSeleccionadaReserva)
+              ? 'bg-sky-500 hover:bg-sky-400 text-white shadow-sky-500/10'
+              : 'bg-slate-900 text-slate-600 border border-slate-950 cursor-not-allowed shadow-none'
+          }`}
+        >
+          🔒 Confirmar Reservación
+        </button>
+      </div>
+    );
+  }
+// 📋 VISTA DE ADMINISTRACIÓN / CONSULTA DE RESERVAS
+  if (view === 'ver_reservas') {
+    return (
+      <div className="min-h-screen bg-[#06090f] text-slate-100 p-5 font-sans pb-24">
+        {/* Encabezado */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+<button 
+  onClick={() => {
+    setView('barra');        // 🔓 DESBLOQUEA EL IF: Le dice a la app que regrese al panel de administración principal
+    setTabBarra('comandas'); // 🎯 MUEVE LA PESTAÑA: Te posiciona directo sobre la sub-pantalla de comandas
+  }} 
+  className="bg-slate-900 border border-slate-800 p-2.5 rounded-2xl text-slate-400 hover:text-white transition-colors active:scale-95 text-[10px] font-black uppercase tracking-wider"
+>
+  ⬅️ Volver a Comandas
+</button>
+            <div>
+              <h2 className="font-black text-xl text-white uppercase tracking-tight">Reservas Activas</h2>
+              <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Control de Terraza</p>
+            </div>
+          </div>
+          
+          {/* Contador rápido */}
+          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-black px-3 py-1.5 rounded-xl">
+            Total: {listaReservas.length}
+          </span>
+        </div>
+
+        {/* Lista de Reservas */}
+        {listaReservas.length === 0 ? (
+          <div className="text-center py-12 bg-[#0c111a] border border-slate-800/60 rounded-3xl p-6">
+            <span className="text-3xl block mb-2">📭</span>
+            <p className="text-xs font-black text-slate-400 uppercase tracking-wide">No hay reservas registradas aún</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {listaReservas.map((reserva) => (
+              <div 
+                key={reserva.id} 
+                className="bg-[#0c111a] border border-slate-800/80 p-4 rounded-2xl shadow-md flex items-center justify-between relative overflow-hidden"
+              >
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="bg-sky-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">
+                      🪑 MESA {reserva.mesa}
+                    </span>
+                    <span className="text-white font-black text-sm">{reserva.nombre}</span>
+                  </div>
+                  
+                  <p className="text-xs text-slate-400 font-bold">
+                    📅 Fecha: <span className="text-slate-200">{reserva.fecha}</span>
+                  </p>
+                </div>
+
+                {/* Acciones (Por ejemplo, botón para cancelar o liberar mesa) */}
+                <button
+                  onClick={async () => {
+                    if (confirm(`¿Seguro que deseas eliminar la reserva de ${reserva.nombre}?`)) {
+                      try {
+                        await deleteDoc(doc(db, "reservas", reserva.id));
+                      } catch (error) {
+                        console.error("Error al eliminar:", error);
+                      }
+                    }
+                  }}
+                  className="bg-red-500/10 hover:bg-red-500 text-red-400 border border-red-500/20 p-2 rounded-xl transition-colors active:scale-95 text-xs font-bold"
+                >
+                  🗑️
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <>
       {/* --- PWA: OBLIGAR A AGREGAR A INICIO --- */}
@@ -1325,6 +1575,20 @@ const guardarEvento = async (e) => {
             >
               <Calendar size={14}/> Eventos
             </button>
+            {/* 👇 AQUÍ JUSTO ABAJO PEGA EL NUEVO BOTÓN */}
+<button 
+  onClick={() => {
+    setTabBarra('reservas');
+    setView('ver_reservas');
+  }} 
+  className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-[10px] transition-all ${
+    tabBarra === 'reservas' || view === 'ver_reservas'
+      ? 'bg-orange-600 text-white shadow-lg' 
+      : 'bg-slate-900 text-slate-500'
+  }`}
+>
+  <Calendar size={14}/> Reservas
+</button>
           </div>
 
           <div className="flex gap-2">
@@ -1362,8 +1626,8 @@ const guardarEvento = async (e) => {
                   if (areaStaff === 'TODOS') return true;
                   return obtenerPlanta(p.mesa) === areaStaff; 
                 }).map(p => {
-                  const esExterno = String(p.mesa).startsWith("TEL:");
-                  const numTel = esExterno ? p.mesa.replace("TEL:", "") : "";
+                  const esExterno = String(p.mesa).startsWith("TEL:") || p.mesa === "T" || p.mesa === "B";
+                  const numTel = p.telefono || (String(p.mesa).startsWith("TEL:") ? p.mesa.replace("TEL:", "") : "");
                   const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está listo.\n\n*Total a pagar: $${p.total}*\n\n*Detalle del pedido:*\n${p.detalle}\n\n${DATOS_PAGO}`;
                   
                   const colorCintillo = 
@@ -2740,157 +3004,7 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
      </div>
    );
  })()}
-{view === 'reservar_terraza' && (
-  <div className="min-h-screen bg-[#06090f] text-slate-100 p-5 font-sans pb-24">
-    {/* Encabezado */}
-    <div className="flex items-center gap-3 mb-6">
-      <button 
-        onClick={() => setView('menu')} 
-        className="bg-slate-900 border border-slate-800 p-2.5 rounded-2xl text-slate-400 hover:text-white transition-colors active:scale-95"
-      >
-        ⬅️ Volver
-      </button>
-      <div>
-        <h2 className="font-black text-xl text-white uppercase tracking-tight">Reservar Terraza</h2>
-        <p className="text-[10px] text-sky-400 font-bold uppercase tracking-wider">Tribu's Bar Planta Alta</p>
-      </div>
-    </div>
 
-    {/* Tarjeta Informativa de Horarios */}
-    <div className="bg-[#0c111a] border border-slate-800/80 p-4 rounded-3xl mb-6 shadow-xl relative overflow-hidden">
-      <div className="absolute top-0 right-0 bg-sky-500/10 text-sky-400 text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl border-l border-b border-sky-500/20">
-        Info Terraza
-      </div>
-      <h3 className="text-xs font-black text-slate-400 uppercase mb-2 tracking-wide">📅 Días de Operación:</h3>
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {configuracionTerraza.diasAbre.map(d => (
-          <span key={d} className="bg-slate-950 text-white border border-slate-800 text-[10px] font-black px-2.5 py-1 rounded-xl">
-            {d}
-          </span>
-        ))}
-      </div>
-      <h3 className="text-xs font-black text-slate-400 uppercase mb-1 tracking-wide">⏰ Horario de Servicio:</h3>
-      <p className="text-sm font-black text-white">{configuracionTerraza.horario}</p>
-    </div>
-
-    {/* Formulario de Datos */}
-    <div className="space-y-4 mb-6">
-      <div>
-        <label className="text-[10px] font-black text-slate-500 uppercase ml-1 block mb-1">👤 Nombre de quien reserva</label>
-        <input 
-          type="text"
-          placeholder="Ej. Carlos Mendoza" 
-          value={nombreReserva}
-          onChange={e => setNombreReserva(e.target.value)}
-          className="w-full bg-slate-950 border border-slate-800 p-3.5 rounded-2xl text-xs outline-none text-white focus:border-sky-500 font-bold transition-all"
-        />
-      </div>
-
-      <div>
-        <label className="text-[10px] font-black text-slate-500 uppercase ml-1 block mb-1">📅 Selecciona la Fecha</label>
-        <input 
-          type="date"
-          value={fechaSeleccionada}
-          onChange={e => {
-            setFechaSeleccionada(e.target.value);
-            setMesaSeleccionadaReserva(null); // Reseteamos la mesa elegida al cambiar de día
-          }}
-          className="w-full bg-slate-950 border border-slate-800 p-3.5 rounded-2xl text-xs outline-none text-white focus:border-sky-500 font-bold transition-all"
-        />
-      </div>
-    </div>
-
-    {/* Contenedor del Mapa Visual de Mesas Disponibles */}
-    {fechaSeleccionada && (
-      <div className="mb-6">
-        <label className="text-[10px] font-black text-slate-500 uppercase ml-1 block mb-2">🪑 Selección de Mesa en Terraza</label>
-        
-        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2.5 bg-black/40 p-4 rounded-3xl border border-white/5">
-          {configuracionTerraza.mesasTotales.map(numMesa => {
-            // Buscamos si esta mesa ya está apartada en la base de datos para la fecha seleccionada
-            // (Asumiendo que guardas tus reservas mapeadas en un arreglo 'reservasConfirmadas')
-            const estaOcupada = (typeof reservasConfirmadas !== 'undefined') && reservasConfirmadas.some(r => 
-              String(r.mesa) === String(numMesa) && r.fecha === fechaSeleccionada && r.estado !== "cancelada"
-            );
-
-            const esLaElegida = mesaSeleccionadaReserva === numMesa;
-
-            return (
-              <button
-                key={numMesa}
-                disabled={estaOcupada}
-                onClick={() => setMesaSeleccionadaReserva(numMesa)}
-                className={`p-3 rounded-xl flex flex-col items-center justify-center border font-black transition-all text-xs ${
-                  estaOcupada 
-                    ? 'bg-red-950/20 border-red-900/30 text-red-700 opacity-40 cursor-not-allowed line-through' 
-                    : esLaElegida
-                    ? 'bg-sky-500 border-sky-400 text-white shadow-lg shadow-sky-500/20 scale-105'
-                    : 'bg-[#0c111a] border-slate-800 text-slate-300 hover:border-sky-500/40'
-                }`}
-              >
-                <span className="text-[8px] opacity-60 uppercase block">Mesa</span>
-                {numMesa}
-              </button>
-            );
-          })}
-        </div>
-        
-        {/* Acotaciones */}
-        <div className="flex gap-4 justify-center mt-3 text-[9px] font-bold uppercase text-slate-500">
-          <div className="flex items-center gap-1"><span className="w-2 h-2 bg-[#0c111a] border border-slate-800 rounded"></span> Libre</div>
-          <div className="flex items-center gap-1"><span className="w-2 h-2 bg-sky-500 rounded"></span> Tu Selección</div>
-          <div className="flex items-center gap-1"><span className="w-2 h-2 bg-red-950/40 border border-red-900 rounded"></span> Ocupada</div>
-        </div>
-      </div>
-    )}
-
-    {/* Botón de Acción Principal */}
-    <button
-      disabled={!nombreReserva.trim() || !fechaSeleccionada || !mesaSeleccionadaReserva}
-      onClick={async () => {
-        try {
-          // Validamos que el día de la semana seleccionado coincida con los días de apertura
-          const diasSemana = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-          const objetoFecha = new Date(fechaSeleccionada + "T00:00:00");
-          const nombreDiaElegido = diasSemana[objetoFecha.getDay()];
-
-          if (!configuracionTerraza.diasAbre.includes(nombreDiaElegido)) {
-            alert(`Lo sentimos, la terraza no abre los días ${nombreDiaElegido}. Por favor selecciona otro día.`);
-            return;
-          }
-
-          // Guardamos la reserva de forma oficial en Firebase
-          await addDoc(collection(db, "reservas"), {
-            nombre: nombreReserva.trim(),
-            fecha: fechaSeleccionada,
-            mesa: mesaSeleccionadaReserva,
-            planta: "TERRAZA",
-            fechaCreacion: serverTimestamp(),
-            estado: "confirmada"
-          });
-
-          alert(`¡Reserva Exitosa!\nMesa ${mesaSeleccionadaReserva} apartada para el día ${fechaSeleccionada}.`);
-          
-          // Limpiamos el formulario y volvemos al menú
-          setNombreReserva("");
-          setFechaSeleccionada("");
-          setMesaSeleccionadaReserva(null);
-          setView('menu');
-        } catch (error) {
-          console.error("Error al guardar reserva:", error);
-          alert("Hubo un error al procesar tu reservación. Intenta de nuevo.");
-        }
-      }}
-      className={`w-full p-4 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg transition-transform active:scale-95 text-center block ${
-        (nombreReserva.trim() && fechaSeleccionada && mesaSeleccionadaReserva)
-          ? 'bg-sky-500 hover:bg-sky-400 text-white shadow-sky-500/10'
-          : 'bg-slate-900 text-slate-600 border border-slate-950 cursor-not-allowed shadow-none'
-      }`}
-    >
-      🔒 Confirmar Reservación
-    </button>
-  </div>
-)}
 
 {view !== 'welcome' && view !== 'registro' && view !== 'login' && view !== 'menu' && view !== 'barra' && view !== 'login_staff' && view !== 'mis_pedidos' && view !== 'success' && view !== 'reservar_terraza' && (
      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
