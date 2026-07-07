@@ -2971,7 +2971,40 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
 
               </div>
             </div>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">{CATEGORIAS.map(c => (<button key={c} onClick={() => { setCatSeleccionada(c); setSubCatSeleccionada("Todas"); }} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${catSeleccionada === c ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-900 text-slate-400'}`}>{c}</button>))}</div>
+           {/* ─── CONTENEDOR DE CATEGORÍAS MODIFICADO ─── */}
+<div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
+  
+  {/* 🎵 BOTÓN ESTÁTICO DE LA ROCKOLA */}
+  <button 
+    type="button"
+    onClick={() => window.open(LINK_PRINCIPAL, '_blank')}
+    className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all bg-gradient-to-r from-purple-900/40 to-indigo-900/40 border border-purple-500/30 text-purple-400 hover:border-purple-400 active:scale-95"
+  >
+    🎵 {TEXTO_LINK}
+  </button>
+
+  {/* 🍔 CATEGORÍAS DEL MENÚ (Filtrando "Todos") */}
+  {CATEGORIAS
+    .filter(c => c !== "Todos")
+    .map(c => (
+      <button 
+        key={c} 
+        type="button"
+        onClick={() => { 
+          setCatSeleccionada(c); 
+          setSubCatSeleccionada("Todas"); 
+        }} 
+        className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all ${
+          catSeleccionada === c 
+            ? 'bg-orange-600 text-white shadow-lg' 
+            : 'bg-slate-900 text-slate-400'
+        }`}
+      >
+        {c}
+      </button>
+    ))
+  }
+</div>
             {subcategoriasDisponibles.length > 0 && (<div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-800/50"><button onClick={() => setSubCatSeleccionada("Todas")} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === "Todas" ? 'text-sky-400 bg-sky-900/20' : 'text-slate-500'}`}>Todas</button>{subcategoriasDisponibles.map(sc => (<button key={sc} onClick={() => setSubCatSeleccionada(sc)} className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase border-none outline-none ${subCatSeleccionada === sc ? 'text-sky-400 bg-sky-900/20 shadow-lg' : 'text-slate-500'}`}>{sc}</button>))}</div>)}
          </div>
        </header>
