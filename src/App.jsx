@@ -2677,14 +2677,6 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
        </div>
 
        <div className="grid gap-4">
-         <button onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group">
-           <Wifi className="text-sky-400" size={28} />
-           <div className="text-left font-bold uppercase text-[10px] text-slate-400">
-             <p>Wi-Fi Gratis</p>
-             <p className="text-lg text-white font-black">tribu´s Bar</p>
-           </div>
-         </button>
-
         {/* 📷 BOTÓN DE ESCANEAR MESA EN BIENVENIDA CORREGIDO */}
         <button 
           type="button"
@@ -2711,7 +2703,22 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
           </div>
           <span className="text-slate-700 group-hover:text-orange-500 transition-colors font-bold text-xl">➔</span>
         </button>
-
+       
+           {/* ✨ BOTÓN BENEFICIOS DE LA TRIBU */}
+        <button 
+          onClick={() => setVerModalBeneficios(true)} 
+          className="flex items-center gap-5 bg-gradient-to-r from-amber-600/20 to-orange-600/20 border border-orange-500/30 p-5 rounded-3xl backdrop-blur-sm active:scale-95 hover:border-orange-500 transition-all duration-300 group shadow-lg shadow-orange-950/10"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-600/30 group-hover:scale-105 transition-transform">
+            <Tag className="text-black font-black animate-pulse" size={22} />
+          </div>
+          <div className="text-left flex-1">
+            <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">👑 Beneficios Exclusivos</p>
+            <p className="text-lg text-white font-black uppercase tracking-tight leading-none mt-0.5">¿Por qué registrarse?</p>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">Descubre lo que ganas al unirte a la Tribu</p>
+          </div>
+        </button>
+       
          <button 
             onClick={() => { 
               setEsComandaManual(false); 
@@ -2730,20 +2737,15 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
             </div>
           </button>
 
-         {/* ✨ BOTÓN BENEFICIOS DE LA TRIBU */}
-        <button 
-          onClick={() => setVerModalBeneficios(true)} 
-          className="flex items-center gap-5 bg-gradient-to-r from-amber-600/20 to-orange-600/20 border border-orange-500/30 p-5 rounded-3xl backdrop-blur-sm active:scale-95 hover:border-orange-500 transition-all duration-300 group shadow-lg shadow-orange-950/10"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-600/30 group-hover:scale-105 transition-transform">
-            <Tag className="text-black font-black animate-pulse" size={22} />
-          </div>
-          <div className="text-left flex-1">
-            <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">👑 Beneficios Exclusivos</p>
-            <p className="text-lg text-white font-black uppercase tracking-tight leading-none mt-0.5">¿Por qué registrarse?</p>
-            <p className="text-[11px] text-slate-400 font-medium mt-1">Descubre lo que ganas al unirte a la Tribu</p>
-          </div>
-        </button>
+       <button onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group">
+           <Wifi className="text-sky-400" size={28} />
+           <div className="text-left font-bold uppercase text-[10px] text-slate-400">
+             <p>Wi-Fi Gratis</p>
+             <p className="text-lg text-white font-black">tribu´s Bar</p>
+           </div>
+         </button>
+         
+        
 
          {!usuarioLogueado ? (
            <button onClick={() => setView('registro')} className="flex items-center gap-5 bg-white/5 border border-white/10 p-4 rounded-3xl backdrop-blur-sm active:scale-95 hover:bg-white/10 hover:border-orange-500/50 transition-all duration-300 group">
