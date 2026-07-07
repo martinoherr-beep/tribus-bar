@@ -325,18 +325,32 @@ const [mispedidos, setMisPedidos] = useState([]);
 const [telefonoUsuarioLogueado, setTelefonoUsuarioLogueado] = useState("");
 
 useEffect(() => {
- if (usuarioLogueado) {
-    const q = query(
-      collection(db, "pedidos"),
-      where("uid", "==", usuarioLogueado.uid) 
-    );
+  const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
+  let q;
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setMisPedidos(docs);
-    });
-    return () => unsub();
- }
+  if (usuarioLogueado) {
+    // 👤 Si hay sesión, buscamos todas las órdenes del UID de la Tribu
+    q = query(
+      collection(db, "pedidos"),
+      where("uid", "==", usuarioLogueado.uid)
+    );
+  } else if (comandaIdGuardada) {
+    // 📲 Si es invitado, busca por el ID del documento guardado en su LocalStorage
+    q = query(
+      collection(db, "pedidos"),
+      where("__name__", "==", comandaIdGuardada)
+    );
+  } else {
+    setMisPedidos([]);
+    return;
+  }
+
+  const unsub = onSnapshot(q, (snapshot) => {
+    const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setMisPedidos(docs);
+  });
+
+  return () => unsub();
 }, [usuarioLogueado]);
 
 useEffect(() => {
@@ -808,21 +822,25 @@ const nombreBarDinamico = plantaActualCabecera() === "TERRAZA" ? "TRIBU'S BAR TE
       let pedidoMesa = null;
 
   // 🌟 ESCUCHA DE COMANDAS ACTIVAS DESDE FIREBASE
-      if (comandaIdGuardada) {
-        pedidoMesa = data.find(p => p.id === comandaIdGuardada);
-        
-        if (mesaId && pedidoMesa && String(pedidoMesa.mesa) !== String(mesaId) && !pedidoMesa.pideTraslado) {
-          console.log(`✅ Traslado completado por el staff. Nueva Mesa: ${pedidoMesa.mesa}`);
-          localStorage.setItem("tribu_mesa", pedidoMesa.mesa);
-          setMesa(pedidoMesa.mesa);
-          mesaId = pedidoMesa.mesa;
-        }
-      } else if (mesaId) {
-        pedidoMesa = data.find(p => String(p.mesa) === String(mesaId));
-        if (pedidoMesa) {
-          localStorage.setItem("tribu_comanda_id", pedidoMesa.id);
-        }
-      }
+ // ─── BUSCA ESTA SECCIÓN EXACTA DENTRO DEL SEGUNDO USEEFFECT Y REEMPLÁZALA:
+if (comandaIdGuardada) {
+  pedidoMesa = data.find(p => p.id === comandaIdGuardada);
+  
+  if (mesaId && pedidoMesa && String(pedidoMesa.mesa) !== String(mesaId) && !pedidoMesa.pideTraslado && !String(pedidoMesa.mesa).startsWith("TEL:")) {
+    console.log(`✅ Traslado completado por el staff. Nueva Mesa: ${pedidoMesa.mesa}`);
+    localStorage.setItem("tribu_mesa", pedidoMesa.mesa);
+    setMesa(pedidoMesa.mesa);
+    mesaId = pedidoMesa.mesa;
+  }
+} else if (mesaId) {
+  // 🎯 Corrección aquí: Si la mesa es externa "T" o "B", buscamos el pedido que contenga tu número logueado
+  const prefijoBuscado = `TEL:${telefonoUsuarioLogueado || telefonoInput}`;
+  pedidoMesa = data.find(p => String(p.mesa) === String(mesaId) || String(p.mesa) === prefijoBuscado);
+  
+  if (pedidoMesa) {
+    localStorage.setItem("tribu_comanda_id", pedidoMesa.id);
+  }
+}
 
       // 🔥 REGLA DE CAJA EN TIEMPO REAL: Si el cliente tenía una comanda activa con consumo 
       // y la barra la cobró, se limpia la pantalla y regresa a EXTERNO de inmediato.
@@ -955,21 +973,26 @@ const obtenerAlertaCliente = async (telefonoCliente, uidCliente) => {
 };
 
 const procesarEnvio = async (idDestino) => {
-  // 🌟 CANDADO INVIOLABLE DE RAÍZ:
+  // Forzamos la limpieza del string
   const mesaLimpia = idDestino ? String(idDestino).toUpperCase().trim() : "";
+  
+  // Es de casa si la variable es "T", "B" o viene vacía
   const esDeCasa = !mesaLimpia || mesaLimpia === "T" || mesaLimpia === "B";
   const telActual = telefonoUsuarioLogueado || usuarioLogueado?.phoneNumber || telefonoInput || "";
 
-  // Si viene desde casa, no está logueado y no ha metido un teléfono de 10 dígitos, frena el pedido aquí:
+  // 🔒 CANDADO DE RAÍZ: Si es de casa y no ha puesto sus 10 dígitos, lo frena
   if (esDeCasa && !usuarioLogueado && (!telActual || telActual === "S/N" || telActual.length < 10)) {
     setVerModalTelefono(true);
-    return; // 🔥 Bloquea el envío a Firebase de inmediato
+    return; // Cancela la escritura en Firestore
   }
 
-  // --- El resto de tu función procesarEnvio se queda exactamente igual ---
   const batch = writeBatch(db);
   const telFinal = telActual || "S/N";
-  const idFinal = idDestino ? String(idDestino) : `TEL:${telFinal}`;
+  
+  // 🎯 AQUÍ VOLVEMOS A TU LÓGICA ANTERIOR:
+  // Si es de casa, la mesa en Firebase pasa a guardarse estrictamente como "TEL:5512345678"
+  const idFinal = esDeCasa ? `TEL:${telFinal}` : String(idDestino);
+  
   const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
   
   try {
@@ -980,6 +1003,7 @@ const procesarEnvio = async (idDestino) => {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
+    // Buscamos si ya hay una comanda activa para este ID ("TEL:5512345678")
     const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
     let idComandaActual = ""; 
     
@@ -1011,6 +1035,7 @@ const procesarEnvio = async (idDestino) => {
         alertaPrioridad: colorAlerta 
       };
 
+      // Candado de PIN seguro: Solo mesas físicas reales llevan PIN, los externos no
       if (!esDeCasa && !isNaN(idFinal)) {
          datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
       }
@@ -1423,26 +1448,61 @@ const guardarEvento = async (e) => {
        <button onClick={() => setView('menu')} className="bg-slate-800 p-2 rounded-full"><X size={20}/></button>
      </div>
      <div className="space-y-4">
-       {mispedidos.length === 0 ? (
-         <p className="text-gray-500 text-center text-xs uppercase tracking-widest mt-20">No tienes pedidos activos</p>
-       ) : (
-         mispedidos.map((p) => (
-           <div key={p.id} className="bg-[#0f172a] border border-gray-800 p-5 rounded-[30px]">
-             <div className="flex justify-between items-start mb-3">
-               <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">{p.mesa.includes('TEL') ? 'Para Llevar' : `Mesa ${p.mesa}`}</span>
-               <span className={`text-[9px] font-bold px-3 py-1 rounded-full uppercase ${p.state === 'pendiente' ? 'bg-amber-500/10 text-amber-500' : p.state === 'preparando' ? 'bg-sky-500/10 text-sky-500' : 'bg-green-500/10 text-green-500'}`}>{p.state}</span>
-             </div>
-             <p className="text-[11px] text-gray-400 whitespace-pre-line mb-3">{p.detalle}</p>
-             <div className="border-t border-gray-800 pt-3 flex justify-between items-center">
-               <span className="text-xs font-bold text-gray-500 italic">Total</span>
-               <span className="text-lg font-black text-white">${p.total}</span>
-               {p.mesa.includes('TEL') && p.state !== 'entregado' && (
-                 <button onClick={() => informarPago(p.id)} className={`w-full mt-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${p.pagoInformado ? 'bg-green-500/20 text-green-500 border border-green-500/50' : 'bg-blue-600 text-white animate-pulse'}`} disabled={p.pagoInformado}>{p.pagoInformado ? 'Pago en Verificación' : 'Ya deposité / Informar Pago'}</button>
-               )}
-             </div>
-           </div>
-         ))
-       )}
+       // ─── BUSCA LA SECCIÓN view === 'mis_pedidos' Y DEJA EL MAPEO ASÍ:
+{mispedidos.length === 0 ? (
+  <p className="text-gray-500 text-center text-xs uppercase tracking-widest mt-20">No tienes pedidos activos</p>
+) : (
+  mispedidos.map((p) => {
+    // Forzamos string seguro para evitar fallos si la mesa viene vacía por alguna razón
+    const mesaString = String(p.mesa || "").toUpperCase();
+    const esPedidoExterno = mesaString.includes('TEL');
+    
+    // Sincronizamos con tu propiedad real de la base de datos que es "estado"
+    const estadoReal = p.estado || "pendiente"; 
+
+    return (
+      <div key={p.id} className="bg-[#0f172a] border border-gray-800 p-5 rounded-[30px] text-left">
+        <div className="flex justify-between items-start mb-3">
+          <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">
+            {esPedidoExterno ? 'Para Llevar / Domicilio' : `Mesa ${p.mesa}`}
+          </span>
+          {/* 🟢 SOLUCIONADO: Ahora lee "estado" y pinta tus colores correctos */}
+          <span className={`text-[9px] font-bold px-3 py-1 rounded-full uppercase ${
+            estadoReal === 'pendiente' ? 'bg-amber-500/10 text-amber-500' : 
+            estadoReal === 'preparando' ? 'bg-sky-500/10 text-sky-500' : 
+            'bg-green-500/10 text-green-500'
+          }`}>
+            {estadoReal}
+          </span>
+        </div>
+        
+        <p className="text-[11px] text-gray-400 whitespace-pre-line mb-3">{p.detalle}</p>
+        
+        <div className="border-t border-gray-800 pt-3 flex flex-col gap-2">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-bold text-gray-500 italic">Total</span>
+            <span className="text-lg font-black text-white">${p.total}</span>
+          </div>
+
+          {/* 💳 SOLUCIONADO: Filtro .toUpperCase() y estadoReal sincronizados */}
+          {esPedidoExterno && estadoReal !== 'entregado' && (
+            <button 
+              onClick={() => informarPago(p.id)} 
+              className={`w-full mt-2 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                p.pagoInformado 
+                  ? 'bg-green-500/20 text-green-500 border border-green-500/50 cursor-not-allowed' 
+                  : 'bg-blue-600 text-white animate-pulse'
+              }`} 
+              disabled={p.pagoInformado}
+            >
+              {p.pagoInformado ? '✔ Pago en Verificación' : 'Ya deposité / Informar Pago'}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  })
+)}
      </div>
    </div>
 )}
@@ -2946,9 +3006,10 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
                 <button onClick={() => setVerModalTelefono(false)} className="w-16 h-16 rounded-full flex items-center justify-center text-slate-500 border border-slate-800"><X size={24}/></button>
             </div>
             // REEMPLÁZALA POR ESTA (Le pasamos "mesa" para que conserve el piso "T" o "B"):
+// ─── REEMPLAZA ESTE BOTÓN DENTRO DE TU MODAL DEL TELÉFONO:
 {telefonoInput.length >= 10 && (
   <button 
-    onClick={() => procesarEnvio(mesa)} 
+    onClick={() => procesarEnvio()} // 🎯 Al dejarlo vacío, idDestino entra como null y activa el prefijo "TEL:"
     className="mt-12 bg-orange-600 w-full max-w-[280px] py-5 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl shadow-orange-600/20 animate-pulse"
   >
     Confirmar Pedido
