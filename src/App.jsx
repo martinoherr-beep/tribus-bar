@@ -2688,10 +2688,18 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
 <button 
   type="button"
   onClick={() => {
-    setMesaEscaneadaInput(""); // Limpia el teclado de respaldo por seguridad
-    encenderCamaraPWA();       // Abre la cámara con tu lector html5-qrcode
+    // 1. Cambiamos la vista donde está montado el contenedor del lector QR
+    setVistaActual('validar_mesa'); 
+    
+    // 2. Le damos 50 milisegundos al navegador para renderizar el contenedor 
+    // y disparamos tu función nativa para encender la cámara del bar
+  setTimeout(() => {
+      if (typeof encenderCamaraPWA === 'function') {
+        encenderCamaraPWA();
+      }
+    }, 50); // <--- ¡Corregido aquí con paréntesis!
   }}
-  className="flex items-center gap-5 bg-[#0c111a] border border-slate-800 hover:border-orange-500 p-5 rounded-3xl backdrop-blur-sm active:scale-95 transition-all duration-300 group shadow-lg"
+  className="w-full max-w-md flex items-center gap-5 bg-[#0c111a] border border-slate-800 hover:border-orange-500 p-5 rounded-3xl backdrop-blur-sm active:scale-95 transition-all duration-300 group shadow-lg"
 >
   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-600/20 group-hover:scale-105 transition-transform">
     <span className="text-xl">📷</span>
