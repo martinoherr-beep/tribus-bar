@@ -2684,7 +2684,25 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
              <p className="text-lg text-white font-black">tribu´s Bar</p>
            </div>
          </button>
-
+{/* 📷 BOTÓN DE ESCANEAR MESA EN BIENVENIDA */}
+<button 
+  type="button"
+  onClick={() => {
+    setMesaEscaneadaInput(""); // Limpia el teclado de respaldo por seguridad
+    encenderCamaraPWA();       // Abre la cámara con tu lector html5-qrcode
+  }}
+  className="flex items-center gap-5 bg-[#0c111a] border border-slate-800 hover:border-orange-500 p-5 rounded-3xl backdrop-blur-sm active:scale-95 transition-all duration-300 group shadow-lg"
+>
+  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-600/20 group-hover:scale-105 transition-transform">
+    <span className="text-xl">📷</span>
+  </div>
+  <div className="text-left flex-1">
+    <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Estás en el bar?</p>
+    <p className="text-lg text-white font-black uppercase tracking-tight leading-none mt-0.5">Escanear QR / Mesa</p>
+    <p className="text-[11px] text-slate-400 font-medium mt-1">Escanea el código de tu mesa para ordenar</p>
+  </div>
+  <span className="text-slate-700 group-hover:text-orange-500 transition-colors font-bold text-xl">➔</span>
+</button>
       <button 
             onClick={() => { 
               setEsComandaManual(false); 
@@ -3046,8 +3064,7 @@ const coincideCategoria = catSeleccionada === "Todos"
                 <button onClick={() => telefonoInput.length < 10 && setTelefonoInput(telefonoInput + "0")} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black">0</button>
                 <button onClick={() => setVerModalTelefono(false)} className="w-16 h-16 rounded-full flex items-center justify-center text-slate-500 border border-slate-800"><X size={24}/></button>
             </div>
-            // REEMPLÁZALA POR ESTA (Le pasamos "mesa" para que conserve el piso "T" o "B"):
-// ─── REEMPLAZA ESTE BOTÓN DENTRO DE TU MODAL DEL TELÉFONO:
+
 {telefonoInput.length >= 10 && (
   <button 
     onClick={() => procesarEnvio()} // 🎯 Al dejarlo vacío, idDestino entra como null y activa el prefijo "TEL:"
