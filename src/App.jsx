@@ -604,7 +604,17 @@ const plantaActualCabecera = () => {
 
 const nombreBarDinamico = plantaActualCabecera() === "TERRAZA" ? "TRIBU'S BAR TERRAZA" : "TRIBU'S BAR";
 
- const obtenerPrecioItem = (item) => mesa ? item.precioMesa : item.precioDomicilio;
+// 🎯 EVALUACIÓN INTELIGENTE DE PRECIOS:
+// Si la mesa es un número real del bar (ej: "12", "45"), cobra precio de local.
+// Si la mesa es "B" (Planta Baja manual), "T" (Terraza manual) o null, cobra precio de domicilio/externo.
+const obtenerPrecioItem = (item) => {
+  if (!mesa) return item.precioDomicilio;
+  
+  const mesaLimpia = String(mesa).toUpperCase().trim();
+  const esMesaNumericaBar = mesaLimpia !== "" && !isNaN(parseInt(mesaLimpia, 10));
+
+  return esMesaNumericaBar ? item.precioMesa : item.precioDomicilio;
+};
  const totalCarrito = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
  const totalAcumulado = consumoAcumulado.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
 
@@ -1448,7 +1458,7 @@ const guardarEvento = async (e) => {
        <button onClick={() => setView('menu')} className="bg-slate-800 p-2 rounded-full"><X size={20}/></button>
      </div>
      <div className="space-y-4">
-       // ─── BUSCA LA SECCIÓN view === 'mis_pedidos' Y DEJA EL MAPEO ASÍ:
+      
 {mispedidos.length === 0 ? (
   <p className="text-gray-500 text-center text-xs uppercase tracking-widest mt-20">No tienes pedidos activos</p>
 ) : (
