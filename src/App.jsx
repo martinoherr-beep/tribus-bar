@@ -2684,41 +2684,40 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
              <p className="text-lg text-white font-black">tribu´s Bar</p>
            </div>
          </button>
-{/* 📷 BOTÓN DE ESCANEAR MESA EN BIENVENIDA */}
-<button 
-  type="button"
-  onClick={() => {
-    // 1. Cambiamos la vista donde está montado el contenedor del lector QR
-    setVistaActual('validar_mesa'); 
-    
-    // 2. Le damos 50 milisegundos al navegador para renderizar el contenedor 
-    // y disparamos tu función nativa para encender la cámara del bar
-  setTimeout(() => {
-      if (typeof encenderCamaraPWA === 'function') {
-        encenderCamaraPWA();
-      }
-    }, 50); // <--- ¡Corregido aquí con paréntesis!
-  }}
-  className="w-full max-w-md flex items-center gap-5 bg-[#0c111a] border border-slate-800 hover:border-orange-500 p-5 rounded-3xl backdrop-blur-sm active:scale-95 transition-all duration-300 group shadow-lg"
->
-  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-600/20 group-hover:scale-105 transition-transform">
-    <span className="text-xl">📷</span>
-  </div>
-  <div className="text-left flex-1">
-    <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Estás en el bar?</p>
-    <p className="text-lg text-white font-black uppercase tracking-tight leading-none mt-0.5">Escanear QR / Mesa</p>
-    <p className="text-[11px] text-slate-400 font-medium mt-1">Escanea el código de tu mesa para ordenar</p>
-  </div>
-  <span className="text-slate-700 group-hover:text-orange-500 transition-colors font-bold text-xl">➔</span>
-</button>
-      <button 
+
+        {/* 📷 BOTÓN DE ESCANEAR MESA EN BIENVENIDA CORREGIDO */}
+        <button 
+          type="button"
+          onClick={() => {
+            // 1. Cambiamos de pantalla usando el estado real de tu archivo
+            setView('menu'); 
+            
+            // 2. Esperamos un instante a que cargue el menú y levantamos tu escáner PWA nativo
+            setTimeout(() => {
+              if (typeof encenderCamaraPWA === 'function') {
+                encenderCamaraPWA();
+              }
+            }, 100);
+          }}
+          className="w-full max-w-md flex items-center gap-5 bg-[#0c111a] border border-slate-800 hover:border-orange-500 p-5 rounded-3xl backdrop-blur-sm active:scale-95 transition-all duration-300 group shadow-lg"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-600/20 group-hover:scale-105 transition-transform">
+            <span className="text-xl">📷</span>
+          </div>
+          <div className="text-left flex-1">
+            <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Estás en el bar?</p>
+            <p className="text-lg text-white font-black uppercase tracking-tight leading-none mt-0.5">Escanear QR / Mesa</p>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">Escanea el código de tu mesa para ordenar</p>
+          </div>
+          <span className="text-slate-700 group-hover:text-orange-500 transition-colors font-bold text-xl">➔</span>
+        </button>
+
+         <button 
             onClick={() => { 
               setEsComandaManual(false); 
               if (mesa) {
-                // Si ya escaneó QR de mesa, pasa directo al menú de su piso
                 setView('menu'); 
               } else {
-                // Si es externo, le preguntamos a qué piso va
                 setMostrarSeleccionPiso(true);
               }
             }} 
@@ -2730,7 +2729,8 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
               <p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p>
             </div>
           </button>
-         {/* ✨ BOTÓN NUEVO: BENEFICIOS DE LA TRIBU */}
+
+         {/* ✨ BOTÓN BENEFICIOS DE LA TRIBU */}
         <button 
           onClick={() => setVerModalBeneficios(true)} 
           className="flex items-center gap-5 bg-gradient-to-r from-amber-600/20 to-orange-600/20 border border-orange-500/30 p-5 rounded-3xl backdrop-blur-sm active:scale-95 hover:border-orange-500 transition-all duration-300 group shadow-lg shadow-orange-950/10"
@@ -2768,7 +2768,6 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
              </div>
            </div>
          )}
-
          
        </div>
 
