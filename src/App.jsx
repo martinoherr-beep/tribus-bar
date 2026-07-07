@@ -74,7 +74,7 @@ function App() {
  });
  const [esNuevaSub, setEsNuevaSub] = useState(false);
  const [productosMenu, setProductosMenu] = useState([]);
- const [catSeleccionada, setCatSeleccionada] = useState("Todos");
+ const [catSeleccionada, setCatSeleccionada] = useState("Cerveza");
  const [subCatSeleccionada, setSubCatSeleccionada] = useState("Todas");
  const [pedidosBarra, setPedidosBarra] = useState([]);
  const [historialCerrado, setHistorialCerrado] = useState([]); 
@@ -2743,13 +2743,7 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
            </div>
          )}
 
-         <button onClick={() => window.open(LINK_PRINCIPAL, '_blank')} className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group">
-           <ExternalLink className="text-green-500" size={28} />
-           <div className="text-left font-bold uppercase text-[10px] text-slate-400">
-             <p>Rockola</p>
-             <p className="text-lg text-white font-black">{TEXTO_LINK}</p>
-           </div>
-         </button>
+         
        </div>
 
        <button onClick={() => setView('login_staff')} className="opacity-10 text-[10px] uppercase font-bold tracking-widest hover:opacity-100 transition-opacity">Acceso Barra</button>
@@ -2867,8 +2861,12 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
 
    // 🌟 FILTRO DE CATEGORÍA (Se mantiene igual)
    const menuFiltrado = menuPorPlanta.filter(p => {
-     const coincideCategoria = catSeleccionada === "Todos" || 
-       (p.categoria || "").toUpperCase().trim() === catSeleccionada.toUpperCase().trim();
+    // ✅ REEMPLAZO INTELIGENTE:
+// Si por alguna razón el estado inicial o el limpiador cae en "Todos", 
+// el sistema por defecto filtrará y mostrará únicamente "Cerveza".
+const coincideCategoria = catSeleccionada === "Todos"
+  ? (p.categoria || "").toUpperCase().trim() === "CERVEZA"
+  : (p.categoria || "").toUpperCase().trim() === catSeleccionada.toUpperCase().trim();
        
      const coincideSubcategoria = subCatSeleccionada === "Todas" || 
        p.subcategoria === subCatSeleccionada;
