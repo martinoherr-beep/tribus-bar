@@ -2670,10 +2670,16 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
              className="h-24 md:h-28 w-auto object-contain drop-shadow-[0_4px_12px_rgba(234,88,12,0.35)] transition-transform duration-300 hover:scale-105"
            />
          </div>
-         <div className="space-y-2 uppercase tracking-tight text-center">
-           <h2 className="text-3xl font-bold">{mesa ? `¡BIENVENIDO MESA ${mesa}!` : "¡BIENVENIDO!"}</h2>
-           <p className="text-orange-500 text-sm font-medium tracking-[0.2em]">{obtenerPlanta(mesa)}</p>
-         </div>
+        <div className="space-y-2 uppercase tracking-tight text-center">
+  <h2 className="text-3xl font-black tracking-tight">
+    {usuarioLogueado 
+      ? `¡BIENVENIDO ${nombreUsuarioLogueado ? nombreUsuarioLogueado.split(" ")[0] : "MIEMBRO"}!` 
+      : "¡BIENVENIDO INVITADO!"}
+  </h2>
+  <p className="text-orange-500 text-sm font-medium tracking-[0.2em]">
+    {mesa ? `MESA ${mesa} • ${obtenerPlanta(mesa)}` : "ORDENA DESDE TU LUGAR"}
+  </p>
+</div>
        </div>
 
        <div className="grid gap-4">
@@ -3188,7 +3194,7 @@ const coincideCategoria = catSeleccionada === "Todos"
                  <div className="w-14 h-14 bg-orange-600/10 border border-orange-500/20 rounded-2xl flex items-center justify-center mx-auto shadow-xl">
                    <Boxes className="text-orange-500" size={26} />
                  </div>
-                 <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white">¿Dónde te ubicarás?</h3>
+                 <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white">¿Cual menú deseas consultar?</h3>
                  <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Selecciona tu área para mostrarte el menú correcto</p>
                </div>
 
