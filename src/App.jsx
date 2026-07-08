@@ -1519,13 +1519,13 @@ const guardarEvento = async (e) => {
         
         <p className="text-[11px] text-gray-400 whitespace-pre-line mb-3">{p.detalle}</p>
         
-        <div className="border-t border-gray-800 pt-3 flex flex-col gap-2">
+   <div className="border-t border-gray-800 pt-3 flex flex-col gap-2">
           <div className="flex justify-between items-center">
             <span className="text-xs font-bold text-gray-500 italic">Total</span>
             <span className="text-lg font-black text-white">${p.total}</span>
           </div>
 
-          {/* 💳 SOLUCIONADO: Filtro .toUpperCase() y estadoReal sincronizados */}
+          {/* 💳 CASO 1: PEDIDOS EXTERNOS (YA LO TENÍAS) */}
           {esPedidoExterno && estadoReal !== 'entregado' && (
             <button 
               onClick={() => informarPago(p.id)} 
@@ -1537,6 +1537,34 @@ const guardarEvento = async (e) => {
               disabled={p.pagoInformado}
             >
               {p.pagoInformado ? '✔ Pago en Verificación' : 'Ya deposité / Informar Pago'}
+            </button>
+          )}
+
+          {/* 💵 CASO 2: CLIENTE EN EL BAR (NUEVO BOTÓN SOLICITAR CUENTA) */}
+          {!esPedidoExterno && (
+            <button
+              type="button"
+              disabled={p.solicitaCuenta}
+              onClick={async () => {
+                try {
+                  const pedidoRef = doc(db, "pedidos", p.id);
+                  await updateDoc(pedidoRef, {
+                    solicitaCuenta: true,
+                    horaSolicitudCuenta: serverTimestamp()
+                  });
+                  alert("🔔 ¡Solicitud enviada! Un mesero se dirige a tu mesa con la cuenta.");
+                } catch (error) {
+                  console.error("Error al pedir cuenta:", error);
+                  alert("Hubo un error al llamar al mesero. Por favor inténtalo de nuevo.");
+                }
+              }}
+              className={`w-full mt-2 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all duration-300 active:scale-[0.98] ${
+                p.solicitaCuenta 
+                  ? 'bg-amber-500/10 text-amber-500 border border-amber-500/40 animate-pulse cursor-not-allowed' 
+                  : 'bg-orange-600 text-white shadow-lg shadow-orange-950/20 hover:bg-orange-500'
+              }`}
+            >
+              {p.solicitaCuenta ? '⏳ Llamando Mesero con la Cuenta...' : '💵 Pagar en Mesa / Traer Cuenta'}
             </button>
           )}
         </div>
