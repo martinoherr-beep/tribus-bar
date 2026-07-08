@@ -392,27 +392,43 @@ useEffect(() => {
   };
 }, []);
 
- const loginClienteFrecuente = async () => {
-    if (!telefonoInput || !password) {
-      return alert("Por favor, ingresa tu teléfono y contraseña.");
-    }
+const loginClienteFrecuente = async () => {
+  if (!telefonoInput || !password) {
+    return alert("Por favor, ingresa tu teléfono y contraseña.");
+  }
 
-    try {
-      const emailFalso = `${telefonoInput}@tribus.com`;
-      const userCredential = await signInWithEmailAndPassword(auth, emailFalso, password);
-      localStorage.removeItem("tribu_comanda_id"); 
-      setUsuarioLogueado(userCredential.user);
-      setView('menu');
-      alert("¡Qué bueno verte de nuevo en la Tribu!");
-    } catch (error) {
-      console.error("Error al entrar:", error.code);
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        alert("Teléfono o contraseña incorrectos.");
-      } else {
-        alert("Error al iniciar sesión: " + error.message);
+  try {
+    const emailFalso = `${telefonoInput}@tribus.com`;
+    const userCredential = await signInWithEmailAndPassword(auth, emailFalso, password);
+    
+    // 🔗 VINCULACIÓN EN CALIENTE DE LA COMANDA DE INVITADO
+    const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
+    if (comandaIdGuardada) {
+      try {
+        const pedidoRef = doc(db, "pedidos", comandaIdGuardada);
+        await updateDoc(pedidoRef, {
+          uid: userCredential.user.uid
+        });
+        console.log("✅ Cuenta de invitado asociada con éxito a tu perfil de la Tribu.");
+      } catch (e) {
+        console.error("Error al migrar la comanda activa:", e);
       }
     }
- };
+
+    // 💡 IMPORTANTE: Ya NO removemos el "tribu_comanda_id" aquí,
+    // de esta manera el sistema conserva el rastro de su consumo activo.
+    setUsuarioLogueado(userCredential.user);
+    setView('menu');
+    alert("¡Qué bueno verte de nuevo en la Tribu!");
+  } catch (error) {
+    console.error("Error al entrar:", error.code);
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+      alert("Teléfono o contraseña incorrectos.");
+    } else {
+      alert("Error al iniciar sesión: " + error.message);
+    }
+  }
+};
 
  const informarPago = async (pedidoId) => {
  sniper:
@@ -427,7 +443,6 @@ useEffect(() => {
    console.error("Error al informar pago:", error);
  }
 };
-
 const registrarClienteFrecuente = async () => {
  if (!nombreRegistro || telefonoInput.length < 10 || password.length < 6) {
     return alert("Por favor, completa todos los campos (Mínimo 6 caracteres para contraseña).");
@@ -447,7 +462,23 @@ const registrarClienteFrecuente = async () => {
      ultimaVisita: serverTimestamp()
    });
 
-   localStorage.removeItem("tribu_comanda_id"); 
+   // 🔗 MIGRACIÓN EN CALIENTE DE LA COMANDA ACTIVA
+   const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
+   if (comandaIdGuardada) {
+     try {
+       const pedidoRef = doc(db, "pedidos", comandaIdGuardada);
+       await updateDoc(pedidoRef, {
+         uid: user.uid,
+         cliente: nombreRegistro, // Actualizamos también el nombre para que en barra sepan quién es
+         telefono: telefonoInput  // Aseguramos que tenga su WhatsApp real vinculado
+       });
+       console.log("✅ Comanda de invitado vinculada exitosamente al nuevo perfil de la Tribu.");
+     } catch (e) {
+       console.error("Error al vincular comanda en registro:", e);
+     }
+   }
+
+   // 💡 IMPORTANTE: Ya NO removemos el "tribu_comanda_id" aquí para mantener el rastro activo.
    setUsuarioLogueado(user);
    setView('menu'); 
    alert(`¡Bienvenido a la Tribu, ${nombreRegistro}!`);
