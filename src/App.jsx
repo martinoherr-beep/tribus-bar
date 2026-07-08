@@ -2964,30 +2964,30 @@ const coincideCategoria = catSeleccionada === "Todos"
   </div>
 
 <div className="flex items-center gap-2">
-    <select 
-      onChange={(e) => {
-        if (e.target.value === 'mis_pedidos') setView('mis_pedidos');
-        if (e.target.value === 'cerrar_sesion') cerrarSesion();
-        if (e.target.value === 'ir_a_login') setView('registro');
-        e.target.value = 'default'; 
-      }}
-      className="bg-slate-900 border border-slate-800 text-[10px] font-black uppercase rounded-xl px-2.5 py-2 text-slate-300 outline-none cursor-pointer max-w-[130px]"
-    >
-      <option value="default">
-        👤 {usuarioLogueado ? (nombreUsuarioLogueado ? nombreUsuarioLogueado.split(" ")[0] : "Mi Cuenta") : "Invitado"} 
-      </option>
-      
-      {!usuarioLogueado && (
-        <option value="ir_a_login">👑 Iniciar Sesión</option>
-      )}
-      
-      {usuarioLogueado && (
-        <>
-          <option value="mis_pedidos">📋 Ver mis órdenes</option>
-          <option value="cerrar_sesion" className="text-red-500">❌ Cerrar Sesión</option>
-        </>
-      )}
-    </select>
+  <select 
+  onChange={(e) => {
+    if (e.target.value === 'ir_a_login') setView('registro');
+    if (e.target.value === 'mis_pedidos') setView('mis_pedidos');
+    if (e.target.value === 'cerrar_sesion') cerrarSesion();
+    e.target.value = 'default'; 
+  }}
+  className="bg-slate-900 border border-slate-800 text-[10px] font-black uppercase rounded-xl px-2.5 py-2 text-slate-300 outline-none cursor-pointer max-w-[130px]"
+  value="default"
+>
+  <option value="default" disabled>
+    {usuarioLogueado ? `👤 ${nombreUsuarioLogueado ? nombreUsuarioLogueado.split(" ")[0] : "CUENTA"}` : "👤 INVITADO"}
+  </option>
+  
+  {/* Opción directa y simplificada para evitar fallos en el renderizado móvil */}
+  {!auth.currentUser ? (
+    <option value="ir_a_login">INICIAR SESION</option>
+  ) : (
+    <>
+      <option value="mis_pedidos">VER MIS ORDENES</option>
+      <option value="cerrar_sesion">CERRAR SESION</option>
+    </>
+  )}
+</select>
     
     <button 
       onClick={() => {
