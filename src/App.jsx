@@ -1766,128 +1766,150 @@ const guardarEvento = async (e) => {
           {tabBarra === 'comandas' && (
             <div className="no-print">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).filter(p => {
-                  if (areaStaff === 'TODOS') return true;
-                  return obtenerPlanta(p.mesa) === areaStaff; 
-                }).map(p => {
-                  const esExterno = String(p.mesa).startsWith("TEL:") || p.mesa === "T" || p.mesa === "B";
-                  const numTel = p.telefono || (String(p.mesa).startsWith("TEL:") ? p.mesa.replace("TEL:", "") : "");
-                  const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está listo.\n\n*Total a pagar: $${p.total}*\n\n*Detalle del pedido:*\n${p.detalle}\n\n${DATOS_PAGO}`;
-                  
-                  const colorCintillo = 
-                  p.alertaPrioridad === 'verde' ? 'bg-emerald-500' : 
-                  p.alertaPrioridad === 'amarilla' ? 'bg-amber-500' : 
-                  p.alertaPrioridad === 'morada' ? 'bg-purple-500' : 
-                  (esExterno ? 'bg-blue-600' : 'bg-purple-500');
+              {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).filter(p => {
+  if (areaStaff === 'TODOS') return true;
+  return obtenerPlanta(p.mesa) === areaStaff; 
+}).map(p => {
+  const esExterno = String(p.mesa).startsWith("TEL:") || p.mesa === "T" || p.mesa === "B";
+  const numTel = p.telefono || (String(p.mesa).startsWith("TEL:") ? p.mesa.replace("TEL:", "") : "");
+  const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está listo.\n\n*Total a pagar: $${p.total}*\n\n*Detalle del pedido:*\n${p.detalle}\n\n${DATOS_PAGO}`;
+  
+  // 🎨 NUEVO: Si solicita la cuenta, el cintillo cambia a ámbar automáticamente
+  const colorCintillo = 
+  p.solicitaCuenta ? 'bg-amber-500' :
+  p.alertaPrioridad === 'verde' ? 'bg-emerald-500' : 
+  p.alertaPrioridad === 'amarilla' ? 'bg-amber-500' : 
+  p.alertaPrioridad === 'morada' ? 'bg-purple-500' : 
+  (esExterno ? 'bg-blue-600' : 'bg-purple-500');
 
-                  return (
-                    <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-3.5 rounded-xl relative shadow-lg flex flex-col justify-between group transition-all text-left">
-                      <div className={`absolute top-0 left-0 w-1.5 h-full ${colorCintillo}`}></div>
-                      
-                      {p.pagoInformado && (
-                        <div className="bg-blue-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex items-center justify-center gap-1.5 animate-pulse shadow-md border border-blue-400/20">
-                          <CheckCircle size={12} /> PAGO INFORMADO - VERIFICAR CAJA
-                        </div>
-                      )}
-                      {p.pideTraslado && (
-                        <div className="bg-red-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex flex-col items-center justify-center gap-1 animate-pulse shadow-md border border-red-400/20 text-center uppercase">
-                          <span>⚠️ CLIENTE SOLICITA TRASLADO</span>
-                          <span className="text-xs font-black bg-black/40 px-2 py-0.5 rounded mt-0.5">MOVER A MESA {p.solicitudTraslado}</span>
-                        </div>
-                      )}
-                      <div>
-                        {p.alertaPrioridad && (
-                          <div className="mb-2">
-                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${
-                              p.alertaPrioridad === 'verde' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                              p.alertaPrioridad === 'amarilla' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                              'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-                            }`}>
-                              {p.alertaPrioridad === 'verde' ? '👑 Cliente VIP' :
-                               p.alertaPrioridad === 'amarilla' ? '🍺 Regular' :
-                               '⚡ Esporádico'}
-                            </span>
-                          </div>
-                        )}
+  return (
+    <div 
+      key={p.id} 
+      className={`bg-[#0c111a] border p-3.5 rounded-xl relative shadow-lg flex flex-col justify-between group transition-all text-left ${
+        p.solicitaCuenta ? 'border-amber-500 shadow-amber-950/40' : 'border-slate-800'
+      }`}
+    >
+      <div className={`absolute top-0 left-0 w-1.5 h-full ${colorCintillo}`}></div>
+      
+      {/* 💵 NUEVO: Alerta parpadeante de cuenta solicitada */}
+      {p.solicitaCuenta && (
+        <div className="bg-amber-500 text-black text-[10px] font-black p-2 rounded-lg mb-2.5 flex items-center justify-center gap-1.5 animate-pulse shadow-md border border-amber-400/20">
+          💵 SOLICITA CUENTA / PAGAR EN MESA
+        </div>
+      )}
 
-                        <div className="flex justify-between items-start">
-                          <div className="flex flex-col leading-tight">
-                            <h3 className="text-lg font-black italic uppercase tracking-tight text-white">
-                              {esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}
-                            </h3>
-                            {p.cliente && (
-                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
-                                Atendiendo a: <span className="text-orange-500">{p.cliente}</span>
-                              </span>
-                            )}
-                            <span className="text-[9px] font-black uppercase tracking-widest mt-0.5 text-slate-400">
-                              ZONA: <span className={obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}>
-                                {obtenerPlanta(p.mesa)}
-                              </span>
-                            </span>
-                          </div>
-                          
-                          <div className="flex gap-1.5">
-                            <button onClick={() => moverMesa(p)} className="p-1 text-slate-500 hover:text-sky-400 transition-colors" title="Mover Mesa">
-                              <ExternalLink size={15}/>
-                            </button>
-                            <button onClick={async () => { 
-                              if(window.confirm("¿Cancelar pedido? El stock regresará.")) { 
-                                const batch = writeBatch(db); 
-                                p.detalle.split('\n').forEach(linea => { 
-                                  const m = linea.match(/(\d+)x (.*) \(\$/); 
-                                  if (m) { 
-                                    const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
-                                    if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
-                                  } 
-                                }); 
-                                batch.delete(doc(db, "pedidos", p.id)); 
-                                await batch.commit(); 
-                              } 
-                            }} className="p-1 text-slate-700 hover:text-red-500 transition-colors">
-                              <Trash2 size={15}/>
-                            </button>
-                          </div>
-                        </div>
+      {p.pagoInformado && (
+        <div className="bg-blue-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex items-center justify-center gap-1.5 animate-pulse shadow-md border border-blue-400/20">
+          <CheckCircle size={12} /> PAGO INFORMADO - VERIFICAR CAJA
+        </div>
+      )}
+      {p.pideTraslado && (
+        <div className="bg-red-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex flex-col items-center justify-center gap-1 animate-pulse shadow-md border border-red-400/20 text-center uppercase">
+          <span>⚠️ CLIENTE SOLICITA TRASLADO</span>
+          <span className="text-xs font-black bg-black/40 px-2 py-0.5 rounded mt-0.5">MOVER A MESA {p.solicitudTraslado}</span>
+        </div>
+      )}
+      <div>
+        {p.alertaPrioridad && (
+          <div className="mb-2">
+            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${
+              p.alertaPrioridad === 'verde' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+              p.alertaPrioridad === 'amarilla' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+              'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+            }`}>
+              {p.alertaPrioridad === 'verde' ? '👑 Cliente VIP' :
+               p.alertaPrioridad === 'amarilla' ? '🍺 Regular' :
+               '⚡ Esporádico'}
+            </span>
+          </div>
+        )}
 
-                        {p.pinMesa && (
-                          <div className="bg-orange-600/5 border border-orange-600/10 rounded-md p-1.5 mt-2 flex justify-between items-center">
-                            <span className="text-[8px] font-black uppercase text-orange-500 tracking-wider">PIN SEGURIDAD:</span>
-                            <span className="text-sm font-black text-white tracking-widest">{p.pinMesa}</span>
-                          </div>
-                        )}
+        <div className="flex justify-between items-start">
+          <div className="flex flex-col leading-tight">
+            <h3 className="text-lg font-black italic uppercase tracking-tight text-white">
+              {esExterno ? `📦 ${numTel}` : `MESA ${p.mesa}`}
+            </h3>
+            {p.cliente && (
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                Atendiendo a: <span className="text-orange-500">{p.cliente}</span>
+              </span>
+            )}
+            <span className="text-[9px] font-black uppercase tracking-widest mt-0.5 text-slate-400">
+              ZONA: <span className={obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}>
+                {obtenerPlanta(p.mesa)}
+              </span>
+            </span>
+          </div>
+          
+          <div className="flex gap-1.5">
+            <button onClick={() => moverMesa(p)} className="p-1 text-slate-500 hover:text-sky-400 transition-colors" title="Mover Mesa">
+              <ExternalLink size={15}/>
+            </button>
+            <button onClick={async () => { 
+              if(window.confirm("¿Cancelar pedido? El stock regresará.")) { 
+                const batch = writeBatch(db); 
+                p.detalle.split('\n').forEach(linea => { 
+                  const m = linea.match(/(\d+)x (.*) \(\$/); 
+                  if (m) { 
+                    const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
+                    if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
+                  } 
+                }); 
+                batch.delete(doc(db, "pedidos", p.id)); 
+                await batch.commit(); 
+              } 
+            }} className="p-1 text-slate-700 hover:text-red-500 transition-colors">
+              <Trash2 size={15}/>
+            </button>
+          </div>
+        </div>
 
-                        <div className="mt-3 space-y-1 max-h-[150px] overflow-y-auto no-scrollbar">
-                          {p.detalle.split('\n').map((linea, idx) => {
-                            const esProducto = /^\d+x/.test(linea.trim());
-                            return (
-                              <div key={idx} className="group/item flex justify-between items-center bg-black/20 p-1.5 rounded-md border border-white/5">
-                                <span className={`text-sm tracking-tight leading-none ${!esProducto ? 'text-orange-500 font-bold text-[10px]' : 'text-slate-300'}`}>
-                                  {linea}
-                                </span>
-                                {esProducto && (
-                                  <button onClick={() => eliminarArticuloComanda(p, idx)} className="opacity-0 group-hover/item:opacity-100 p-0.5 text-red-500/50 hover:text-red-500 transition-all">
-                                    <X size={12}/>
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
+        {p.pinMesa && (
+          <div className="bg-orange-600/5 border border-orange-600/10 rounded-md p-1.5 mt-2 flex justify-between items-center">
+            <span className="text-[8px] font-black uppercase text-orange-500 tracking-wider">PIN SEGURIDAD:</span>
+            <span className="text-sm font-black text-white tracking-widest">{p.pinMesa}</span>
+          </div>
+        )}
 
-                        {esExterno && (
-                          <button onClick={() => window.open(`https://wa.me/${numTel}?text=${encodeURIComponent(mensajeWA)}`, '_blank')} className="flex items-center justify-center gap-1.5 bg-green-600/10 border border-green-600/20 text-green-500 w-full py-2 rounded-lg font-black uppercase text-[10px] mt-2.5 hover:bg-green-600 hover:text-white transition-all">
-                            <Phone size={12}/> Enviar Datos Bancarios
-                          </button>
-                        )}
-                      </div>
-                      
-                      <button onClick={() => cobrarCuenta(p)} className="bg-orange-600 w-full py-2.5 rounded-xl font-black text-sm mt-4 active:scale-95 uppercase tracking-tight shadow-md transition-all">
-                        Cobrar ${p.total}
-                      </button>
-                    </div>
-                  );
-                })}
+        <div className="mt-3 space-y-1 max-h-[150px] overflow-y-auto no-scrollbar">
+          {p.detalle.split('\n').map((linea, idx) => {
+            const esProducto = /^\d+x/.test(linea.trim());
+            return (
+              <div key={idx} className="group/item flex justify-between items-center bg-black/20 p-1.5 rounded-md border border-white/5">
+                <span className={`text-sm tracking-tight leading-none ${!esProducto ? 'text-orange-500 font-bold text-[10px]' : 'text-slate-300'}`}>
+                  {linea}
+                </span>
+                {esProducto && (
+                  <button onClick={() => eliminarArticuloComanda(p, idx)} className="opacity-0 group-hover/item:opacity-100 p-0.5 text-red-500/50 hover:text-red-500 transition-all">
+                    <X size={12}/>
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {esExterno && (
+          <button onClick={() => window.open(`https://wa.me/${numTel}?text=${encodeURIComponent(mensajeWA)}`, '_blank')} className="flex items-center justify-center gap-1.5 bg-green-600/10 border border-green-600/20 text-green-500 w-full py-2 rounded-lg font-black uppercase text-[10px] mt-2.5 hover:bg-green-600 hover:text-white transition-all">
+            <Phone size={12}/> Enviar Datos Bancarios
+          </button>
+        )}
+      </div>
+      
+      {/* 💵 NUEVO: El botón de cobrar resalta en color ámbar/negro si están llamando para pagar */}
+      <button 
+        onClick={() => cobrarCuenta(p)} 
+        className={`w-full py-2.5 rounded-xl font-black text-sm mt-4 active:scale-95 uppercase tracking-tight shadow-md transition-all ${
+          p.solicitaCuenta 
+            ? 'bg-amber-500 text-black hover:bg-amber-400 shadow-amber-500/10' 
+            : 'bg-orange-600 text-white hover:bg-orange-500'
+        }`}
+      >
+        Cobrar ${p.total}
+      </button>
+    </div>
+  );
+})}
               </div>
             </div>
           )}
@@ -2129,55 +2151,36 @@ const guardarEvento = async (e) => {
         )}
 
         <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-800 mt-1">
-          <div className="flex flex-col text-left">
-            <span className="text-[9px] text-slate-400 font-bold uppercase">
-              Neto Físico: <span className="text-white font-black">{gramosLiquidosTotales}g</span>
-            </span>
-            {/* 📉 Muestra la merma autorizada si se configuró una */}
-            {mermaConfigurada > 0 && (
-              <span className="text-[8px] text-red-400 font-medium uppercase tracking-tight">
-                📉 Merma Tol: -{mermaConfigurada}g
-              </span>
-            )}
-          </div>
-          
-          {/* ─── 2. REPORTE HISTÓRICO DE VASOS Y LITROS VENDIDOS ─── */}
-          <div className="text-right text-[8px] font-black uppercase text-slate-500 tracking-tight">
-            <span>Vendidos: </span>
-            <span className="text-orange-400">{trago.totalVasosVendidos || 0} V</span>
-            <span className="text-slate-600"> | </span>
-            <span className="text-teal-400">{trago.totalLitrosVendidos || 0} L</span>
-          </div>
+          {/* ─── BLOQUE NUEVO Y LIMPIO ─── */}
+<div className="flex flex-col text-left">
+  <span className="text-[9px] text-slate-400 font-bold uppercase">
+    Neto Físico: <span className="text-white font-black">{gramosLiquidosTotales}g</span>
+  </span>
+</div>
 
-          <div className="flex gap-1.5">
-            {/* 🌟 BOTÓN 1: Ajustar la Merma Permitida */}
-            <button 
-              type="button"
-              onClick={() => {
-                const merma = window.prompt(`📉 CONFIGURAR MERMA - ${trago.nombre}\n\nIngresa los gramos de tolerancia por merma (se restarán del cálculo de vasos y litros):`, trago.mermaPermitidaGramos || "0");
-                if (merma !== null && merma !== "") {
-                  updateDoc(doc(db, "productos", trago.id), { mermaPermitidaGramos: Number(merma) });
-                }
-              }}
-              className="bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white px-2 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all"
-            >
-              📉 Merma
-            </button>
+{/* ─── REPORTE HISTÓRICO DE VASOS Y LITROS VENDIDOS ─── */}
+<div className="text-right text-[12px] font-black uppercase text-slate-500 tracking-tight">
+  <span>Vendidos: </span>
+  <span className="text-orange-400">{trago.totalVasosVendidos || 0} V</span>
+  <span className="text-slate-600"> | </span>
+  <span className="text-teal-400">{trago.totalLitrosVendidos || 0} L</span>
+</div>
 
-            {/* ⚖️ BOTÓN 2: Pesar Botella */}
-            <button 
-              type="button"
-              onClick={() => {
-                const nuevoPeso = window.prompt(`⚖️ PESAR BOTELLA - ${trago.nombre}\n\nIngresa el peso actual de la báscula en gramos:`, trago.pesoActualGramos);
-                if (nuevoPeso !== null && nuevoPeso !== "") {
-                  updateDoc(doc(db, "productos", trago.id), { pesoActualGramos: Number(nuevoPeso) });
-                }
-              }}
-              className="bg-sky-600/10 hover:bg-sky-600 text-sky-400 hover:text-white px-2 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all"
-            >
-              ⚖️ Peso
-            </button>
-          </div>
+<div className="flex gap-1.5">
+  {/* ⚖️ BOTÓN ÚNICO: Pesar Botella */}
+  <button 
+    type="button"
+    onClick={() => {
+      const nuevoPeso = window.prompt(`⚖️ PESAR BOTELLA - ${trago.nombre}\n\nIngresa el peso actual de la báscula en gramos:`, trago.pesoActualGramos);
+      if (nuevoPeso !== null && nuevoPeso !== "") {
+        updateDoc(doc(db, "productos", trago.id), { pesoActualGramos: Number(nuevoPeso) });
+      }
+    }}
+    className="bg-sky-600/10 hover:bg-sky-600 text-sky-400 hover:text-white px-2.5 py-1.5 rounded-xl text-[8px] font-black uppercase transition-all"
+  >
+    ⚖️ Peso
+  </button>
+</div>
         </div>
       </div>
     );
@@ -2255,33 +2258,37 @@ const guardarEvento = async (e) => {
                             </div>
                           </div>
 
-                          {prod.categoria?.toLowerCase().trim() === "botellas" && (
-                            <div className="mt-1 pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-black/20 p-2 rounded-xl border border-white/5">
-                              <p className="text-[8px] font-black text-sky-400 uppercase tracking-wider">📐 Báscula: {prod.pesoBotellaLleno ? `${prod.pesoBotellaLleno}g / ${prod.pesoBotellaVacio}g` : 'Sin calibrar'}</p>
-                              <button 
-                                type="button"
-                                onClick={() => {
-                                  const lleno = window.prompt(`⚖️ CALIBRAR BOTELLA LLENA (g) - ${prod.nombre}:`, prod.pesoBotellaLleno || "1350");
-                                  const vacio = window.prompt(`⚖️ CALIBRAR TARA VACÍA (g) - ${prod.nombre}:`, prod.pesoBotellaVacio || "600");
-                                  const vaso = window.prompt(`⚖️ GRAMOS POR VASO (g):`, prod.gramosPorVaso || "45");
-                                  const litro = window.prompt(`⚖️ GRAMOS POR LITRO (g):`, prod.gramosPorLitro || "90");
+            {prod.categoria?.toLowerCase().trim() === "botellas" && (
+  <div className="mt-1 pt-2 border-t border-slate-800 flex items-center justify-between gap-2 bg-black/20 p-2 rounded-xl border border-white/5">
+    <p className="text-[8px] font-black text-sky-400 uppercase tracking-wider">📐 Base: {prod.pesoBotellaLleno ? `${prod.pesoBotellaLleno}g / ${prod.pesoBotellaVacio}g` : 'Sin calibrar'}</p>
+    <button 
+      type="button"
+      onClick={() => {
+        const lleno = window.prompt(`⚖️ CALIBRAR BOTELLA LLENA (g) - ${prod.nombre}:`, prod.pesoBotellaLleno || "1350");
+        const vacio = window.prompt(`⚖️ CALIBRAR TARA VACÍA (g) - ${prod.nombre}:`, prod.pesoBotellaVacio || "600");
+        const vaso = window.prompt(`⚖️ GRAMOS POR VASO (g):`, prod.gramosPorVaso || "45");
+        const litro = window.prompt(`⚖️ GRAMOS POR LITRO (g):`, prod.gramosPorLitro || "90");
+        // 👇 NUEVO: Captura de merma inicial en la calibración
+        const merma = window.prompt(`📉 INGRESAR MERMA INICIAL (g) para esta botella:`, prod.mermaPermitidaGramos || "0");
 
-                                  if(lleno && vacio && vaso && litro) {
-                                    updateDoc(doc(db, "productos", prod.id), {
-                                      pesoBotellaLleno: Number(lleno),
-                                      pesoBotellaVacio: Number(vacio),
-                                      gramosPorVaso: Number(vaso),
-                                      gramosPorLitro: Number(litro)
-                                    });
-                                    alert("¡Configuración guardada en Planta Baja!");
-                                  }
-                                }}
-                                className="text-[8px] font-black bg-slate-900 text-slate-300 border border-slate-800 hover:border-sky-500 px-2 py-1 rounded-md uppercase tracking-tight transition-all"
-                              >
-                                ⚙️ Configurar Gramos
-                              </button>
-                            </div>
-                          )}
+        if(lleno && vacio && vaso && litro && merma !== null) {
+          updateDoc(doc(db, "productos", prod.id), {
+            pesoBotellaLleno: Number(lleno),
+            pesoBotellaVacio: Number(vacio),
+            gramosPorVaso: Number(vaso),
+            gramosPorLitro: Number(litro),
+            // 👇 NUEVO: Se guarda directo en la base de datos
+            mermaPermitidaGramos: Number(merma)
+          });
+          alert("¡Configuración y Merma guardadas en Planta Baja!");
+        }
+      }}
+      className="text-[8px] font-black bg-slate-900 text-slate-300 border border-slate-800 hover:border-sky-500 px-2 py-1 rounded-md uppercase tracking-tight transition-all"
+    >
+      ⚙️ Configurar Gramos
+    </button>
+  </div>
+)}
                         </div>
                       ))}
                   </div>
@@ -2322,33 +2329,37 @@ const guardarEvento = async (e) => {
                             </div>
                           </div>
 
-                          {prod.categoria?.toLowerCase().trim() === "botellas" && (
-                            <div className="mt-1 pt-2 border-t border-slate-800 flex items-center justify-between bg-black/20 p-2 rounded-xl border border-white/5">
-                              <p className="text-[8px] font-black text-sky-400 uppercase tracking-wider">📐 Báscula: {prod.pesoBotellaLleno ? `${prod.pesoBotellaLleno}g / ${prod.pesoBotellaVacio}g` : 'Sin calibrar'}</p>
-                              <button 
-                                type="button"
-                                onClick={() => {
-                                  const lleno = window.prompt(`⚖️ CALIBRAR BOTELLA LLENA (g) - ${prod.nombre}:`, prod.pesoBotellaLleno || "1350");
-                                  const vacio = window.prompt(`⚖️ CALIBRAR TARA VACÍA (g) - ${prod.nombre}:`, prod.pesoBotellaVacio || "600");
-                                  const vaso = window.prompt(`⚖️ GRAMOS POR VASO (g):`, prod.gramosPorVaso || "45");
-                                  const litro = window.prompt(`⚖️ GRAMOS POR LITRO (g):`, prod.gramosPorLitro || "90");
+                     {prod.categoria?.toLowerCase().trim() === "botellas" && (
+  <div className="mt-1 pt-2 border-t border-slate-800 flex items-center justify-between bg-black/20 p-2 rounded-xl border border-white/5">
+    <p className="text-[8px] font-black text-sky-400 uppercase tracking-wider">📐 Base: {prod.pesoBotellaLleno ? `${prod.pesoBotellaLleno}g / ${prod.pesoBotellaVacio}g` : 'Sin calibrar'}</p>
+    <button 
+      type="button"
+      onClick={() => {
+        const lleno = window.prompt(`⚖️ CALIBRAR BOTELLA LLENA (g) - ${prod.nombre}:`, prod.pesoBotellaLleno || "1350");
+        const vacio = window.prompt(`⚖️ CALIBRAR TARA VACÍA (g) - ${prod.nombre}:`, prod.pesoBotellaVacio || "600");
+        const vaso = window.prompt(`⚖️ GRAMOS POR VASO (g):`, prod.gramosPorVaso || "45");
+        const litro = window.prompt(`⚖️ GRAMOS POR LITRO (g):`, prod.gramosPorLitro || "90");
+        // 👇 NUEVO: Captura de merma inicial en la calibración
+        const merma = window.prompt(`📉 INGRESAR MERMA INICIAL (g) para esta botella:`, prod.mermaPermitidaGramos || "0");
 
-                                  if(lleno && vacio && vaso && litro) {
-                                    updateDoc(doc(db, "productos", prod.id), {
-                                      pesoBotellaLleno: Number(lleno),
-                                      pesoBotellaVacio: Number(vacio),
-                                      gramosPorVaso: Number(vaso),
-                                      gramosPorLitro: Number(litro)
-                                    });
-                                    alert("¡Configuración guardada en Terraza!");
-                                  }
-                                }}
-                                className="text-[8px] font-black bg-slate-900 text-slate-300 border border-slate-800 hover:border-sky-500 px-2 py-1 rounded-md uppercase tracking-tight transition-all"
-                              >
-                                ⚙️ Configurar Gramos
-                              </button>
-                            </div>
-                          )}
+        if(lleno && vacio && vaso && litro && merma !== null) {
+          updateDoc(doc(db, "productos", prod.id), {
+            pesoBotellaLleno: Number(lleno),
+            pesoBotellaVacio: Number(vacio),
+            gramosPorVaso: Number(vaso),
+            gramosPorLitro: Number(litro),
+            // 👇 NUEVO: Se guarda directo en la base de datos
+            mermaPermitidaGramos: Number(merma)
+          });
+          alert("¡Configuración y Merma guardadas en Terraza!");
+        }
+      }}
+      className="text-[8px] font-black bg-slate-900 text-slate-300 border border-slate-800 hover:border-sky-500 px-2 py-1 rounded-md uppercase tracking-tight transition-all"
+    >
+      ⚙️ Configurar Gramos
+    </button>
+  </div>
+)}
                         </div>
                       ))}
                   </div>
@@ -3067,12 +3078,20 @@ const coincideCategoria = catSeleccionada === "Todos"
               </div>
             </div>
            {/* ─── CONTENEDOR DE CATEGORÍAS MODIFICADO ─── */}
+{/* ─── CONTENEDOR DE CATEGORÍAS MODIFICADO ─── */}
 <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
   
-  {/* 🎵 BOTÓN ESTÁTICO DE LA ROCKOLA */}
+  {/* 🎵 BOTÓN ESTÁTICO DE LA ROCKOLA (DINÁMICO POR ZONA) */}
   <button 
     type="button"
-    onClick={() => window.open(LINK_PRINCIPAL, '_blank')}
+    onClick={() => {
+      // Validamos si la mesa actual o la ubicación calculada es TERRAZA
+      if (mesa === "T" || ubicacionActual === "TERRAZA") {
+        window.open("http://192.168.5.5/terraza/youtube/search", '_blank'); // 👈 Aquí va el enlace de la Terraza
+      } else {
+        window.open(LINK_PRINCIPAL, '_blank'); // Mantiene http://192.168.5.5/youtube/search para Planta Baja / Externos
+      }
+    }}
     className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-all bg-gradient-to-r from-purple-900/40 to-indigo-900/40 border border-purple-500/30 text-purple-400 hover:border-purple-400 active:scale-95"
   >
     🎵 {TEXTO_LINK}
