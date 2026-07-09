@@ -45,7 +45,7 @@ const estilosImpresion = `
  }
 `
 // 🗓️ CONFIGURACIÓN DE APERTURA: 0=Domingo, 4=Jueves, 5=Viernes, 6=Sábado
-const DIAS_APERTURA_TERRAZA = [0, 4, 5, 6]; 
+const DIAS_APERTURA_TERRAZA = [0, 3, 4, 5, 6]; 
 const LINK_RESERVACIONES_WA = "https://wa.me/521234567890?text=Hola!%20Me%20gustar%C3%ADa%20hacer%20una%20reservaci%C3%B3n%20para%20la%20Terraza%20de%20Tribus%20Bar.";
 ;
 
