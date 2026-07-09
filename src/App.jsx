@@ -528,14 +528,14 @@ useEffect(() => {
     if (usuario) {
       setUsuarioLogueado(usuario);
       
-      const correosStaff = ['baja@tribus.com', 'terraza@tribus.com', 'admin@tribus.com'];
+      const correosStaff = ['barra@tribus.com', 'terraza@tribus.com', 'admin@tribus.com'];
       if (correosStaff.includes(usuario.email)) {
           setEsStaff(true); 
       } else {
           setEsStaff(false); 
       }
       
-      if (usuario.email === 'baja@tribus.com') {
+      if (usuario.email === 'barra@tribus.com') {
         setAreaStaff('PLANTA BAJA');
         setEsSuperAdmin(false);
       } else if (usuario.email === 'terraza@tribus.com') {
