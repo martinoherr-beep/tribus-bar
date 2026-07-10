@@ -2,18 +2,18 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
+
+
 const firebaseConfig = {
-  apiKey: "AIzaSyCsFW-Vk1pIowTcSHh_665Jv4SrAxYH0bo",
-  authDomain: "tribusbar-ebece.firebaseapp.com",
-  projectId: "tribusbar-ebece",
-  storageBucket: "tribusbar-ebece.firebasestorage.app",
-  messagingSenderId: "1067691570980",
-  appId: "1:1067691570980:web:77569c6e326e66d17865b1"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// 1. Primero definimos e inicializamos la APP
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// 2. Ahora que 'app' existe, inicializamos y exportamos los servicios
 export const db = getFirestore(app);
 export const auth = getAuth(app);
