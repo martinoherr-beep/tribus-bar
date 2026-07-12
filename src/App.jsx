@@ -1469,35 +1469,46 @@ const guardarEvento = async (e) => {
       )}
 
 
-{view === 'success' && (
- <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center text-white font-sans">
-   <CheckCircle size={80} className="text-green-500 mb-6 animate-bounce" />
-   <h1 className="text-4xl font-black italic mb-4 uppercase tracking-tighter">¡PEDIDO RECIBIDO!</h1>
-   
-   {(!mesa || String(mesa).toUpperCase().trim() === "B" || String(mesa).toUpperCase().trim() === "T") ? (
-     /* 🏠 CASO EXTERNO: Muestra instrucciones de pago y botón directo a 'Mis Órdenes' */
-     <>
-       <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 mb-8 max-w-sm">
-         <p className="text-orange-500 font-black uppercase text-[10px] tracking-widest mb-4">Instrucciones de Pago</p>
-         <pre className="text-xs text-slate-300 font-sans whitespace-pre-wrap leading-relaxed">{DATOS_PAGO}</pre>
-       </div>
-       <button 
-         onClick={() => setView('mis_pedidos')} 
-         className="text-orange-500 font-bold border-b border-orange-500 uppercase tracking-widest text-sm"
-       >
-         Realizar pago
-       </button>
-     </>
-   ) : (
-     /* 🍻 CASO EN EL BAR (MESAS): Sigue el flujo original de regresar al menú */
-     <button 
-       onClick={() => setView('menu')} 
-       className="text-orange-500 font-bold border-b border-orange-500 uppercase tracking-widest"
-     >
-       Seguir Consumiendo</button>
-   )}
- </div>
-)}
+{view === 'success' && (() => {
+  // 🕵️‍♂️ RASTREADOR DE SEGURIDAD EN CONSOLA:
+  console.log("DEBUG SUCCESS - Valor actual de mesa:", mesa, "Tipo de dato:", typeof mesa);
+
+  const mesaLimpia = mesa ? String(mesa).toUpperCase().trim() : "";
+  const esExterno = !mesaLimpia || mesaLimpia === "B" || mesaLimpia === "T" || mesaLimpia.startsWith("TEL:");
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 text-center text-white font-sans">
+      <CheckCircle size={80} className="text-green-500 mb-6 animate-bounce" />
+      <h1 className="text-4xl font-black italic mb-4 uppercase tracking-tighter">¡PEDIDO RECIBIDO!</h1>
+      
+      {esExterno ? (
+        /* 🏠 CASO EXTERNO */
+        <>
+          <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 mb-8 max-w-sm">
+            <p className="text-orange-500 font-black uppercase text-[10px] tracking-widest mb-4">Instrucciones de Pago</p>
+            <pre className="text-xs text-slate-300 font-sans whitespace-pre-wrap leading-relaxed">{DATOS_PAGO}</pre>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setView('mis_pedidos')} 
+            className="text-orange-500 font-bold border-b border-orange-500 uppercase tracking-widest text-sm cursor-pointer"
+          >
+            Realizar pago
+          </button>
+        </>
+      ) : (
+        /* 🍻 CASO EN EL BAR (MESAS NÚMERICAS) */
+        <button 
+          type="button"
+          onClick={() => setView('menu')} 
+          className="text-orange-500 font-bold border-b border-orange-500 uppercase tracking-widest cursor-pointer"
+        >
+          Seguir Consumiendo
+        </button>
+      )}
+    </div>
+  );
+})()}
 
 {view === 'mis_pedidos' && (
    <div className="min-h-screen bg-black p-6 font-sans text-white">
