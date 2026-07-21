@@ -1179,7 +1179,7 @@ const cobrarCuenta = async (p) => {
    // 3. Borramos la comanda activa de la barra
    batch.delete(doc(db, "pedidos", p.id));
 
-   // 4. Ejecutamos todos los cambios juntos de forma segura
+// 4. Ejecutamos todos los cambios juntos de forma segura
    await batch.commit();
 
    localStorage.removeItem("tribu_comanda_id");
@@ -1188,7 +1188,12 @@ const cobrarCuenta = async (p) => {
    setConsumoAcumulado([]);
    setMesaValidada(false);
 
-   setTicketParaReimprimir(p);
+   // 🎟️ INYECTAMOS PAGO CON Y CAMBIO DIRECTO AL TICKET
+   setTicketParaReimprimir({
+     ...p,
+     pagoCon: pagoEfectivo,
+     cambio: cambioCalculado
+   });
 };
 
 useEffect(() => {
