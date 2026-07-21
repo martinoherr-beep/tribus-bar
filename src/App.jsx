@@ -2796,7 +2796,7 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
 {view === 'welcome' && (
    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden font-sans">
      <div className="absolute inset-0 opacity-40">
-       <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="fondo" />
+       <img src="https://res.cloudinary.com/druv9bk0d/image/upload/v1784608643/fondo_odtdm8.jpg" className="w-full h-full object-cover" alt="fondo" />
        <div className="absolute inset-0 bg-slate-950/80"></div>
      </div>
 
