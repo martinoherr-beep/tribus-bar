@@ -3258,7 +3258,18 @@ const coincideCategoria = catSeleccionada === "Todos"
                  <h3 className="text-lg font-black italic uppercase text-orange-500 tracking-tight">Escanear o Cambiar Mesa</h3>
                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Control de ubicación de la Tribu</p>
                </div>
-               <button onClick={() => setVerModalEscaner(false)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><X size={16}/></button>
+               <button 
+  onClick={() => {
+    setVerModalEscaner(false);
+    // 🚪 Si no tiene una mesa asignada previa, lo regresamos a bienvenida
+    if (!mesa) {
+      setView('welcome');
+    }
+  }} 
+  className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white active:scale-95 transition-transform"
+>
+  <X size={16}/>
+</button>
              </div>
 
              <div className="relative w-full overflow-hidden bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl min-h-[200px]">
