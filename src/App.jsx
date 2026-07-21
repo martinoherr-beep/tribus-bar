@@ -118,6 +118,7 @@ function App() {
   const [fechaSeleccionada, setFechaSeleccionada] = useState("");
   const [mesaSeleccionadaReserva, setMesaSeleccionadaReserva] = useState(null);
   const [nombreReserva, setNombreReserva] = useState("");
+  const [personasReserva, setPersonasReserva] = useState(2);
   // 🌟 AGREGA ESTA LÍNEA AQUÍ PARA SANAR EL ERROR DE REFERENCIA:
 const [reservasConfirmadas, setReservasConfirmadas] = useState([]);
  // 🔥 CONFIGURACIÓN INTEGRADA: Switch especial para comandos manuales de mesero
@@ -1286,18 +1287,40 @@ const guardarEvento = async (e) => {
             />
           </div>
 
-          <div>
-            <label className="text-[10px] font-black text-slate-500 uppercase ml-1 block mb-1">📅 Selecciona la Fecha</label>
-            <input 
-              type="date"
-              value={fechaSeleccionada}
-              onChange={e => {
-                setFechaSeleccionada(e.target.value);
-                setMesaSeleccionadaReserva(null);
-              }}
-              className="w-full bg-slate-950 border border-slate-800 p-3.5 rounded-2xl text-xs outline-none text-white focus:border-sky-500 font-bold transition-all"
-            />
-          </div>
+          {/* 🔍 BUSCA EL CAMPO DE SELECCIONAR FECHA DENTRO DE view === 'reservar_terraza': */}
+<div>
+  <label className="text-[10px] font-black text-slate-500 uppercase ml-1 block mb-1">📅 Selecciona la Fecha</label>
+  <input 
+    type="date"
+    value={fechaSeleccionada}
+    onChange={e => {
+      setFechaSeleccionada(e.target.value);
+      setMesaSeleccionadaReserva(null);
+    }}
+    className="w-full bg-slate-950 border border-slate-800 p-3.5 rounded-2xl text-xs outline-none text-white focus:border-sky-500 font-bold transition-all"
+  />
+</div>
+
+{/* ➕ AGREGA ESTE NUEVO BLOQUE JUSTO ABAJO: */}
+<div>
+  <label className="text-[10px] font-black text-slate-500 uppercase ml-1 block mb-1">👥 Número de Personas</label>
+  <div className="grid grid-cols-4 gap-2">
+    {[2, 4, 6, 8].map((cant) => (
+      <button
+        key={cant}
+        type="button"
+        onClick={() => setPersonasReserva(cant)}
+        className={`p-3 rounded-2xl font-black text-xs uppercase border transition-all active:scale-95 ${
+          personasReserva === cant
+            ? 'bg-sky-500 border-sky-400 text-white shadow-lg shadow-sky-500/20'
+            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+        }`}
+      >
+        {cant} pers.
+      </button>
+    ))}
+  </div>
+</div>
         </div>
 
         {/* Contenedor del Mapa Visual de Mesas Disponibles */}
@@ -1359,12 +1382,14 @@ const guardarEvento = async (e) => {
               await addDoc(collection(db, "reservas"), {
                 nombre: nombreReserva.trim(),
                 fecha: fechaSeleccionada,
+                personas: personasReserva,
                 mesa: mesaSeleccionadaReserva,
                 planta: "TERRAZA",
                 fechaCreacion: serverTimestamp(),
                 estado: "confirmada"
               });
-
+              // Y reseteas el estado junto a los demás:
+              setPersonasReserva(2); // 👈 RESETEAR A 2
               alert(`¡Reserva Exitosa!\nMesa ${mesaSeleccionadaReserva} apartada para el día ${fechaSeleccionada}.`);
               
               setNombreReserva("");
@@ -1428,18 +1453,21 @@ const guardarEvento = async (e) => {
                 key={reserva.id} 
                 className="bg-[#0c111a] border border-slate-800/80 p-4 rounded-2xl shadow-md flex items-center justify-between relative overflow-hidden"
               >
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="bg-sky-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">
-                      🪑 MESA {reserva.mesa}
-                    </span>
-                    <span className="text-white font-black text-sm">{reserva.nombre}</span>
-                  </div>
-                  
-                  <p className="text-xs text-slate-400 font-bold">
-                    📅 Fecha: <span className="text-slate-200">{reserva.fecha}</span>
-                  </p>
-                </div>
+              {/* 🔍 BUSCA DENTRO DE view === 'ver_reservas' LA INFORMACIÓN DE LA RESERVA: */}
+<div>
+  <div className="flex items-center gap-2 mb-1">
+    <span className="bg-sky-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">
+      🪑 MESA {reserva.mesa}
+    </span>
+    <span className="text-white font-black text-sm">{reserva.nombre}</span>
+  </div>
+  
+  <p className="text-xs text-slate-400 font-bold">
+    📅 Fecha: <span className="text-slate-200">{reserva.fecha}</span>
+    {/* ➕ AGREGA ESTA ETIQUETA: */}
+    {reserva.personas && <span className="text-sky-400 ml-2">👥 {reserva.personas} Personas</span>}
+  </p>
+</div>
 
                 {/* Acciones (Por ejemplo, botón para cancelar o liberar mesa) */}
                 <button
