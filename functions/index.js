@@ -57,7 +57,7 @@ function App() {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden font-sans">
         <div className="absolute inset-0 opacity-40">
-          <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1000" className="w-full h-full object-cover" alt="bg" />
+          <img src="https://res.cloudinary.com/druv9bk0d/image/upload/v1784608643/fondo_odtdm8.jpg" className="w-full h-full object-cover" alt="bg" />
           <div className="absolute inset-0 bg-slate-950/80"></div>
         </div>
         <div className="relative z-10 space-y-12 w-full max-w-lg">
@@ -106,47 +106,24 @@ function App() {
           <div className="flex-1">
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {pedidosBarra.map(p => (
-  <div 
-    key={p.id} 
-    className={`bg-[#0c111a] border p-4 rounded-2xl relative shadow-xl flex flex-col justify-between transition-all duration-300 ${
-      p.solicitaCuenta ? 'border-amber-500 shadow-amber-950/20' : 'border-slate-800'
-    }`}
-  >
-    {/* Cintillo lateral cambia a ámbar si pide cuenta */}
-    <div className={`absolute top-0 left-0 w-1 h-full ${p.solicitaCuenta ? 'bg-amber-500' : 'bg-orange-600'}`}></div>
-    
-    <div>
-      {/* 💵 ALERTA DE CUENTA SOLICITADA PARPADEANTE */}
-      {p.solicitaCuenta && (
-        <div className="bg-amber-500 text-black text-[10px] font-black p-2 rounded-xl mb-3 text-center animate-pulse uppercase tracking-wider shadow-md">
-          💵 SOLICITA CUENTA / PAGAR
-        </div>
-      )}
-
-      <h3 className="text-xl font-black italic uppercase text-white">MESA {p.mesa}</h3>
-      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">{obtenerPlanta(p.mesa)}</p>
-      
-      <div className="mt-3 bg-black/30 p-2.5 rounded-xl border border-white/5">
-        <p className="text-slate-300 text-sm font-mono whitespace-pre-line">{p.detalle}</p>
-      </div>
-    </div>
-    
-    <div className="mt-4 border-t border-slate-800/50 pt-3 flex justify-between items-center">
-      <span className="text-green-500 font-black text-xl">${p.total}</span>
-      <button 
-        onClick={async () => {
-          await addDoc(collection(db, "historial_tickets"), { mesa: p.mesa, detalle: p.detalle, total: Number(p.total), fecha: serverTimestamp(), archivado: false });
-          await deleteDoc(doc(db, "pedidos", p.id));
-        }} 
-        className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-colors ${
-          p.solicitaCuenta ? 'bg-amber-500 hover:bg-amber-400 text-black' : 'bg-orange-600 hover:bg-orange-500 text-white'
-        }`}
-      >
-        Cobrar
-      </button>
-    </div>
-  </div>
-))}
+                <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-4 rounded-2xl relative shadow-xl flex flex-col justify-between">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-orange-600"></div>
+                  <div>
+                    <h3 className="text-xl font-black italic uppercase text-white">MESA {p.mesa}</h3>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">{obtenerPlanta(p.mesa)}</p>
+                    <div className="mt-3 bg-black/30 p-2.5 rounded-xl border border-white/5">
+                      <p className="text-slate-300 text-sm font-mono whitespace-pre-line">{p.detalle}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 border-t border-slate-800/50 pt-3 flex justify-between items-center">
+                    <span className="text-green-500 font-black text-xl">${p.total}</span>
+                    <button onClick={async () => {
+                      await addDoc(collection(db, "historial_tickets"), { mesa: p.mesa, detalle: p.detalle, total: Number(p.total), fecha: serverTimestamp(), archivado: false });
+                      await deleteDoc(doc(db, "pedidos", p.id));
+                    }} className="bg-orange-600 hover:bg-orange-500 px-4 py-2 rounded-xl text-xs font-black uppercase">Cobrar</button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
