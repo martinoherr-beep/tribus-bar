@@ -101,6 +101,8 @@ function App() {
  const [esStaff, setEsStaff] = useState(false);
  const [eventoInstalacion, setEventoInstalacion] = useState(null);
  const [listaReservas, setListaReservas] = useState([]);
+ // Agrega este estado cerca de donde tienes tus otros useState (ej. junto a esComandaManual)
+ const [esDesdeCasa, setEsDesdeCasa] = useState(false);
  // 🔥 NUEVA BANDERA DE CONTROL: Evita que el limpiador borre las mesas nuevas del QR
   const limpiezaInicialHecha = useRef(false);
  const [verModalEscaner, setVerModalEscaner] = useState(false);
@@ -2865,23 +2867,24 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
           </div>
         </button>
        
-         <button 
-            onClick={() => { 
-              setEsComandaManual(false); 
-              if (mesa) {
-                setView('menu'); 
-              } else {
-                setMostrarSeleccionPiso(true);
-              }
-            }} 
-            className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 transition-all duration-300 group w-full"
-          >
-            <UtensilsCrossed className="text-white" size={28} />
-            <div className="text-left font-bold uppercase text-[10px] text-orange-200">
-              <p>Comprar y Reservar</p>
-              <p className="text-lg text-white font-black uppercase tracking-tight leading-none"> desde casa</p>
-            </div>
-          </button>
+       <button 
+  onClick={() => { 
+    setEsComandaManual(false); 
+    setEsDesdeCasa(true); // 👈 Activamos la bandera de navegación desde casa
+    if (mesa) {
+      setView('menu'); 
+    } else {
+      setMostrarSeleccionPiso(true);
+    }
+  }} 
+  className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 transition-all duration-300 group w-full"
+>
+  <UtensilsCrossed className="text-white" size={28} />
+  <div className="text-left font-bold uppercase text-[10px] text-orange-200">
+    <p>Comprar y Reservar</p>
+    <p className="text-lg text-white font-black uppercase tracking-tight leading-none">desde casa</p>
+  </div>
+</button>
 
        <button onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group">
            <Wifi className="text-sky-400" size={28} />
@@ -3065,12 +3068,15 @@ const coincideCategoria = catSeleccionada === "Todos"
                   {nombreBarDinamico}
                 </div>
                {/* 🌟 CORRECCIÓN VISUAL: Solo dice 'Mesa X' si es un número, de lo contrario muestra el nombre del área */}
-<button 
-  onClick={() => { setMesaEscaneadaInput(""); encenderCamaraPWA(); }}
-  className="bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-lg shadow-orange-600/10 active:scale-95 transition-transform"
->
-  📷 {mesa && mesa !== "B" && mesa !== "T" ? `Mesa ${mesa}` : "Escanear QR / Mesa"}
-</button>
+{/* 🚫 Si vienen desde casa o la mesa es B / T, ocultamos el botón del escáner */}
+{!esDesdeCasa && (
+  <button 
+    onClick={() => { setMesaEscaneadaInput(""); encenderCamaraPWA(); }}
+    className="bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-lg shadow-orange-600/10 active:scale-95 transition-transform"
+  >
+    📷 {mesa && mesa !== "B" && mesa !== "T" ? `Mesa ${mesa}` : "Escanear QR / Mesa"}
+  </button>
+)}
 
               </div>
 
