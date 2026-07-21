@@ -1105,19 +1105,43 @@ const procesarEnvio = async (idDestino) => {
 };
 
 const cobrarCuenta = async (p) => {
+   // 💵 1. Solicitar el efectivo recibido
+   const montoRecibidoInput = window.prompt(
+     `💵 COBRAR MESA ${p.mesa}\n\nTotal a pagar: $${p.total}\n\nIngresa la cantidad recibida en efectivo (o presiona Aceptar para pago exacto):`, 
+     p.total
+   );
+
+   // Si el mesero cancela la ventana, no cobra nada
+   if (montoRecibidoInput === null) return;
+
+   const pagoEfectivo = Number(montoRecibidoInput) || Number(p.total);
+
+   if (pagoEfectivo < Number(p.total)) {
+     return alert(`⚠️ La cantidad ingresada ($${pagoEfectivo}) es menor al total de la cuenta ($${p.total}).`);
+   }
+
+   const cambioCalculado = pagoEfectivo - Number(p.total);
+
+   // Si da cambio, muestra alerta rápida
+   if (cambioCalculado > 0) {
+     alert(`💰 Cambio a entregar: $${cambioCalculado}`);
+   }
+
    const batch = writeBatch(db);
    
-   // 1. Creamos la referencia del ticket en el historial como ya lo hacías
+   // 2. Guardamos en el ticket el total, con cuánto pagó y su cambio
    const ticketRef = doc(collection(db, "historial_tickets"));
    batch.set(ticketRef, { 
-      mesa: p.mesa, 
-      detalle: p.detalle, 
-      total: Number(p.total), 
-      fecha: serverTimestamp(), 
-      archivado: false,
-      cliente: p.cliente || "Cliente General",
-      telefono: p.telefono || "N/A",
-      uid: p.uid || null 
+     mesa: p.mesa, 
+     detalle: p.detalle, 
+     total: Number(p.total), 
+     pagoCon: pagoEfectivo,
+     cambio: cambioCalculado,
+     fecha: serverTimestamp(), 
+     archivado: false,
+     cliente: p.cliente || "Cliente General",
+     telefono: p.telefono || "N/A",
+     uid: p.uid || null 
    });
 
    // 2. 📊 ANALIZADOR DE VENTAS DE BÁSCULA: Escanea el ticket buscando Vasos o Litros vendidos
@@ -2734,11 +2758,24 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
               </div>
             </div>
 
-            <div className="border-t-4 border-double border-black pt-4 mb-8">
+           <div className="border-t-4 border-double border-black pt-4 mb-8 space-y-1.5">
               <div className="flex justify-between items-end">
                 <span className="font-bold text-sm">TOTAL:</span>
-                <span className="font-black text-4xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
+                <span className="font-black text-3xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
               </div>
+
+              {ticketParaReimprimir.pagoCon !== undefined && (
+                <>
+                  <div className="flex justify-between items-center text-xs pt-2 border-t border-dashed border-black">
+                    <span className="font-bold text-gray-700">EFECTIVO:</span>
+                    <span className="font-bold">${ticketParaReimprimir.pagoCon}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-gray-700">CAMBIO:</span>
+                    <span className="font-black text-sm">${ticketParaReimprimir.cambio}</span>
+                  </div>
+                </>
+              )}
             </div>
             
             <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors">
