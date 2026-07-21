@@ -2878,8 +2878,8 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
           >
             <UtensilsCrossed className="text-white" size={28} />
             <div className="text-left font-bold uppercase text-[10px] text-orange-200">
-              <p>Menú Digital</p>
-              <p className="text-lg text-white font-black uppercase tracking-tight leading-none">Ver la carta</p>
+              <p>Comprar y Reservar</p>
+              <p className="text-lg text-white font-black uppercase tracking-tight leading-none"> desde casa</p>
             </div>
           </button>
 
