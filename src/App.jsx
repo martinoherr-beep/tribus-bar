@@ -49,6 +49,25 @@ const DIAS_APERTURA_TERRAZA = [0, 3, 4, 5, 6];
 const LINK_RESERVACIONES_WA = "https://wa.me/521234567890?text=Hola!%20Me%20gustar%C3%ADa%20hacer%20una%20reservaci%C3%B3n%20para%20la%20Terraza%20de%20Tribus%20Bar.";
 ;
 
+// 📍 Coordenadas de Tribu's Bar (Reemplaza con tus datos de Google Maps)
+const LAT_BAR = 26.928516607674222;        
+const LON_BAR = -105.66980331293902;      
+const RADIO_MAXIMO_METROS = 80;  // Distancia máxima en metros para considerarlo "en el bar"
+
+// 📐 Función matemática para calcular distancia en metros entre 2 puntos GPS
+function obtenerDistanciaEnMetros(lat1, lon1, lat2, lon2) {
+  const R = 6371e3; // Radio de la Tierra en metros
+  const rad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * rad;
+  const dLon = (lon2 - lon1) * rad;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; 
+}
+
 function App() {
  const [view, setView] = useState('welcome');
  const [isAdmin, setIsAdmin] = useState(false);
@@ -99,6 +118,7 @@ function App() {
  const [reporteFiltrado, setReporteFiltrado] = useState(null);
  const [esSuperAdmin, setEsSuperAdmin] = useState(false);
  const [esStaff, setEsStaff] = useState(false);
+ const [estaEnElBar, setEstaEnElBar] = useState(false);
  const [eventoInstalacion, setEventoInstalacion] = useState(null);
  const [listaReservas, setListaReservas] = useState([]);
  // Agrega este estado cerca de donde tienes tus otros useState (ej. junto a esComandaManual)
@@ -355,6 +375,34 @@ useEffect(() => {
 
   return () => unsub();
 }, [usuarioLogueado]);
+
+// 2. Agrega este useEffect para consultar el GPS al iniciar la app
+useEffect(() => {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        const distancia = obtenerDistanciaEnMetros(lat, lon, LAT_BAR, LON_BAR);
+        
+        console.log(`📍 GPS: El cliente está a ${Math.round(distancia)} metros.`);
+
+        // Si está a 50 metros o menos, confirmamos que está en el local
+        if (distancia <= RADIO_MAXIMO_METROS) {
+          setEstaEnElBar(true);
+        } else {
+          setEstaEnElBar(false);
+        }
+      },
+      (error) => {
+        // Si niega permisos o falla el GPS, asumimos que no está en el bar para no bloquearlo
+        console.warn("⚠️ Permiso de GPS no concedido:", error.message);
+        setEstaEnElBar(false);
+      },
+      { enableHighAccuracy: true, timeout: 4000 }
+    );
+  }
+}, []);
 
 useEffect(() => {
   const q = query(
@@ -2895,24 +2943,39 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
           </div>
         </button>
        
-       <button 
-  onClick={() => { 
-    setEsComandaManual(false); 
-    setEsDesdeCasa(true); // 👈 Activamos la bandera de navegación desde casa
-    if (mesa) {
-      setView('menu'); 
-    } else {
-      setMostrarSeleccionPiso(true);
-    }
-  }} 
-  className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 transition-all duration-300 group w-full"
->
-  <UtensilsCrossed className="text-white" size={28} />
-  <div className="text-left font-bold uppercase text-[10px] text-orange-200">
-    <p>Comprar y Reservar</p>
-    <p className="text-lg text-white font-black uppercase tracking-tight leading-none">desde casa</p>
+{/* 🏠 SOLO APARECE SI NO ESTÁ EN EL BAR */}
+{!estaEnElBar && (
+  <button 
+    onClick={() => { 
+      setEsComandaManual(false); 
+      setEsDesdeCasa(true);
+      if (mesa) {
+        setView('menu'); 
+      } else {
+        setMostrarSeleccionPiso(true);
+      }
+    }} 
+    className="flex items-center gap-5 bg-orange-600 p-6 rounded-3xl shadow-2xl active:scale-95 hover:bg-orange-500 transition-all duration-300 group w-full"
+  >
+    <UtensilsCrossed className="text-white" size={28} />
+    <div className="text-left font-bold uppercase text-[10px] text-orange-200">
+      <p>Comprar y Reservar</p>
+      <p className="text-lg text-white font-black uppercase tracking-tight leading-none">desde casa</p>
+    </div>
+  </button>
+)}
+
+{/* 🍻 OPCIONAL: Si detecta que está en el bar, muestra este mensaje informativo */}
+{estaEnElBar && (
+  <div className="bg-slate-900/80 border border-orange-500/30 p-4 rounded-2xl text-center">
+    <p className="text-orange-400 font-black text-xs uppercase tracking-wider">
+      📍 ¡Te detectamos en Tribu's Bar!
+    </p>
+    <p className="text-slate-400 text-[10px] font-bold mt-1">
+      Escanea el código QR de tu mesa para tomar tu orden.
+    </p>
   </div>
-</button>
+)}
 
        <button onClick={() => { navigator.clipboard.writeText("tribus2026"); alert("Wi-Fi Copiada"); }} className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group">
            <Wifi className="text-sky-400" size={28} />
