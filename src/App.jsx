@@ -52,7 +52,7 @@ const LINK_RESERVACIONES_WA = "https://wa.me/521234567890?text=Hola!%20Me%20gust
 // 📍 Coordenadas de Tribu's Bar (Reemplaza con tus datos de Google Maps)
 const LAT_BAR = 26.928516607674222;        
 const LON_BAR = -105.66980331293902;      
-const RADIO_MAXIMO_METROS = 80;  // Distancia máxima en metros para considerarlo "en el bar"
+const RADIO_MAXIMO_METROS = 200;  // Distancia máxima en metros para considerarlo "en el bar"
 
 // 📐 Función matemática para calcular distancia en metros entre 2 puntos GPS
 function obtenerDistanciaEnMetros(lat1, lon1, lat2, lon2) {
