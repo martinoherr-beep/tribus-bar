@@ -2969,7 +2969,7 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
 {estaEnElBar && (
   <div className="bg-slate-900/80 border border-orange-500/30 p-4 rounded-2xl text-center">
     <p className="text-orange-400 font-black text-xs uppercase tracking-wider">
-      📍 ¡Estas en el mejor Tribu's Bar!
+      📍 ¡Estas en el mejor lugar Tribu's Bar!
     </p>
     <p className="text-slate-400 text-[10px] font-bold mt-1">
       Escanea el código QR de tu mesa para tomar tu orden.
