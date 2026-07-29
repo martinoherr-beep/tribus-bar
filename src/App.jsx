@@ -2994,7 +2994,7 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
              </div>
              <div className="text-left">
                <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Cliente frecuente?</p>
-               <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén benefits</p>
+               <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén beneficios</p>
              </div>
            </button>
          ) : (
