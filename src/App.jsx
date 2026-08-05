@@ -113,9 +113,20 @@ function App() {
  const [confirmacionResultado, setConfirmacionResult] = useState(null);
  const [password, setPassword] = useState('');
  const [areaStaff, setAreaStaff] = useState('TODOS');
- const [fechaInicioRep, setFechaInicioRep] = useState("");
- const [fechaFinRep, setFechaFinRep] = useState("");
- const [reporteFiltrado, setReporteFiltrado] = useState(null);
+ // 📅 Función helper para obtener la fecha actual en formato AAAA-MM-DD
+ const obtenerFechaHoyInput = () => {
+  const hoy = new Date();
+  const year = hoy.getFullYear();
+  const month = String(hoy.getMonth() + 1).padStart(2, '0');
+  const day = String(hoy.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+// 🔄 Ahora arrancan con la fecha de hoy por defecto en lugar de estar vacíos ""
+// 🔍 BUSCA TUS ESTADOS EXISTENTES MÁS ARRIBA Y DÉJALOS ASÍ:
+// 🔍 BUSCA SUS DECLARACIONES ORIGINALES ARRIBA Y ACTUALÍZALAS:
+const [fechaInicioRep, setFechaInicioRep] = useState(() => new Date().toISOString().split('T')[0]);
+const [fechaFinRep, setFechaFinRep] = useState(() => new Date().toISOString().split('T')[0]);
+const [reporteFiltrado, setReporteFiltrado] = useState(null);
  const [esSuperAdmin, setEsSuperAdmin] = useState(false);
  const [esStaff, setEsStaff] = useState(false);
  const [estaEnElBar, setEstaEnElBar] = useState(false);
@@ -294,35 +305,68 @@ const [reservasConfirmadas, setReservasConfirmadas] = useState([]);
     return "EXTERNO";
  };
 
- const generarReporteVentas = () => {
+
+
+// 2. En tus estados principales, inicialízalos con la fecha de hoy:
+
+
+
+// 3. Reemplaza tu función generarReporteVentas por esta versión corregida:
+const generarReporteVentas = () => {
+  console.log("🚀 Ejecutando reporte...");
+
   if (!fechaInicioRep || !fechaFinRep) {
-    return alert("Por favor, selecciona ambas fechas para el reporte.");
+    alert("Por favor, selecciona ambas fechas para el reporte.");
+    return;
   }
 
-  const inicio = new Date(fechaInicioRep + "T00:00:00");
-  const fin = new Date(fechaFinRep + "T23:59:59");
+  // Parseo exacto en hora local
+  const [yearI, monthI, dayI] = fechaInicioRep.split('-').map(Number);
+  const inicio = new Date(yearI, monthI - 1, dayI, 0, 0, 0, 0);
+
+  const [yearF, monthF, dayF] = fechaFinRep.split('-').map(Number);
+  const fin = new Date(yearF, monthF - 1, dayF, 23, 59, 59, 999);
+
+  // Buscar la lista de tickets en las variables posibles
+  const listaTickets = historialCerrado || historialVentas || [];
+
+  if (listaTickets.length === 0) {
+    alert("No hay registro de ventas cargado en el historial.");
+    return;
+  }
 
   let totalBaja = 0;
   let totalTerraza = 0;
   let totalExterno = 0;
   let ticketsEnRango = 0;
 
-  historialCerrado.forEach(ticket => {
-    if (ticket.fecha?.seconds) {
-      const fechaTicket = new Date(ticket.fecha.seconds * 1000);
-      
-      if (fechaTicket >= inicio && fechaTicket <= fin) {
-        ticketsEnRango++;
-        const planta = obtenerPlanta(ticket.mesa);
-        const monto = Number(ticket.total) || 0;
+  listaTickets.forEach(ticket => {
+    let fechaTicketObj = null;
 
-        if (planta === "PLANTA BAJA") {
-          totalBaja += monto;
-        } else if (planta === "TERRAZA") {
-          totalTerraza += monto;
-        } else {
-          totalExterno += monto;
-        }
+    // 1. Si es Timestamp de Firebase
+    if (ticket.fecha?.seconds) {
+      fechaTicketObj = new Date(ticket.fecha.seconds * 1000);
+    } 
+    // 2. Si la fecha es un texto ej: "27/7/2026" o "27/07/2026"
+    else if (typeof ticket.fecha === 'string') {
+      const partes = ticket.fecha.split('/');
+      if (partes.length === 3) {
+        fechaTicketObj = new Date(Number(partes[2]), Number(partes[1]) - 1, Number(partes[0]), 12, 0, 0);
+      }
+    }
+
+    // Comprobación dentro del rango
+    if (fechaTicketObj && fechaTicketObj >= inicio && fechaTicketObj <= fin) {
+      ticketsEnRango++;
+      const planta = typeof obtenerPlanta === 'function' ? obtenerPlanta(ticket.mesa) : (ticket.planta || "");
+      const monto = Number(ticket.total) || 0;
+
+      if (planta === "PLANTA BAJA") {
+        totalBaja += monto;
+      } else if (planta === "TERRAZA") {
+        totalTerraza += monto;
+      } else {
+        totalExterno += monto;
       }
     }
   });
@@ -334,14 +378,16 @@ const [reservasConfirmadas, setReservasConfirmadas] = useState([]);
   }
 
   setReporteFiltrado({
-    inicio: new Date(inicio).toLocaleDateString('es-MX'),
-    fin: new Date(fin).toLocaleDateString('es-MX'),
+    inicio: `${dayI}/${monthI}/${yearI}`,
+    fin: `${dayF}/${monthF}/${yearF}`,
     plantaBaja: totalBaja,
     terraza: totalTerraza,
     externo: totalExterno,
     totalGlobal: totalBaja + totalTerraza + totalExterno,
     amountTickets: ticketsEnRango 
   });
+
+ // alert(`✅ Reporte Generado: $${totalBaja + totalTerraza + totalExterno} acumulados en ${ticketsEnRango} tickets.`);  
 };
 
 const [mispedidos, setMisPedidos] = useState([]);
@@ -2534,23 +2580,88 @@ const guardarEvento = async (e) => {
               <input type="text" placeholder="Mesa, Tel o Fecha" value={filtroMesa} onChange={(e) => setFiltroMesa(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl pl-10 py-2 text-sm text-white focus:border-orange-500 font-bold shadow-inner" />
             </div>
           </div>
+{esSuperAdmin && (
+  <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-slate-800 shadow-2xl space-y-4">
+    <h2 className="text-sm font-black text-orange-500 uppercase tracking-widest flex items-center gap-2">
+      📊 Reporte de Ventas
+    </h2>
+    
+    <div className="space-y-3">
+      <div>
+        <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Inicio</label>
+        <input 
+          type="date" 
+          value={fechaInicioRep} 
+          onChange={(e) => setFechaInicioRep(e.target.value)} 
+          className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold" 
+        />
+      </div>
 
-          {esSuperAdmin && (
-            <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-slate-800 shadow-2xl">
-              <h2 className="text-sm font-black text-orange-500 uppercase tracking-widest mb-4 flex items-center gap-2">📊 Reporte de Ventas</h2>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Inicio</label>
-                  <input type="date" value={fechaInicioRep} onChange={(e) => setFechaInicioRep(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold" />
-                </div>
-                <div>
-                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Fin</label>
-                  <input type="date" value={fechaFinRep} onChange={(e) => setFechaFinRep(e.target.value)} className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold" />
-                </div>
-                <button onClick={generarReporteVentas} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95 mt-2">Generar Reporte</button>
-              </div>
-            </div>
-          )}
+      <div>
+        <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-1">Fecha Fin</label>
+        <input 
+          type="date" 
+          value={fechaFinRep} 
+          onChange={(e) => setFechaFinRep(e.target.value)} 
+          className="w-full bg-[#05070a] border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500 font-bold" 
+        />
+      </div>
+
+      <button 
+        type="button"
+        onClick={generarReporteVentas} 
+        className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-xl uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95 mt-2"
+      >
+        Generar Reporte
+      </button>
+    </div>
+
+    {/* 🎯 AQUÍ SE MUESTRA LA TARJETA DE RESULTADOS */}
+    {reporteFiltrado && (
+      <div className="mt-4 pt-4 border-t border-slate-800/80 space-y-3 animate-fade-in">
+        <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase">
+          <span>Rango: {reporteFiltrado.inicio} - {reporteFiltrado.fin}</span>
+          <span className="bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded-full border border-orange-500/20">
+            {reporteFiltrado.amountTickets} tickets
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+          <div className="bg-[#05070a] p-3 rounded-xl border border-slate-800/60">
+            <p className="text-[9px] text-slate-500 uppercase font-black">Planta Baja</p>
+            <p className="text-white text-sm font-black mt-0.5">${reporteFiltrado.plantaBaja}</p>
+          </div>
+
+          <div className="bg-[#05070a] p-3 rounded-xl border border-slate-800/60">
+            <p className="text-[9px] text-slate-500 uppercase font-black">Terraza</p>
+            <p className="text-white text-sm font-black mt-0.5">${reporteFiltrado.terraza}</p>
+          </div>
+        </div>
+
+        {reporteFiltrado.externo > 0 && (
+          <div className="bg-[#05070a] p-3 rounded-xl border border-slate-800/60 text-xs">
+            <p className="text-[9px] text-slate-500 uppercase font-black">Otros / Delivery</p>
+            <p className="text-white text-sm font-black mt-0.5">${reporteFiltrado.externo}</p>
+          </div>
+        )}
+
+        <div className="bg-gradient-to-r from-orange-600 to-amber-600 p-4 rounded-xl text-white flex justify-between items-center shadow-lg">
+          <div>
+            <p className="text-[9px] font-black uppercase text-orange-200">Total Venta Bruta</p>
+            <p className="text-xl font-black tracking-tight">${reporteFiltrado.totalGlobal}</p>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setReporteFiltrado(null)} 
+            className="text-[9px] bg-black/30 hover:bg-black/50 px-2.5 py-1.5 rounded-lg uppercase font-black transition-all"
+          >
+            Limpiar
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
           <div className="bg-[#0c111a] p-5 rounded-[2rem] border border-orange-900/10 shadow-2xl">
             <div className="flex justify-between items-center mb-4">
@@ -2981,7 +3092,7 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
            <Wifi className="text-sky-400" size={28} />
            <div className="text-left font-bold uppercase text-[10px] text-slate-400">
              <p>Wi-Fi Gratis</p>
-             <p className="text-lg text-white font-black">tribu´s Bar</p>
+             <p className="text-lg text-white font-black">Tribu´s Bar</p>
            </div>
          </button>
          
@@ -2994,7 +3105,7 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
              </div>
              <div className="text-left">
                <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Cliente frecuente?</p>
-               <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén beneficios</p>
+               <p className="text-sm text-white font-bold opacity-80 italic">Únete a la Tribu y obtén beneficio     s</p>
              </div>
            </button>
          ) : (
