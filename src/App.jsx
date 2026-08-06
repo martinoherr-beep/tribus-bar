@@ -47,7 +47,7 @@ const estilosImpresion = `
 // 🗓️ CONFIGURACIÓN DE APERTURA: 0=Domingo, 4=Jueves, 5=Viernes, 6=Sábado
 const DIAS_APERTURA_TERRAZA = [0, 3, 4, 5, 6]; 
 const LINK_RESERVACIONES_WA = "https://wa.me/521234567890?text=Hola!%20Me%20gustar%C3%ADa%20hacer%20una%20reservaci%C3%B3n%20para%20la%20Terraza%20de%20Tribus%20Bar.";
-;
+
 
 // 📍 Coordenadas de Tribu's Bar (Reemplaza con tus datos de Google Maps)
 const LAT_BAR = 26.930772061715487;        
@@ -69,58 +69,95 @@ function obtenerDistanciaEnMetros(lat1, lon1, lat2, lon2) {
 }
 
 function App() {
- const [view, setView] = useState('welcome');
- const [isAdmin, setIsAdmin] = useState(false);
- const [pinInput, setPinInput] = useState("");
- const [tabBarra, setTabBarra] = useState('comandas');
- const [mesaValidada, setMesaValidada] = useState(false);
- const [pinMesaInput, setPinMesaInput] = useState("");
- const [pinCorrectoMesa, setPinCorrectoMesa] = useState(null);
- const [carrito, setCarrito] = useState([]);
- const [consumoAcumulado, setConsumoAcumulado] = useState([]); 
- const [mesa, setMesa] = useState(null);
- const [verCarrito, setVerCarrito] = useState(false);
- const [verModalTelefono, setVerModalTelefono] = useState(false);
- const [telefonoInput, setTelefonoInput] = useState("");
- const [nombreUsuarioLogueado, setNombreUsuarioLogueado] = useState("");
- const [recordatorios, setRecordatorios] = useState([]);
- const [verModalNuevoEvento, setVerModalNuevoEvento] = useState(false);
- const [nuevoEvento, setNuevoEvento] = useState({ titulo: "", fecha: "", hora: "" });
- const [verModalNuevoProd, setVerModalNuevoProd] = useState(false);
- const [nuevoProd, setNuevoProd] = useState({
-   nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", 
-   categoria: "Cerveza", subcategoria: "", imagen: ""
- });
- const [esNuevaSub, setEsNuevaSub] = useState(false);
- const [productosMenu, setProductosMenu] = useState([]);
- const [catSeleccionada, setCatSeleccionada] = useState("Cerveza");
- const [subCatSeleccionada, setSubCatSeleccionada] = useState("Todas");
- const [pedidosBarra, setPedidosBarra] = useState([]);
- const [historialCerrado, setHistorialCerrado] = useState([]); 
- const [filtroMesa, setFiltroMesa] = useState(""); 
- // 💡 NUEVO ESTADO AGREGADO PARA SEPARAR EL INVENTARIO DEL BUSCADOR DE COMANDAS
- const [filtroInventario, setFiltroInventario] = useState(""); 
- const [filtroPisoFisico, setFiltroPisoFisico] = useState("");
- const [mostrarSeleccionPiso, setMostrarSeleccionPiso] = useState(false);
- const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
- const [nombreRegistro, setNombreRegistro] = useState('');
- const [usuarioLogueado, setUsuarioLogueado] = useState(null);
- const [verModalAuth, setVerModalAuth] = useState(false);
- const [historialHoy, setHistorialHoy] = useState([]);
- const [pasoAuth, setPasoAuth] = useState('telefono'); // 'telefono' o 'codigo'
- const [codigoOTP, setCodigoOTP] = useState("");
- const [verModalBeneficios, setVerModalBeneficios] = useState(false);
- const [confirmacionResultado, setConfirmacionResult] = useState(null);
- const [password, setPassword] = useState('');
- const [areaStaff, setAreaStaff] = useState('TODOS');
- // 📅 Función helper para obtener la fecha actual en formato AAAA-MM-DD
- const obtenerFechaHoyInput = () => {
-  const hoy = new Date();
-  const year = hoy.getFullYear();
-  const month = String(hoy.getMonth() + 1).padStart(2, '0');
-  const day = String(hoy.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+  const [view, setView] = useState('welcome');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [tabBarra, setTabBarra] = useState('comandas');
+  const [mesaValidada, setMesaValidada] = useState(false);
+  const [pinMesaInput, setPinMesaInput] = useState("");
+  const [pinCorrectoMesa, setPinCorrectoMesa] = useState(null);
+  const [carrito, setCarrito] = useState([]);
+  const [consumoAcumulado, setConsumoAcumulado] = useState([]); 
+  const [mesa, setMesa] = useState(null);
+  
+  // 1. Declaramos primero los estados de historial y auth
+  const [historialCerrado, setHistorialCerrado] = useState([]); 
+  const [usuarioLogueado, setUsuarioLogueado] = useState(null);
+
+  // 2. Ahora sí podemos declarar listaTickets sin que falle
+  const listaTickets = historialCerrado || [];
+
+  const [verCarrito, setVerCarrito] = useState(false);
+  const [verModalTelefono, setVerModalTelefono] = useState(false);
+  const [telefonoInput, setTelefonoInput] = useState("");
+  const [nombreUsuarioLogueado, setNombreUsuarioLogueado] = useState("");
+  const [recordatorios, setRecordatorios] = useState([]);
+  const [verModalNuevoEvento, setVerModalNuevoEvento] = useState(false);
+  const [nuevoEvento, setNuevoEvento] = useState({ titulo: "", fecha: "", hora: "" });
+  const [verModalNuevoProd, setVerModalNuevoProd] = useState(false);
+  const [nuevoProd, setNuevoProd] = useState({
+    nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", 
+    categoria: "Cerveza", subcategoria: "", imagen: ""
+  });
+
+  // 📱 ESCUCHADOR EN TIEMPO REAL PARA EL CLIENTE:
+  useEffect(() => {
+    // Si hay un usuario de staff/admin logueado, no sacamos la pantalla a welcome
+    const esStaffOAdmin = usuarioLogueado && (usuarioLogueado.rol === 'admin' || usuarioLogueado.rol === 'caja' || usuarioLogueado.rol === 'barra');
+    if (esStaffOAdmin) return;
+
+    const comandaId = localStorage.getItem("tribu_comanda_id");
+    if (!comandaId) return;
+
+    // Escuchamos el pedido activo en Firebase
+    const unsubscribe = onSnapshot(doc(db, "pedidos", comandaId), (docSnap) => {
+      // Si el documento ya no existe (porque la caja ejecutó batch.delete al cobrar)
+      if (!docSnap.exists()) {
+        console.log("♻️ La caja cobró la cuenta. Redirigiendo a welcome...");
+
+        // 🧹 Limpiamos los datos locales del cliente
+        localStorage.removeItem("tribu_comanda_id");
+        localStorage.removeItem("tribu_mesa");
+        
+        setMesa(null);
+        setConsumoAcumulado([]);
+        setMesaValidada(false);
+
+        // 🏠 Mandamos la pantalla del cliente a Bienvenida
+        setView('welcome');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [usuarioLogueado]);
+
+  const [esNuevaSub, setEsNuevaSub] = useState(false);
+  const [productosMenu, setProductosMenu] = useState([]);
+  const [catSeleccionada, setCatSeleccionada] = useState("Cerveza");
+  const [subCatSeleccionada, setSubCatSeleccionada] = useState("Todas");
+  const [pedidosBarra, setPedidosBarra] = useState([]);
+  const [filtroMesa, setFiltroMesa] = useState(""); 
+  const [filtroInventario, setFiltroInventario] = useState(""); 
+  const [filtroPisoFisico, setFiltroPisoFisico] = useState("");
+  const [mostrarSeleccionPiso, setMostrarSeleccionPiso] = useState(false);
+  const [ticketParaReimprimir, setTicketParaReimprimir] = useState(null);
+  const [nombreRegistro, setNombreRegistro] = useState('');
+  const [verModalAuth, setVerModalAuth] = useState(false);
+  const [historialHoy, setHistorialHoy] = useState([]);
+  const [pasoAuth, setPasoAuth] = useState('telefono');
+  const [codigoOTP, setCodigoOTP] = useState("");
+  const [verModalBeneficios, setVerModalBeneficios] = useState(false);
+  const [confirmacionResultado, setConfirmacionResult] = useState(null);
+  const [password, setPassword] = useState('');
+  const [areaStaff, setAreaStaff] = useState('TODOS');
+
+  const obtenerFechaHoyInput = () => {
+    const hoy = new Date();
+    const year = hoy.getFullYear();
+    const month = String(hoy.getMonth() + 1).padStart(2, '0');
+    const day = String(hoy.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 // 🔄 Ahora arrancan con la fecha de hoy por defecto en lugar de estar vacíos ""
 // 🔍 BUSCA TUS ESTADOS EXISTENTES MÁS ARRIBA Y DÉJALOS ASÍ:
 // 🔍 BUSCA SUS DECLARACIONES ORIGINALES ARRIBA Y ACTUALÍZALAS:
@@ -528,7 +565,6 @@ const loginClienteFrecuente = async () => {
 };
 
  const informarPago = async (pedidoId) => {
- sniper:
  try {
    const pedidoRef = doc(db, "pedidos", pedidoId);
    await updateDoc(pedidoRef, {
@@ -1208,7 +1244,6 @@ const cobrarCuenta = async (p) => {
      p.total
    );
 
-   // Si el mesero cancela la ventana, no cobra nada
    if (montoRecibidoInput === null) return;
 
    const pagoEfectivo = Number(montoRecibidoInput) || Number(p.total);
@@ -1219,14 +1254,16 @@ const cobrarCuenta = async (p) => {
 
    const cambioCalculado = pagoEfectivo - Number(p.total);
 
-   // Si da cambio, muestra alerta rápida
    if (cambioCalculado > 0) {
      alert(`💰 Cambio a entregar: $${cambioCalculado}`);
    }
 
    const batch = writeBatch(db);
    
-   // 2. Guardamos en el ticket el total, con cuánto pagó y su cambio
+   // 👤 Extraemos el nombre del cliente desde el pedido 'p'
+   const nombreClienteFinal = p.cliente || p.nombreCliente || p.nombre || p.usuarioNombre || "Cliente General";
+
+   // 2. Guardamos en el ticket
    const ticketRef = doc(collection(db, "historial_tickets"));
    batch.set(ticketRef, { 
      mesa: p.mesa, 
@@ -1236,21 +1273,19 @@ const cobrarCuenta = async (p) => {
      cambio: cambioCalculado,
      fecha: serverTimestamp(), 
      archivado: false,
-     cliente: p.cliente || "Cliente General",
+     cliente: nombreClienteFinal,
      telefono: p.telefono || "N/A",
      uid: p.uid || null 
    });
 
-   // 2. 📊 ANALIZADOR DE VENTAS DE BÁSCULA: Escanea el ticket buscando Vasos o Litros vendidos
+   // 📊 Analizador de ventas
    const lineas = p.detalle.split('\n');
    lineas.forEach(linea => {
-     // Buscamos patrones como: "2x Trago Ejemplo (VASO)" o "1x Trago Ejemplo (LITRO)"
      const matchCantidad = linea.match(/^(\d+)x/);
      if (matchCantidad) {
        const cantidadVendida = parseInt(matchCantidad[1], 10);
        const textoLinea = linea.toUpperCase();
        
-       // Determinamos si es un vaso o un litro analizando la subcategoría/formato en el texto
        let campoFirebase = null;
        if (textoLinea.includes("(VASO)") || textoLinea.includes("VASO")) {
          campoFirebase = "totalVasosVendidos";
@@ -1259,12 +1294,10 @@ const cobrarCuenta = async (p) => {
        }
        
        if (campoFirebase) {
-         // Buscamos el producto base en tus productos para saber a cuál sumarle la venta
          const nombreProducto = linea.replace(/^\d+x\s+/, "").split("(")[0].trim().toUpperCase();
          const prodOriginal = productosMenu.find(prod => prod.nombre.toUpperCase().trim() === nombreProducto);
          
          if (prodOriginal) {
-           // Le sumamos las cantidades vendidas directamente al contador histórico del producto
            batch.update(doc(db, "productos", prodOriginal.id), {
              [campoFirebase]: increment(cantidadVendida)
            });
@@ -1273,21 +1306,16 @@ const cobrarCuenta = async (p) => {
      }
    });
 
-   // 3. Borramos la comanda activa de la barra
+   // 3. Borramos el pedido activo de la mesa
    batch.delete(doc(db, "pedidos", p.id));
 
-// 4. Ejecutamos todos los cambios juntos de forma segura
+   // 4. Ejecutamos los cambios
    await batch.commit();
 
-   localStorage.removeItem("tribu_comanda_id");
-   localStorage.removeItem("tribu_mesa");
-   setMesa(null);
-   setConsumoAcumulado([]);
-   setMesaValidada(false);
-
-   // 🎟️ INYECTAMOS PAGO CON Y CAMBIO DIRECTO AL TICKET
+   // 🎟️ INYECTAMOS DATOS AL TICKET DE REIMPRESIÓN EN CAJA
    setTicketParaReimprimir({
      ...p,
+     cliente: nombreClienteFinal,
      pagoCon: pagoEfectivo,
      cambio: cambioCalculado
    });
@@ -2922,62 +2950,80 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
         </div>
       )}
 
-      {ticketParaReimprimir && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
-          <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-orange-600 print:border-none">
-            <button onClick={() => setTicketParaReimprimir(null)} className="absolute -top-12 right-0 text-white no-print"><X size={32}/></button>
+{ticketParaReimprimir && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
+    <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-orange-600 print:border-none">
+      
+      <button 
+        onClick={() => setTicketParaReimprimir(null)} 
+        className="absolute -top-12 right-0 text-white no-print"
+      >
+        <X size={32}/>
+      </button>
 
-            <div className="text-center mb-6">
-              <h2 className="font-black text-3xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Nota de Venta</p>
-              <div className="border-y-2 border-black py-2 my-2 space-y-1">
-                <div className="flex justify-between text-[11px] font-bold">
-                  <span>MESA:</span>
-                  <span className="bg-black text-white px-2 uppercase">{ticketParaReimprimir.mesa?.replace("TEL:", "EXT-")}</span>
-                </div>
-                <div className="flex justify-between text-[9px] text-gray-600">
-                  <span>FECHA:</span>
-                  <span>{ticketParaReimprimir.fecha?.seconds ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : new Date().toLocaleString('es-MX')}</span>
-                </div>
-              </div>
-            </div>
+      <div className="text-center mb-6">
+        <h2 className="font-black text-3xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
+        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Nota de Venta</p>
+        
+        <div className="border-y-2 border-black py-2 my-2 space-y-1">
+          <div className="flex justify-between text-[11px] font-bold">
+            <span>MESA:</span>
+            <span className="bg-black text-white px-2 uppercase">{ticketParaReimprimir.mesa?.replace("TEL:", "EXT-")}</span>
+          </div>
 
-            <div className="text-[11px] mb-6">
-              <div className="flex justify-between font-black border-b border-black pb-1 mb-2">
-                <span>DESCRIPCIÓN</span>
-                <span>IMPORTE</span>
-              </div>
-              <div className="space-y-3 whitespace-pre-line leading-tight italic">
-                {ticketParaReimprimir.detalle}
-              </div>
-            </div>
+          {/* 👤 CLIENTE AGREGADO AL TICKET */}
+          <div className="flex justify-between text-[10px] font-bold uppercase text-gray-800">
+            <span>CLIENTE:</span>
+            <span className="truncate max-w-[140px] font-black">{ticketParaReimprimir.cliente || "GENERAL"}</span>
+          </div>
 
-           <div className="border-t-4 border-double border-black pt-4 mb-8 space-y-1.5">
-              <div className="flex justify-between items-end">
-                <span className="font-bold text-sm">TOTAL:</span>
-                <span className="font-black text-3xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
-              </div>
-
-              {ticketParaReimprimir.pagoCon !== undefined && (
-                <>
-                  <div className="flex justify-between items-center text-xs pt-2 border-t border-dashed border-black">
-                    <span className="font-bold text-gray-700">EFECTIVO:</span>
-                    <span className="font-bold">${ticketParaReimprimir.pagoCon}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-gray-700">CAMBIO:</span>
-                    <span className="font-black text-sm">${ticketParaReimprimir.cambio}</span>
-                  </div>
-                </>
-              )}
-            </div>
-            
-            <button onClick={() => window.print()} className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors">
-              <Printer size={20}/> CONFIRMAR IMPRESIÓN
-            </button>
+          <div className="flex justify-between text-[9px] text-gray-600">
+            <span>FECHA:</span>
+            <span>{ticketParaReimprimir.fecha?.seconds ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : new Date().toLocaleString('es-MX')}</span>
           </div>
         </div>
-      )}
+      </div>
+
+      <div className="text-[11px] mb-6">
+        <div className="flex justify-between font-black border-b border-black pb-1 mb-2">
+          <span>DESCRIPCIÓN</span>
+          <span>IMPORTE</span>
+        </div>
+        <div className="space-y-3 whitespace-pre-line leading-tight italic">
+          {ticketParaReimprimir.detalle}
+        </div>
+      </div>
+
+      <div className="border-t-4 border-double border-black pt-4 mb-8 space-y-1.5">
+        <div className="flex justify-between items-end">
+          <span className="font-bold text-sm">TOTAL:</span>
+          <span className="font-black text-3xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
+        </div>
+
+        {ticketParaReimprimir.pagoCon !== undefined && (
+          <>
+            <div className="flex justify-between items-center text-xs pt-2 border-t border-dashed border-black">
+              <span className="font-bold text-gray-700">EFECTIVO:</span>
+              <span className="font-bold">${ticketParaReimprimir.pagoCon}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-bold text-gray-700">CAMBIO:</span>
+              <span className="font-black text-sm">${ticketParaReimprimir.cambio}</span>
+            </div>
+          </>
+        )}
+      </div>
+      
+      <button 
+        onClick={() => window.print()} 
+        className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors"
+      >
+        <Printer size={20}/> CONFIRMAR IMPRESIÓN
+      </button>
+
+    </div>
+  </div>
+)}
 
    </div>
 )}
@@ -3032,7 +3078,7 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
             <span className="text-xl">📷</span>
           </div>
           <div className="text-left flex-1">
-            <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">¿Estás en el bar?</p>
+            <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Tribus´s Bar</p>
             <p className="text-lg text-white font-black uppercase tracking-tight leading-none mt-0.5">Escanear QR / Mesa</p>
             <p className="text-[11px] text-slate-400 font-medium mt-1">Escanea el código de tu mesa para ordenar</p>
           </div>
