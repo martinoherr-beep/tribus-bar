@@ -1236,28 +1236,40 @@ const procesarEnvio = async (idDestino) => {
     }
 
     // 🔎 Búsqueda de comanda activa para la mesa en Firestore
+  // 🔎 BÚSQUEDA BLINDADA DE COMANDA ACTIVA
     let existente = null;
     if (!esDeCasaTemp) {
-      const q = query(
-        collection(db, "pedidos"), 
-        where("mesa", "==", String(idFinal)), 
-        where("estado", "==", "pendiente")
-      );
-      const querySnap = await getDocs(q);
-      if (!querySnap.empty) {
-        const docSnap = querySnap.docs[0];
-        existente = { id: docSnap.id, ...docSnap.data() };
+      // 1. Intentamos buscar primero por el ID guardado localmente (para asegurar que se unan a la misma)
+      const comandaIdLocal = localStorage.getItem("tribu_comanda_id");
+      if (comandaIdLocal) {
+        const docRefLocal = doc(db, "pedidos", comandaIdLocal);
+        const docSnapLocal = await getDoc(docRefLocal);
+        if (docSnapLocal.exists() && docSnapLocal.data().estado === "pendiente") {
+          existente = { id: docSnapLocal.id, ...docSnapLocal.data() };
+        }
+      }
+
+      // 2. Si no hay ID local, buscamos por el número de mesa en Firestore
+      if (!existente) {
+        const q = query(
+          collection(db, "pedidos"), 
+          where("mesa", "==", String(idFinal)), 
+          where("estado", "==", "pendiente")
+        );
+        const querySnap = await getDocs(q);
+        if (!querySnap.empty) {
+          const docSnap = querySnap.docs[0];
+          existente = { id: docSnap.id, ...docSnap.data() };
+        }
       }
     }
 
     let idComandaActual = ""; 
     
     if (existente) {
-      // 🟢 RUTA A: La mesa YA existe (Martín se une a Héctor)
+      // 🟢 RUTA A: La mesa YA existe (Martín se une a Héctor de forma segura)
       idComandaActual = existente.id; 
 
-      // ⚠️ SOLO actualizamos el detalle acumulado y el total. 
-      // NO se modifican 'cliente', 'uid' ni 'telefono' para NO borrar ni desconectar a Héctor.
       batch.update(doc(db, "pedidos", existente.id), { 
         detalle: existente.detalle + "\n" + detalleNuevo, 
         total: Number(existente.total) + Number(totalCarrito), 
@@ -1266,7 +1278,7 @@ const procesarEnvio = async (idDestino) => {
       });
 
     } else {
-      // 🔴 RUTA B: La mesa está vacía (Héctor abre la mesa)
+      // 🔴 RUTA B: La mesa realmente está vacía (Nadie la ha abierto)
       const nuevoPedidoRef = doc(collection(db, "pedidos"));
       idComandaActual = nuevoPedidoRef.id; 
       
@@ -1277,7 +1289,7 @@ const procesarEnvio = async (idDestino) => {
         estado: "pendiente", 
         fecha: serverTimestamp(), 
         archivado: false,
-        cliente: nombreComprador, // Creador original
+        cliente: nombreComprador, 
         telefono: telFinal,
         uid: uidFinal,
         alertaPrioridad: colorAlerta 
@@ -1289,7 +1301,7 @@ const procesarEnvio = async (idDestino) => {
       batch.set(nuevoPedidoRef, datosNuevoPedido);
     }
 
-    // Guardamos la referencia local de la comanda
+    // 💾 Guardamos obligatoriamente el ID actual en el teléfono de Martín
     localStorage.setItem("tribu_comanda_id", idComandaActual);
 
     // 🚀 Ejecutamos los cambios en Firestore
