@@ -1105,9 +1105,17 @@ const manejarPinMesa = (num) => {
   if (pinMesaInput.length < 4) {
     const nuevoPin = pinMesaInput + num;
     setPinMesaInput(nuevoPin);
+
     if (nuevoPin === String(pinCorrectoMesa)) {
       setMesaValidada(true);
       setPinMesaInput("");
+      
+      // 🎯 UNA VEZ VALIDADO EL PIN, PROCESAMOS EL PEDIDO DE MARTÍN
+      // Al llamar procesarEnvio aquí, mesaValidada ya es true y Martín enviará su pedido correctamente unido a Héctor
+      setTimeout(() => {
+        procesarEnvio(mesaSeleccionada);
+      }, 100);
+
     } else if (nuevoPin.length === 4) {
       setTimeout(() => setPinMesaInput(""), 500);
     }
@@ -1172,32 +1180,40 @@ const obtenerAlertaCliente = async (telefonoCliente, uidCliente) => {
 };
 
 const procesarEnvio = async (idDestino) => {
-  // Forzamos la limpieza del string
-  const mesaLimpia = idDestino ? String(idDestino).toUpperCase().trim() : "";
-  
-  // Es de casa si la variable es "T", "B" o viene vacía
-  const esDeCasa = !mesaLimpia || mesaLimpia === "T" || mesaLimpia === "B";
+  // ---------------------------------------------------------------------------
+  // 🚨 FRENO DE SEGURIDAD: Si no es de casa y la mesa AÚN NO está validada con PIN,
+  // DETENEMOS el envío por completo para que obligue a ingresar el PIN primero.
+  // ---------------------------------------------------------------------------
+  const mesaLimpiaTemp = idDestino ? String(idDestino).toUpperCase().trim() : "";
+  const esDeCasaTemp = !mesaLimpiaTemp || mesaLimpiaTemp === "T" || mesaLimpiaTemp === "B";
+
+  if (!esDeCasaTemp && !mesaValidada) {
+    // Abrimos el modal/pantalla del PIN para que Martín lo introduzca primero
+    setVerModalPin(true); // O la variable que use tu app para mostrar el PIN (ej. setAbrirPin(true))
+    return; // ⛔ FRENA LA EJECUCIÓN (No envía nada a Firebase todavía)
+  }
+
+  // ---------------------------------------------------------------------------
+  // RESTO DE TU LÓGICA DE ENVÍO (Solo corre cuando el PIN ya fue puesto)
+  // ---------------------------------------------------------------------------
   const telActual = telefonoUsuarioLogueado || usuarioLogueado?.phoneNumber || telefonoInput || "";
 
-  // 🔒 CANDADO DE RAÍZ: Si es de casa y no ha puesto sus 10 dígitos, lo frena
-  if (esDeCasa && !usuarioLogueado && (!telActual || telActual === "S/N" || telActual.length < 10)) {
+  if (esDeCasaTemp && !usuarioLogueado && (!telActual || telActual === "S/N" || telActual.length < 10)) {
     setVerModalTelefono(true);
-    return; // Cancela la escritura en Firestore
+    return;
   }
 
   const telFinal = telActual || "S/N";
-  const idFinal = esDeCasa ? `TEL:${telFinal}` : String(idDestino);
+  const idFinal = esDeCasaTemp ? `TEL:${telFinal}` : String(idDestino);
   
-  // 👤 1. GARANTIZAMOS EL NOMBRE EN EL CELULAR QUE ENVÍA EL PEDIDO
-  // Evalúa varias opciones para que NUNCA quede undefined
+  // 👤 Obtenemos el nombre asegurando que si no existe use un nombre por defecto de la sesión
   const nombreComprador = 
     nombreUsuarioLogueado || 
     usuarioLogueado?.displayName || 
     (usuarioLogueado?.email ? usuarioLogueado.email.split('@')[0] : null) || 
-    (telFinal !== "S/N" ? `Tel:${telFinal.slice(-4)}` : null) ||
-    (esComandaManual ? "Barra" : "Cliente");
+    "Invitado";
 
-  // 📝 2. ADJUNTA EL NOMBRE A CADA RENGLÓN DEL PRODUCTO
+  // 📝 Formateamos el detalle
   const detalleNuevo = carrito.map(i => {
     const quienPidio = i.cliente || nombreComprador;
     return `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad}) - [${quienPidio}]`;
@@ -1212,14 +1228,9 @@ const procesarEnvio = async (idDestino) => {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
+    // 🔎 Búsqueda de la comanda de la mesa en Firestore
     let existente = null;
-
-    // 🔎 3. BÚSQUEDA 1: Buscar si tenemos el ID guardado en LocalStorage
-    const comandaIdGuardado = localStorage.getItem("tribu_comanda_id");
-
-    // 🔎 4. BÚSQUEDA 2 (CRÍTICA PARA CELULARES): 
-    // Como el celular de Martín no tiene la lista 'pedidosBarra', consulta directo a Firestore
-    if (!esDeCasa) {
+    if (!esDeCasaTemp) {
       const q = query(
         collection(db, "pedidos"), 
         where("mesa", "==", String(idFinal)), 
@@ -1232,22 +1243,13 @@ const procesarEnvio = async (idDestino) => {
       }
     }
 
-    // Respaldo en estado local por si acaso
-    if (!existente && Array.isArray(pedidosBarra)) {
-      existente = pedidosBarra.find(p => 
-        (comandaIdGuardado && p.id === comandaIdGuardado) ||
-        (String(p.mesa).trim().toUpperCase() === String(idFinal).trim().toUpperCase() && p.estado === "pendiente")
-      );
-    }
-
     let idComandaActual = ""; 
     
     if (existente) {
-      // 🟢 RUTA A: El celular de Martín encuentra la comanda existente de la Mesa
+      // 🟢 RUTA A: Se une a la mesa de Héctor
       idComandaActual = existente.id; 
       
-      // 🔒 NO ENVIAMOS EL CAMPO 'cliente':
-      // Firestore conserva a Héctor intacto como creador/dueño de la mesa
+      // 🔒 NO ENVIAMOS 'cliente': Firestore mantiene intacto el nombre del dueño (Héctor)
       batch.update(doc(db, "pedidos", existente.id), { 
         detalle: existente.detalle + "\n" + detalleNuevo, 
         total: Number(existente.total) + Number(totalCarrito), 
@@ -1256,7 +1258,7 @@ const procesarEnvio = async (idDestino) => {
         telefono: existente.telefono || telFinal 
       });
     } else {
-      // 🔴 RUTA B: Si la mesa estaba vacía en Firebase (Héctor abriendo la mesa)
+      // 🔴 RUTA B: Si la mesa estaba realmente vacía
       const nuevoPedidoRef = doc(collection(db, "pedidos"));
       idComandaActual = nuevoPedidoRef.id; 
       
@@ -1267,19 +1269,18 @@ const procesarEnvio = async (idDestino) => {
         estado: "pendiente", 
         fecha: serverTimestamp(), 
         archivado: false,
-        cliente: nombreComprador, // Registra al dueño original
+        cliente: nombreComprador,
         telefono: telFinal,
         uid: uidFinal,
         alertaPrioridad: colorAlerta 
       };
 
-      if (!esDeCasa && !isNaN(idFinal)) {
+      if (!esDeCasaTemp && !isNaN(idFinal)) {
          datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
       }
       batch.set(nuevoPedidoRef, datosNuevoPedido);
     }
 
-    // Guardamos el ID de la comanda en el teléfono de Martín
     localStorage.setItem("tribu_comanda_id", idComandaActual);
     await batch.commit();
 
