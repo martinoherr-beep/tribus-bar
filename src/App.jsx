@@ -100,36 +100,45 @@ function App() {
     categoria: "Cerveza", subcategoria: "", imagen: ""
   });
 
-  // 📱 ESCUCHADOR EN TIEMPO REAL PARA EL CLIENTE:
-  useEffect(() => {
-    // Si hay un usuario de staff/admin logueado, no sacamos la pantalla a welcome
-    const esStaffOAdmin = usuarioLogueado && (usuarioLogueado.rol === 'admin' || usuarioLogueado.rol === 'caja' || usuarioLogueado.rol === 'barra');
-    if (esStaffOAdmin) return;
+ // 📱 ESCUCHADOR EN TIEMPO REAL PARA EL CLIENTE:
+useEffect(() => {
+  // 1. Si hay un usuario de staff/admin logueado, no sacamos la pantalla a welcome
+  const esStaffOAdmin = usuarioLogueado && (usuarioLogueado.rol === 'admin' || usuarioLogueado.rol === 'caja' || usuarioLogueado.rol === 'barra');
+  if (esStaffOAdmin) return;
 
-    const comandaId = localStorage.getItem("tribu_comanda_id");
-    if (!comandaId) return;
+  const comandaId = localStorage.getItem("tribu_comanda_id");
+  if (!comandaId) return;
 
-    // Escuchamos el pedido activo en Firebase
-    const unsubscribe = onSnapshot(doc(db, "pedidos", comandaId), (docSnap) => {
-      // Si el documento ya no existe (porque la caja ejecutó batch.delete al cobrar)
-      if (!docSnap.exists()) {
-        console.log("♻️ La caja cobró la cuenta. Redirigiendo a welcome...");
-
-        // 🧹 Limpiamos los datos locales del cliente
-        localStorage.removeItem("tribu_comanda_id");
-        localStorage.removeItem("tribu_mesa");
-        
-        setMesa(null);
-        setConsumoAcumulado([]);
-        setMesaValidada(false);
-
-        // 🏠 Mandamos la pantalla del cliente a Bienvenida
-        setView('welcome');
+  // 2. Escuchamos el pedido activo en Firebase
+  const unsubscribe = onSnapshot(doc(db, "pedidos", comandaId), (docSnap) => {
+    if (docSnap.exists()) {
+      // 🟢 LA COMANDA EXISTE (Martín o Héctor agregaron productos):
+      // Actualizamos los consumos en pantalla para que ambos vean la comanda compartida en tiempo real
+      const data = docSnap.data();
+      if (data.detalle) {
+        setConsumoAcumulado(data.detalle.split('\n'));
       }
-    });
+    } else {
+      // 🔴 LA COMANDA FUE BORRADA (La caja cobró en la barra):
+      console.log("♻️ La caja cobró la cuenta. Redirigiendo a welcome...");
 
-    return () => unsubscribe();
-  }, [usuarioLogueado]);
+      // 🧹 Limpiamos los datos locales del cliente
+      localStorage.removeItem("tribu_comanda_id");
+      localStorage.removeItem("tribu_mesa");
+      
+      setMesa(null);
+      setConsumoAcumulado([]);
+      setMesaValidada(false);
+
+      // 🏠 Mandamos la pantalla del cliente a Bienvenida
+      setView('welcome');
+    }
+  }, (error) => {
+    console.error("Error escuchando la comanda en tiempo real:", error);
+  });
+
+  return () => unsubscribe();
+}, [usuarioLogueado, view]); // 👈 Añadimos 'view' o dejamos las dependencias seguras
 
   const [esNuevaSub, setEsNuevaSub] = useState(false);
   const [productosMenu, setProductosMenu] = useState([]);
@@ -1181,20 +1190,18 @@ const obtenerAlertaCliente = async (telefonoCliente, uidCliente) => {
 
 const procesarEnvio = async (idDestino) => {
   // ---------------------------------------------------------------------------
-  // 🚨 FRENO DE SEGURIDAD: Si no es de casa y la mesa AÚN NO está validada con PIN,
-  // DETENEMOS el envío por completo para que obligue a ingresar el PIN primero.
+  // 🚨 FRENO DE SEGURIDAD: Validar PIN antes de continuar
   // ---------------------------------------------------------------------------
   const mesaLimpiaTemp = idDestino ? String(idDestino).toUpperCase().trim() : "";
   const esDeCasaTemp = !mesaLimpiaTemp || mesaLimpiaTemp === "T" || mesaLimpiaTemp === "B";
 
   if (!esDeCasaTemp && !mesaValidada) {
-    // Abrimos el modal/pantalla del PIN para que Martín lo introduzca primero
-    setVerModalPin(true); // O la variable que use tu app para mostrar el PIN (ej. setAbrirPin(true))
-    return; // ⛔ FRENA LA EJECUCIÓN (No envía nada a Firebase todavía)
+    setVerModalPin(true);
+    return; // ⛔ Frena el envío
   }
 
   // ---------------------------------------------------------------------------
-  // RESTO DE TU LÓGICA DE ENVÍO (Solo corre cuando el PIN ya fue puesto)
+  // VALIDACIÓN DE TELÉFONO PARA PEDIDOS DE CASA
   // ---------------------------------------------------------------------------
   const telActual = telefonoUsuarioLogueado || usuarioLogueado?.phoneNumber || telefonoInput || "";
 
@@ -1206,17 +1213,17 @@ const procesarEnvio = async (idDestino) => {
   const telFinal = telActual || "S/N";
   const idFinal = esDeCasaTemp ? `TEL:${telFinal}` : String(idDestino);
   
-  // 👤 Obtenemos el nombre asegurando que si no existe use un nombre por defecto de la sesión
+  // 👤 Obtenemos el nombre exacto de la persona que presiona el botón EN ESTE MOMENTO
   const nombreComprador = 
     nombreUsuarioLogueado || 
+    (typeof nombreRegistro !== "undefined" ? nombreRegistro : null) ||
     usuarioLogueado?.displayName || 
     (usuarioLogueado?.email ? usuarioLogueado.email.split('@')[0] : null) || 
     "Invitado";
 
-  // 📝 Formateamos el detalle
+  // 📝 Formateamos el detalle de lo que se va a enviar en este carrito
   const detalleNuevo = carrito.map(i => {
-    const quienPidio = i.cliente || nombreComprador;
-    return `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad}) - [${quienPidio}]`;
+    return `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad}) - [${nombreComprador}]`;
   }).join('\n');
   
   try {
@@ -1228,7 +1235,7 @@ const procesarEnvio = async (idDestino) => {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
-    // 🔎 Búsqueda de la comanda de la mesa en Firestore
+    // 🔎 Búsqueda de comanda activa para la mesa en Firestore
     let existente = null;
     if (!esDeCasaTemp) {
       const q = query(
@@ -1246,19 +1253,20 @@ const procesarEnvio = async (idDestino) => {
     let idComandaActual = ""; 
     
     if (existente) {
-      // 🟢 RUTA A: Se une a la mesa de Héctor
+      // 🟢 RUTA A: La mesa YA existe (Martín se une a Héctor)
       idComandaActual = existente.id; 
-      
-      // 🔒 NO ENVIAMOS 'cliente': Firestore mantiene intacto el nombre del dueño (Héctor)
+
+      // ⚠️ SOLO actualizamos el detalle acumulado y el total. 
+      // NO se modifican 'cliente', 'uid' ni 'telefono' para NO borrar ni desconectar a Héctor.
       batch.update(doc(db, "pedidos", existente.id), { 
         detalle: existente.detalle + "\n" + detalleNuevo, 
         total: Number(existente.total) + Number(totalCarrito), 
         fecha: serverTimestamp(),
-        alertaPrioridad: colorAlerta,
-        telefono: existente.telefono || telFinal 
+        alertaPrioridad: colorAlerta
       });
+
     } else {
-      // 🔴 RUTA B: Si la mesa estaba realmente vacía
+      // 🔴 RUTA B: La mesa está vacía (Héctor abre la mesa)
       const nuevoPedidoRef = doc(collection(db, "pedidos"));
       idComandaActual = nuevoPedidoRef.id; 
       
@@ -1269,7 +1277,7 @@ const procesarEnvio = async (idDestino) => {
         estado: "pendiente", 
         fecha: serverTimestamp(), 
         archivado: false,
-        cliente: nombreComprador,
+        cliente: nombreComprador, // Creador original
         telefono: telFinal,
         uid: uidFinal,
         alertaPrioridad: colorAlerta 
@@ -1281,10 +1289,14 @@ const procesarEnvio = async (idDestino) => {
       batch.set(nuevoPedidoRef, datosNuevoPedido);
     }
 
+    // Guardamos la referencia local de la comanda
     localStorage.setItem("tribu_comanda_id", idComandaActual);
+
+    // 🚀 Ejecutamos los cambios en Firestore
     await batch.commit();
 
-    if (esComandaManual) {
+    // 🔄 Limpieza de interfaz tras enviar
+    if (typeof esComandaManual !== "undefined" && esComandaManual) {
        setView('barra');
        setTabBarra('comandas');
        setCarrito([]); 
