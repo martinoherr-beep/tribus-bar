@@ -1106,19 +1106,9 @@ const manejarPinMesa = (num) => {
   if (pinMesaInput.length < 4) {
     const nuevoPin = pinMesaInput + num;
     setPinMesaInput(nuevoPin);
-
     if (nuevoPin === String(pinCorrectoMesa)) {
       setMesaValidada(true);
-      setPinMesaInput("");
-
-      // 🎯 Busca la comanda de la mesa que tiene este PIN y enlaza a Martín
-      const comandaExistente = pedidosBarra.find(
-        p => String(p.pinMesa) === String(pinCorrectoMesa) && p.estado === "pendiente"
-      );
-
-      if (comandaExistente) {
-        localStorage.setItem("tribu_comanda_id", comandaExistente.id);
-      }
+      setPinMesaInput(""); // 👈 Limpieza al validar
     } else if (nuevoPin.length === 4) {
       setTimeout(() => setPinMesaInput(""), 500);
     }
@@ -1190,30 +1180,16 @@ const procesarEnvio = async (idDestino) => {
   const esDeCasa = !mesaLimpia || mesaLimpia === "T" || mesaLimpia === "B";
   const telActual = telefonoUsuarioLogueado || usuarioLogueado?.phoneNumber || telefonoInput || "";
 
-  // 🔒 CANDADO 1: Si es de casa y no ha puesto sus 10 dígitos, lo frena
+  // 🔒 CANDADO DE RAÍZ: Si es de casa y no ha puesto sus 10 dígitos, lo frena
   if (esDeCasa && !usuarioLogueado && (!telActual || telActual === "S/N" || telActual.length < 10)) {
     setVerModalTelefono(true);
     return; // Cancela la escritura en Firestore
   }
 
-  const idFinal = esDeCasa ? `TEL:${telActual || "S/N"}` : String(idDestino);
-
-  // 🔎 BUSCAMOS SI YA EXISTE UNA COMANDA ACTIVA PARA ESTA MESA
-  const comandaIdGuardado = localStorage.getItem("tribu_comanda_id");
-  const existente = pedidosBarra.find(p => 
-    (comandaIdGuardado && p.id === comandaIdGuardado) ||
-    (String(p.mesa).trim().toUpperCase() === String(idFinal).trim().toUpperCase() && p.estado === "pendiente")
-  );
-
-  // 🔒 CANDADO 2: Si es mesa física, existe una comanda previa con PIN y el usuario AÚN NO lo valida, FRENA EL ENVÍO
-  if (!esDeCasa && existente && existente.pinMesa && !mesaValidada) {
-    setPinCorrectoMesa(existente.pinMesa);
-    setMesaValidada(false); // Fuerza a que aparezca el modal/teclado del PIN
-    return; // ⛔ Detiene la escritura hasta que ingrese el PIN
-  }
-
   const batch = writeBatch(db);
   const telFinal = telActual || "S/N";
+  
+  const idFinal = esDeCasa ? `TEL:${telFinal}` : String(idDestino);
   
   // 👤 Nombre de la persona que está realizando ESTE envío en particular (ej. Martín)
   const nombreComprador = nombreUsuarioLogueado || usuarioLogueado?.displayName || (esComandaManual ? "Barra" : "Cliente");
@@ -1232,6 +1208,8 @@ const procesarEnvio = async (idDestino) => {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
+    // Buscamos si ya hay una comanda activa para esta mesa (asegurando comparación exacta)
+    const existente = pedidosBarra.find(p => String(p.mesa).trim().toUpperCase() === String(idFinal).trim().toUpperCase());
     let idComandaActual = ""; 
     
     if (existente) {
@@ -1270,7 +1248,6 @@ const procesarEnvio = async (idDestino) => {
       batch.set(nuevoPedidoRef, datosNuevoPedido);
     }
 
-    // Guardamos siempre el id de la comanda en el navegador local
     localStorage.setItem("tribu_comanda_id", idComandaActual);
     await batch.commit();
 
