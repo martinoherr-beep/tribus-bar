@@ -434,30 +434,45 @@ useEffect(() => {
   const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
   let q;
 
-  if (usuarioLogueado) {
-    // 👤 Si hay sesión, buscamos todas las órdenes del UID de la Tribu
-    q = query(
-      collection(db, "pedidos"),
-      where("uid", "==", usuarioLogueado.uid)
-    );
-  } else if (comandaIdGuardada) {
-    // 📲 Si es invitado, busca por el ID del documento guardado en su LocalStorage
+  // 🎯 1. PRIORIDAD SUPREMA: Si tiene una comanda activa en la mesa (localStorage)
+  if (comandaIdGuardada) {
     q = query(
       collection(db, "pedidos"),
       where("__name__", "==", comandaIdGuardada)
     );
-  } else {
+  } 
+  // 👤 2. Historial de sesión activa
+  else if (usuarioLogueado?.uid) {
+    q = query(
+      collection(db, "pedidos"),
+      where("uid", "==", usuarioLogueado.uid)
+    );
+  } 
+  // 🚫 3. Limpieza
+  else {
     setMisPedidos([]);
     return;
   }
 
   const unsub = onSnapshot(q, (snapshot) => {
     const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    // 🧹 LIMPIEZA DE SEGURIDAD: Si la comanda ya se cerró, pagó o archivó,
+    // borramos el ID para que no se quede enganchado a una comanda vieja.
+    if (comandaIdGuardada && docs.length > 0) {
+      const pedidoActual = docs[0];
+      if (pedidoActual.archivado || pedidoActual.estado === "cerrado") {
+        localStorage.removeItem("tribu_comanda_id");
+      }
+    }
+
     setMisPedidos(docs);
+  }, (error) => {
+    console.error("Error al escuchar pedidos:", error);
   });
 
   return () => unsub();
-}, [usuarioLogueado]);
+}, [usuarioLogueado, localStorage.getItem("tribu_comanda_id")]); // 👈 Dependencia clave añadida
 
 // 2. Agrega este useEffect para consultar el GPS al iniciar la app
 useEffect(() => {
@@ -1091,9 +1106,19 @@ const manejarPinMesa = (num) => {
   if (pinMesaInput.length < 4) {
     const nuevoPin = pinMesaInput + num;
     setPinMesaInput(nuevoPin);
+
     if (nuevoPin === String(pinCorrectoMesa)) {
       setMesaValidada(true);
-      setPinMesaInput(""); // 👈 Limpieza al validar
+      setPinMesaInput("");
+
+      // 🎯 VINCULACIÓN: Buscamos la comanda que abriò Héctor y la guardamos en el teléfono de Martín
+      const comandaExistente = pedidosBarra.find(
+        p => String(p.pinMesa) === String(pinCorrectoMesa) && p.estado === "pendiente"
+      );
+
+      if (comandaExistente) {
+        localStorage.setItem("tribu_comanda_id", comandaExistente.id);
+      }
     } else if (nuevoPin.length === 4) {
       setTimeout(() => setPinMesaInput(""), 500);
     }
