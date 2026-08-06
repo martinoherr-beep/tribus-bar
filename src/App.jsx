@@ -1178,7 +1178,15 @@ const procesarEnvio = async (idDestino) => {
   // Si es de casa, la mesa en Firebase pasa a guardarse estrictamente como "TEL:5512345678"
   const idFinal = esDeCasa ? `TEL:${telFinal}` : String(idDestino);
   
-  const detalleNuevo = carrito.map(i => `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad})`).join('\n');
+  // 👤 OBTENEMOS EL NOMBRE DEL CLIENTE ACTIVO EN ESTE MOMENTO
+  const nombreComprador = nombreUsuarioLogueado || usuarioLogueado?.displayName || (esComandaManual ? "Barra" : "Cliente");
+
+  // 📝 FORMATO ACTUALIZADO: Adjunta [Nombre] a cada renglón del pedido enviado
+  const detalleNuevo = carrito.map(i => {
+    // Si el ítem ya traía un cliente en el carrito se usa ese, si no, usa el usuario de la sesión actual
+    const quienPidio = i.cliente || nombreComprador;
+    return `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad}) - [${quienPidio}]`;
+  }).join('\n');
   
   try {
     const uidFinal = usuarioLogueado?.uid || null;
@@ -1188,7 +1196,7 @@ const procesarEnvio = async (idDestino) => {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
-    // Buscamos si ya hay una comanda activa para este ID ("TEL:5512345678")
+    // Buscamos si ya hay una comanda activa para este ID ("TEL:5512345678" o Mesa "4")
     const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
     let idComandaActual = ""; 
     
@@ -1198,7 +1206,7 @@ const procesarEnvio = async (idDestino) => {
         detalle: existente.detalle + "\n" + detalleNuevo, 
         total: Number(existente.total) + Number(totalCarrito), 
         fecha: serverTimestamp(),
-        cliente: nombreUsuarioLogueado || existente.cliente || (esComandaManual ? "Comanda Manual" : "Cliente"),
+        cliente: nombreComprador,
         uid: uidFinal || existente.uid || null,
         alertaPrioridad: colorAlerta,
         telefono: telFinal 
@@ -1214,7 +1222,7 @@ const procesarEnvio = async (idDestino) => {
         estado: "pendiente", 
         fecha: serverTimestamp(), 
         archivado: false,
-        cliente: nombreUsuarioLogueado || (esComandaManual ? "Comanda Manual" : "Cliente"),
+        cliente: nombreComprador,
         telefono: telFinal,
         uid: uidFinal,
         alertaPrioridad: colorAlerta 
