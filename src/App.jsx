@@ -1174,16 +1174,13 @@ const procesarEnvio = async (idDestino) => {
   const batch = writeBatch(db);
   const telFinal = telActual || "S/N";
   
-  // 🎯 AQUÍ VOLVEMOS A TU LÓGICA ANTERIOR:
-  // Si es de casa, la mesa en Firebase pasa a guardarse estrictamente como "TEL:5512345678"
   const idFinal = esDeCasa ? `TEL:${telFinal}` : String(idDestino);
   
-  // 👤 OBTENEMOS EL NOMBRE DEL CLIENTE ACTIVO EN ESTE MOMENTO
+  // 👤 Nombre de la persona que está realizando este envío actual
   const nombreComprador = nombreUsuarioLogueado || usuarioLogueado?.displayName || (esComandaManual ? "Barra" : "Cliente");
 
-  // 📝 FORMATO ACTUALIZADO: Adjunta [Nombre] a cada renglón del pedido enviado
+  // 📝 Adjunta el nombre del comprador a cada renglón del ítem
   const detalleNuevo = carrito.map(i => {
-    // Si el ítem ya traía un cliente en el carrito se usa ese, si no, usa el usuario de la sesión actual
     const quienPidio = i.cliente || nombreComprador;
     return `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad}) - [${quienPidio}]`;
   }).join('\n');
@@ -1196,7 +1193,7 @@ const procesarEnvio = async (idDestino) => {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
-    // Buscamos si ya hay una comanda activa para este ID ("TEL:5512345678" o Mesa "4")
+    // Buscamos si ya hay una comanda activa para esta mesa
     const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
     let idComandaActual = ""; 
     
@@ -1206,12 +1203,14 @@ const procesarEnvio = async (idDestino) => {
         detalle: existente.detalle + "\n" + detalleNuevo, 
         total: Number(existente.total) + Number(totalCarrito), 
         fecha: serverTimestamp(),
-        cliente: nombreComprador,
-        uid: uidFinal || existente.uid || null,
+        // 🎯 FIX CLAVE: Si la comanda ya existe, MANTIENE el cliente original (dueño de la cuenta)
+        cliente: existente.cliente || nombreComprador,
+        uid: existente.uid || uidFinal || null,
         alertaPrioridad: colorAlerta,
-        telefono: telFinal 
+        telefono: existente.telefono || telFinal 
       });
     } else {
+      // 🌟 Si es una comanda NUEVA, el primero en pedir (ej. Héctor) queda como dueño de la cuenta
       const nuevoPedidoRef = doc(collection(db, "pedidos"));
       idComandaActual = nuevoPedidoRef.id; 
       
@@ -1222,13 +1221,12 @@ const procesarEnvio = async (idDestino) => {
         estado: "pendiente", 
         fecha: serverTimestamp(), 
         archivado: false,
-        cliente: nombreComprador,
+        cliente: nombreComprador, // Héctor se guarda como el dueño original
         telefono: telFinal,
         uid: uidFinal,
         alertaPrioridad: colorAlerta 
       };
 
-      // Candado de PIN seguro: Solo mesas físicas reales llevan PIN, los externos no
       if (!esDeCasa && !isNaN(idFinal)) {
          datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
       }
