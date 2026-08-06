@@ -1185,51 +1185,69 @@ const procesarEnvio = async (idDestino) => {
     return; // Cancela la escritura en Firestore
   }
 
-  const batch = writeBatch(db);
   const telFinal = telActual || "S/N";
-  
   const idFinal = esDeCasa ? `TEL:${telFinal}` : String(idDestino);
   
-  // 👤 DIAGNÓSTICO DEL NOMBRE:
+  // 👤 1. GARANTIZAMOS EL NOMBRE EN EL CELULAR QUE ENVÍA EL PEDIDO
+  // Evalúa varias opciones para que NUNCA quede undefined
   const nombreComprador = 
     nombreUsuarioLogueado || 
     usuarioLogueado?.displayName || 
     (usuarioLogueado?.email ? usuarioLogueado.email.split('@')[0] : null) || 
+    (telFinal !== "S/N" ? `Tel:${telFinal.slice(-4)}` : null) ||
     (esComandaManual ? "Barra" : "Cliente");
 
-  console.log("🔍 DIAGNÓSTICO - Nombre detectado para este ítem:", nombreComprador);
-  console.log("🔍 DIAGNÓSTICO - Carrito antes de enviar:", carrito);
-
-  // 📝 Adjunta [Nombre] a cada renglón del carrito enviado
+  // 📝 2. ADJUNTA EL NOMBRE A CADA RENGLÓN DEL PRODUCTO
   const detalleNuevo = carrito.map(i => {
     const quienPidio = i.cliente || nombreComprador;
     return `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad}) - [${quienPidio}]`;
   }).join('\n');
-
-  console.log("📝 DIAGNÓSTICO - String detalleNuevo generado:\n", detalleNuevo);
   
   try {
+    const batch = writeBatch(db);
     const uidFinal = usuarioLogueado?.uid || null;
     
     let colorAlerta = "morada";
-    if (uidFinal) {
+    if (uidFinal && typeof obtenerAlertaCliente === "function") {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
-    // 🔎 DIAGNÓSTICO DE BÚSQUEDA DE COMANDA
-    console.log("🔍 DIAGNÓSTICO - Buscando idFinal:", idFinal);
-    console.log("🔍 DIAGNÓSTICO - Contenido actual de pedidosBarra:", pedidosBarra);
+    let existente = null;
 
-    const existente = pedidosBarra.find(p => String(p.mesa).trim().toUpperCase() === String(idFinal).trim().toUpperCase());
-    
-    console.log("🔍 DIAGNÓSTICO - Comanda 'existente' encontrada:", existente);
+    // 🔎 3. BÚSQUEDA 1: Buscar si tenemos el ID guardado en LocalStorage
+    const comandaIdGuardado = localStorage.getItem("tribu_comanda_id");
+
+    // 🔎 4. BÚSQUEDA 2 (CRÍTICA PARA CELULARES): 
+    // Como el celular de Martín no tiene la lista 'pedidosBarra', consulta directo a Firestore
+    if (!esDeCasa) {
+      const q = query(
+        collection(db, "pedidos"), 
+        where("mesa", "==", String(idFinal)), 
+        where("estado", "==", "pendiente")
+      );
+      const querySnap = await getDocs(q);
+      if (!querySnap.empty) {
+        const docSnap = querySnap.docs[0];
+        existente = { id: docSnap.id, ...docSnap.data() };
+      }
+    }
+
+    // Respaldo en estado local por si acaso
+    if (!existente && Array.isArray(pedidosBarra)) {
+      existente = pedidosBarra.find(p => 
+        (comandaIdGuardado && p.id === comandaIdGuardado) ||
+        (String(p.mesa).trim().toUpperCase() === String(idFinal).trim().toUpperCase() && p.estado === "pendiente")
+      );
+    }
 
     let idComandaActual = ""; 
     
     if (existente) {
-      console.log("✅ ENTRÓ A RUTA A (Actualizar comanda de " + existente.cliente + ")");
+      // 🟢 RUTA A: El celular de Martín encuentra la comanda existente de la Mesa
       idComandaActual = existente.id; 
       
+      // 🔒 NO ENVIAMOS EL CAMPO 'cliente':
+      // Firestore conserva a Héctor intacto como creador/dueño de la mesa
       batch.update(doc(db, "pedidos", existente.id), { 
         detalle: existente.detalle + "\n" + detalleNuevo, 
         total: Number(existente.total) + Number(totalCarrito), 
@@ -1238,7 +1256,7 @@ const procesarEnvio = async (idDestino) => {
         telefono: existente.telefono || telFinal 
       });
     } else {
-      console.log("⚠️ ENTRÓ A RUTA B (Crear pedido NUEVO a nombre de " + nombreComprador + ")");
+      // 🔴 RUTA B: Si la mesa estaba vacía en Firebase (Héctor abriendo la mesa)
       const nuevoPedidoRef = doc(collection(db, "pedidos"));
       idComandaActual = nuevoPedidoRef.id; 
       
@@ -1249,7 +1267,7 @@ const procesarEnvio = async (idDestino) => {
         estado: "pendiente", 
         fecha: serverTimestamp(), 
         archivado: false,
-        cliente: nombreComprador,
+        cliente: nombreComprador, // Registra al dueño original
         telefono: telFinal,
         uid: uidFinal,
         alertaPrioridad: colorAlerta 
@@ -1261,6 +1279,7 @@ const procesarEnvio = async (idDestino) => {
       batch.set(nuevoPedidoRef, datosNuevoPedido);
     }
 
+    // Guardamos el ID de la comanda en el teléfono de Martín
     localStorage.setItem("tribu_comanda_id", idComandaActual);
     await batch.commit();
 
