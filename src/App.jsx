@@ -1190,10 +1190,14 @@ const procesarEnvio = async (idDestino) => {
   
   const idFinal = esDeCasa ? `TEL:${telFinal}` : String(idDestino);
   
-  // 👤 Nombre de la persona que envía ESTE producto en particular
-  const nombreComprador = nombreUsuarioLogueado || usuarioLogueado?.displayName || (esComandaManual ? "Barra" : "Cliente");
+  // 👤 1. ASEGURAMOS EL NOMBRE DEL COMPRADOR (Garantiza que siempre haya un texto visible)
+  const nombreComprador = 
+    nombreUsuarioLogueado || 
+    usuarioLogueado?.displayName || 
+    usuarioLogueado?.email?.split('@')[0] || 
+    (esComandaManual ? "Barra" : "Cliente");
 
-  // 📝 Adjunta [Nombre] a cada renglón del carrito enviado
+  // 📝 2. FORMATO DEL DETALLE (Agrega el tag [Nombre] a cada renglón)
   const detalleNuevo = carrito.map(i => {
     const quienPidio = i.cliente || nombreComprador;
     return `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad}) - [${quienPidio}]`;
@@ -1207,15 +1211,21 @@ const procesarEnvio = async (idDestino) => {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
-    // Buscamos si ya existe la comanda para esta mesa
-    const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
+    // 🔎 3. BÚSQUEDA A PRUEBA DE FALLOS:
+    // Limpiamos ambos lados de la comparación para asegurar que encuentre la comanda existente
+    const idFinalLimpio = String(idFinal).trim().toUpperCase();
+    const existente = pedidosBarra.find(p => 
+      String(p.mesa).trim().toUpperCase() === idFinalLimpio && 
+      (!p.estado || p.estado === "pendiente")
+    );
+
     let idComandaActual = ""; 
     
     if (existente) {
+      // 🟢 RUTA A: Se suma a la comanda existente (Ej. Martín se une a la mesa de Héctor)
       idComandaActual = existente.id; 
       
-      // 🔒 FIX DEFINITIVO: NO enviamos el campo 'cliente'.
-      // Al omitirlo, Firestore deja intacto el nombre de Héctor registrado al crear la comanda.
+      // 🔒 NO ENVIAMOS EL CAMPO 'cliente': Firestore mantiene intacto el nombre del dueño (Héctor)
       batch.update(doc(db, "pedidos", existente.id), { 
         detalle: existente.detalle + "\n" + detalleNuevo, 
         total: Number(existente.total) + Number(totalCarrito), 
@@ -1224,7 +1234,7 @@ const procesarEnvio = async (idDestino) => {
         telefono: existente.telefono || telFinal 
       });
     } else {
-      // 🌟 Si la comanda es NUEVA, la persona que la abre (Héctor) se registra como dueño principal
+      // 🔴 RUTA B: Solo si es una mesa vacía y sin comanda activa (Ej. Héctor abre la mesa)
       const nuevoPedidoRef = doc(collection(db, "pedidos"));
       idComandaActual = nuevoPedidoRef.id; 
       
@@ -1235,7 +1245,7 @@ const procesarEnvio = async (idDestino) => {
         estado: "pendiente", 
         fecha: serverTimestamp(), 
         archivado: false,
-        cliente: nombreComprador, // Registra a Héctor
+        cliente: nombreComprador, // Registra al dueño original (Héctor)
         telefono: telFinal,
         uid: uidFinal,
         alertaPrioridad: colorAlerta 
