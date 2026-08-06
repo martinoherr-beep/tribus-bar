@@ -1050,28 +1050,35 @@ if (comandaIdGuardada) {
       }
 
       // ─── TU PROCESADOR DE TEXTO ORIGINAL (MANTENIDO SEGURO) ───
-      if (pedidoMesa && pedidoMesa.pinMesa) {
-          setPinCorrectoMesa(pedidoMesa.pinMesa);
-          const items = pedidoMesa.detalle.split('\n').map(linea => {
-              const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
-              if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
-              return null;
-          }).filter(i => i !== null);
-          setConsumoAcumulado(items);
-      } else if (pedidoMesa) { 
-          setMesaValidada(true); 
-          const items = pedidoMesa.detalle.split('\n').map(linea => {
-              const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
-              if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
-              return null;
-          }).filter(i => i !== null);
-          setConsumoAcumulado(items);
-          setPinCorrectoMesa(null);
-      } else {
-          setMesaValidada(true); 
-          setConsumoAcumulado([]); 
-          setPinCorrectoMesa(null);
-      }
+  // 🔍 BUSCA ESTA SECCIÓN EN TU useEffect Y DÉJALA ASÍ:
+if (pedidoMesa && pedidoMesa.pinMesa) {
+    // Solo forzamos la validación en false si el PIN cambió o es una mesa distinta
+    if (pinCorrectoMesa !== pedidoMesa.pinMesa) {
+        setPinCorrectoMesa(pedidoMesa.pinMesa);
+        setMesaValidada(false); 
+        setPinMesaInput(""); // Limpiamos el input anterior por seguridad
+    }
+    
+    const items = pedidoMesa.detalle.split('\n').map(linea => {
+        const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
+        if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
+        return null;
+    }).filter(i => i !== null);
+    setConsumoAcumulado(items);
+} else if (pedidoMesa) { 
+    setMesaValidada(true); 
+    const items = pedidoMesa.detalle.split('\n').map(linea => {
+        const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
+        if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
+        return null;
+    }).filter(i => i !== null);
+    setConsumoAcumulado(items);
+    setPinCorrectoMesa(null);
+} else {
+    setMesaValidada(true); 
+    setConsumoAcumulado([]); 
+    setPinCorrectoMesa(null);
+}
     });
 
    onSnapshot(query(collection(db, "historial_tickets"), orderBy("fecha", "desc")), (snapshot) => setHistorialCerrado(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
@@ -1080,14 +1087,18 @@ if (comandaIdGuardada) {
     return () => unsubPedidos();
   }, [mesa, usuarioLogueado, view]);
 
- const manejarPinMesa = (num) => {
-   if (pinMesaInput.length < 4) {
-     const nuevoPin = pinMesaInput + num;
-     setPinMesaInput(nuevoPin);
-     if (nuevoPin === String(pinCorrectoMesa)) setMesaValidada(true);
-     else if (nuevoPin.length === 4) setTimeout(() => setPinMesaInput(""), 500);
-   }
- };
+const manejarPinMesa = (num) => {
+  if (pinMesaInput.length < 4) {
+    const nuevoPin = pinMesaInput + num;
+    setPinMesaInput(nuevoPin);
+    if (nuevoPin === String(pinCorrectoMesa)) {
+      setMesaValidada(true);
+      setPinMesaInput(""); // 👈 Limpieza al validar
+    } else if (nuevoPin.length === 4) {
+      setTimeout(() => setPinMesaInput(""), 500);
+    }
+  }
+};
 
  const agregarAlCarrito = (item) => {
    const p = obtenerPrecioItem(item);
@@ -1822,9 +1833,8 @@ const guardarEvento = async (e) => {
      </div>
    </div>
 )}
-
 {mesa && !mesaValidada && pinCorrectoMesa && !esComandaManual && (
-   <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
+   <div className="fixed inset-0 z-[300] bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
      <Lock size={48} className="text-orange-600 mb-6 animate-pulse" />
      <h2 className="text-2xl font-black italic uppercase text-center tracking-tighter">Mesa con Cuenta Abierta</h2>
      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-8">Ingresa el PIN de seguridad</p>
@@ -2951,8 +2961,35 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
       )}
 
 {ticketParaReimprimir && (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-white print:p-0">
-    <div className="bg-white text-black w-full max-w-[300px] p-8 font-mono shadow-2xl relative print-container border-t-[12px] border-orange-600 print:border-none">
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md print:static print:bg-transparent print:p-0">
+    
+    {/* CSS inyectado exclusivamente para la vista de impresión */}
+    <style>{`
+      @media print {
+        @page {
+          margin: 0;
+          size: auto;
+        }
+        body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background: white !important;
+        }
+        .print-ticket-box {
+          width: 100% !important;
+          max-width: 58mm !important; /* Cambia a 80mm si tu ticketera es ancha */
+          padding: 2mm !important;
+          box-shadow: none !important;
+          border: none !important;
+          margin: 0 auto !important;
+        }
+        .no-print {
+          display: none !important;
+        }
+      }
+    `}</style>
+
+    <div className="print-ticket-box bg-white text-black w-full max-w-[300px] p-4 font-mono shadow-2xl relative print-container border-t-[8px] border-orange-600 print:border-none">
       
       <button 
         onClick={() => setTicketParaReimprimir(null)} 
@@ -2961,17 +2998,18 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
         <X size={32}/>
       </button>
 
-      <div className="text-center mb-6">
-        <h2 className="font-black text-3xl italic uppercase leading-none tracking-tighter mb-1">TRIBU'S BAR</h2>
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Nota de Venta</p>
+      {/* ENCABEZADO COMPACTO */}
+      <div className="text-center mb-2">
+        <h2 className="font-black text-2xl italic uppercase leading-none tracking-tighter mb-0.5">TRIBU'S BAR</h2>
+        <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-2">Nota de Venta</p>
         
-        <div className="border-y-2 border-black py-2 my-2 space-y-1">
+        <div className="border-y border-black py-1 my-1 space-y-0.5">
           <div className="flex justify-between text-[11px] font-bold">
             <span>MESA:</span>
-            <span className="bg-black text-white px-2 uppercase">{ticketParaReimprimir.mesa?.replace("TEL:", "EXT-")}</span>
+            <span className="bg-black text-white px-1.5 uppercase">{ticketParaReimprimir.mesa?.replace("TEL:", "EXT-")}</span>
           </div>
 
-          {/* 👤 CLIENTE AGREGADO AL TICKET */}
+          {/* 👤 CLIENTE */}
           <div className="flex justify-between text-[10px] font-bold uppercase text-gray-800">
             <span>CLIENTE:</span>
             <span className="truncate max-w-[140px] font-black">{ticketParaReimprimir.cliente || "GENERAL"}</span>
@@ -2984,41 +3022,48 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
         </div>
       </div>
 
-      <div className="text-[11px] mb-6">
-        <div className="flex justify-between font-black border-b border-black pb-1 mb-2">
+      {/* DETALLE DE CONSUMO */}
+      <div className="text-[11px] mb-2">
+        <div className="flex justify-between font-black border-b border-black pb-0.5 mb-1 text-[10px]">
           <span>DESCRIPCIÓN</span>
           <span>IMPORTE</span>
         </div>
-        <div className="space-y-3 whitespace-pre-line leading-tight italic">
+        <div className="space-y-1 whitespace-pre-line leading-snug italic text-[10px]">
           {ticketParaReimprimir.detalle}
         </div>
       </div>
 
-      <div className="border-t-4 border-double border-black pt-4 mb-8 space-y-1.5">
+      {/* TOTALES */}
+      <div className="border-t-2 border-dashed border-black pt-2 mb-2 space-y-1">
         <div className="flex justify-between items-end">
-          <span className="font-bold text-sm">TOTAL:</span>
-          <span className="font-black text-3xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
+          <span className="font-bold text-xs">TOTAL:</span>
+          <span className="font-black text-2xl tracking-tighter leading-none">${ticketParaReimprimir.total}</span>
         </div>
 
         {ticketParaReimprimir.pagoCon !== undefined && (
-          <>
-            <div className="flex justify-between items-center text-xs pt-2 border-t border-dashed border-black">
+          <div className="pt-1 border-t border-dotted border-gray-400 space-y-0.5">
+            <div className="flex justify-between items-center text-[10px]">
               <span className="font-bold text-gray-700">EFECTIVO:</span>
               <span className="font-bold">${ticketParaReimprimir.pagoCon}</span>
             </div>
-            <div className="flex justify-between items-center text-xs">
+            <div className="flex justify-between items-center text-[10px]">
               <span className="font-bold text-gray-700">CAMBIO:</span>
-              <span className="font-black text-sm">${ticketParaReimprimir.cambio}</span>
+              <span className="font-black text-xs">${ticketParaReimprimir.cambio}</span>
             </div>
-          </>
+          </div>
         )}
       </div>
+
+      <div className="text-center text-[8px] font-bold uppercase tracking-wider text-gray-500 my-1">
+        ¡Gracias por tu visita!
+      </div>
       
+      {/* BOTÓN - OCULTO EN IMPRESIÓN */}
       <button 
         onClick={() => window.print()} 
-        className="mt-8 w-full bg-black text-white py-4 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors"
+        className="mt-4 w-full bg-black text-white py-3 rounded-xl font-black no-print flex items-center justify-center gap-2 shadow-xl hover:bg-orange-600 transition-colors"
       >
-        <Printer size={20}/> CONFIRMAR IMPRESIÓN
+        <Printer size={18}/> CONFIRMAR IMPRESIÓN
       </button>
 
     </div>
