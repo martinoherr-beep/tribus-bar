@@ -1101,14 +1101,26 @@ if (pedidoMesa && pedidoMesa.pinMesa) {
 
     return () => unsubPedidos();
   }, [mesa, usuarioLogueado, view]);
-
 const manejarPinMesa = (num) => {
   if (pinMesaInput.length < 4) {
     const nuevoPin = pinMesaInput + num;
     setPinMesaInput(nuevoPin);
+
     if (nuevoPin === String(pinCorrectoMesa)) {
       setMesaValidada(true);
-      setPinMesaInput(""); // 👈 Limpieza al validar
+      setPinMesaInput(""); // Limpieza al validar
+
+      // 🎯 VINCULACIÓN CRÍTICA:
+      // Buscamos la comanda existente asociada a este PIN y la guardamos
+      // en el almacenamiento local del celular de Martín.
+      const comandaEncontrada = pedidosBarra.find(
+        p => String(p.pinMesa) === String(pinCorrectoMesa) && p.estado === "pendiente"
+      );
+
+      if (comandaEncontrada) {
+        localStorage.setItem("tribu_comanda_id", comandaEncontrada.id);
+      }
+
     } else if (nuevoPin.length === 4) {
       setTimeout(() => setPinMesaInput(""), 500);
     }
@@ -1191,7 +1203,7 @@ const procesarEnvio = async (idDestino) => {
   
   const idFinal = esDeCasa ? `TEL:${telFinal}` : String(idDestino);
   
-  // 👤 Nombre de la persona que está realizando ESTE envío en particular (ej. Martín)
+  // 👤 Nombre de la persona que está realizando este envío en particular (ej. Martín)
   const nombreComprador = nombreUsuarioLogueado || usuarioLogueado?.displayName || (esComandaManual ? "Barra" : "Cliente");
 
   // 📝 Adjunta el nombre del comprador a cada ítem individual
@@ -1208,15 +1220,15 @@ const procesarEnvio = async (idDestino) => {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
-    // Buscamos si ya hay una comanda activa para esta mesa (asegurando comparación exacta)
-    const existente = pedidosBarra.find(p => String(p.mesa).trim().toUpperCase() === String(idFinal).trim().toUpperCase());
+    // Buscamos si ya hay una comanda activa para esta mesa
+    const existente = pedidosBarra.find(p => String(p.mesa).trim().toUpperCase() === String(idFinal).trim().toUpperCase() && p.estado === "pendiente");
     let idComandaActual = ""; 
     
     if (existente) {
       idComandaActual = existente.id; 
       
-      // 🔒 CANDADO BLINDADO: NO enviamos 'cliente' ni 'uid' original en el update.
-      // Firestore mantendrá intacto al dueño original (Héctor) en la comanda.
+      // 🎯 CORRECCIÓN CLAVE: 
+      // NO incluimos 'cliente' en el update. Firestore preserva el nombre del dueño original (Héctor).
       batch.update(doc(db, "pedidos", existente.id), { 
         detalle: existente.detalle + "\n" + detalleNuevo, 
         total: Number(existente.total) + Number(totalCarrito), 
@@ -1225,7 +1237,7 @@ const procesarEnvio = async (idDestino) => {
         telefono: existente.telefono || telFinal 
       });
     } else {
-      // 🌟 Si es comanda NUEVA, el primero en pedir (Héctor) queda como dueño registrado
+      // 🌟 Si la comanda es NUEVA, registra al primer comprador (Héctor) como dueño principal
       const nuevoPedidoRef = doc(collection(db, "pedidos"));
       idComandaActual = nuevoPedidoRef.id; 
       
@@ -1236,7 +1248,7 @@ const procesarEnvio = async (idDestino) => {
         estado: "pendiente", 
         fecha: serverTimestamp(), 
         archivado: false,
-        cliente: nombreComprador, // Registra al creador de la mesa
+        cliente: nombreComprador, // Héctor queda grabado como dueño
         telefono: telFinal,
         uid: uidFinal,
         alertaPrioridad: colorAlerta 
