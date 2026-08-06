@@ -1190,18 +1190,23 @@ const procesarEnvio = async (idDestino) => {
   
   const idFinal = esDeCasa ? `TEL:${telFinal}` : String(idDestino);
   
-  // 👤 1. ASEGURAMOS EL NOMBRE DEL COMPRADOR (Garantiza que siempre haya un texto visible)
+  // 👤 DIAGNÓSTICO DEL NOMBRE:
   const nombreComprador = 
     nombreUsuarioLogueado || 
     usuarioLogueado?.displayName || 
-    usuarioLogueado?.email?.split('@')[0] || 
+    (usuarioLogueado?.email ? usuarioLogueado.email.split('@')[0] : null) || 
     (esComandaManual ? "Barra" : "Cliente");
 
-  // 📝 2. FORMATO DEL DETALLE (Agrega el tag [Nombre] a cada renglón)
+  console.log("🔍 DIAGNÓSTICO - Nombre detectado para este ítem:", nombreComprador);
+  console.log("🔍 DIAGNÓSTICO - Carrito antes de enviar:", carrito);
+
+  // 📝 Adjunta [Nombre] a cada renglón del carrito enviado
   const detalleNuevo = carrito.map(i => {
     const quienPidio = i.cliente || nombreComprador;
     return `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad}) - [${quienPidio}]`;
   }).join('\n');
+
+  console.log("📝 DIAGNÓSTICO - String detalleNuevo generado:\n", detalleNuevo);
   
   try {
     const uidFinal = usuarioLogueado?.uid || null;
@@ -1211,21 +1216,20 @@ const procesarEnvio = async (idDestino) => {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
-    // 🔎 3. BÚSQUEDA A PRUEBA DE FALLOS:
-    // Limpiamos ambos lados de la comparación para asegurar que encuentre la comanda existente
-    const idFinalLimpio = String(idFinal).trim().toUpperCase();
-    const existente = pedidosBarra.find(p => 
-      String(p.mesa).trim().toUpperCase() === idFinalLimpio && 
-      (!p.estado || p.estado === "pendiente")
-    );
+    // 🔎 DIAGNÓSTICO DE BÚSQUEDA DE COMANDA
+    console.log("🔍 DIAGNÓSTICO - Buscando idFinal:", idFinal);
+    console.log("🔍 DIAGNÓSTICO - Contenido actual de pedidosBarra:", pedidosBarra);
+
+    const existente = pedidosBarra.find(p => String(p.mesa).trim().toUpperCase() === String(idFinal).trim().toUpperCase());
+    
+    console.log("🔍 DIAGNÓSTICO - Comanda 'existente' encontrada:", existente);
 
     let idComandaActual = ""; 
     
     if (existente) {
-      // 🟢 RUTA A: Se suma a la comanda existente (Ej. Martín se une a la mesa de Héctor)
+      console.log("✅ ENTRÓ A RUTA A (Actualizar comanda de " + existente.cliente + ")");
       idComandaActual = existente.id; 
       
-      // 🔒 NO ENVIAMOS EL CAMPO 'cliente': Firestore mantiene intacto el nombre del dueño (Héctor)
       batch.update(doc(db, "pedidos", existente.id), { 
         detalle: existente.detalle + "\n" + detalleNuevo, 
         total: Number(existente.total) + Number(totalCarrito), 
@@ -1234,7 +1238,7 @@ const procesarEnvio = async (idDestino) => {
         telefono: existente.telefono || telFinal 
       });
     } else {
-      // 🔴 RUTA B: Solo si es una mesa vacía y sin comanda activa (Ej. Héctor abre la mesa)
+      console.log("⚠️ ENTRÓ A RUTA B (Crear pedido NUEVO a nombre de " + nombreComprador + ")");
       const nuevoPedidoRef = doc(collection(db, "pedidos"));
       idComandaActual = nuevoPedidoRef.id; 
       
@@ -1245,7 +1249,7 @@ const procesarEnvio = async (idDestino) => {
         estado: "pendiente", 
         fecha: serverTimestamp(), 
         archivado: false,
-        cliente: nombreComprador, // Registra al dueño original (Héctor)
+        cliente: nombreComprador,
         telefono: telFinal,
         uid: uidFinal,
         alertaPrioridad: colorAlerta 
