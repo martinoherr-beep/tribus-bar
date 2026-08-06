@@ -1176,10 +1176,10 @@ const procesarEnvio = async (idDestino) => {
   
   const idFinal = esDeCasa ? `TEL:${telFinal}` : String(idDestino);
   
-  // 👤 Nombre de la persona que está realizando este envío actual
+  // 👤 Nombre de la persona que está realizando ESTE envío en particular (ej. Martín)
   const nombreComprador = nombreUsuarioLogueado || usuarioLogueado?.displayName || (esComandaManual ? "Barra" : "Cliente");
 
-  // 📝 Adjunta el nombre del comprador a cada renglón del ítem
+  // 📝 Adjunta el nombre del comprador a cada ítem individual
   const detalleNuevo = carrito.map(i => {
     const quienPidio = i.cliente || nombreComprador;
     return `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad}) - [${quienPidio}]`;
@@ -1193,24 +1193,24 @@ const procesarEnvio = async (idDestino) => {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
-    // Buscamos si ya hay una comanda activa para esta mesa
-    const existente = pedidosBarra.find(p => String(p.mesa) === String(idFinal));
+    // Buscamos si ya hay una comanda activa para esta mesa (asegurando comparación exacta)
+    const existente = pedidosBarra.find(p => String(p.mesa).trim().toUpperCase() === String(idFinal).trim().toUpperCase());
     let idComandaActual = ""; 
     
     if (existente) {
       idComandaActual = existente.id; 
+      
+      // 🔒 CANDADO BLINDADO: NO enviamos 'cliente' ni 'uid' original en el update.
+      // Firestore mantendrá intacto al dueño original (Héctor) en la comanda.
       batch.update(doc(db, "pedidos", existente.id), { 
         detalle: existente.detalle + "\n" + detalleNuevo, 
         total: Number(existente.total) + Number(totalCarrito), 
         fecha: serverTimestamp(),
-        // 🎯 FIX CLAVE: Si la comanda ya existe, MANTIENE el cliente original (dueño de la cuenta)
-        cliente: existente.cliente || nombreComprador,
-        uid: existente.uid || uidFinal || null,
         alertaPrioridad: colorAlerta,
         telefono: existente.telefono || telFinal 
       });
     } else {
-      // 🌟 Si es una comanda NUEVA, el primero en pedir (ej. Héctor) queda como dueño de la cuenta
+      // 🌟 Si es comanda NUEVA, el primero en pedir (Héctor) queda como dueño registrado
       const nuevoPedidoRef = doc(collection(db, "pedidos"));
       idComandaActual = nuevoPedidoRef.id; 
       
@@ -1221,7 +1221,7 @@ const procesarEnvio = async (idDestino) => {
         estado: "pendiente", 
         fecha: serverTimestamp(), 
         archivado: false,
-        cliente: nombreComprador, // Héctor se guarda como el dueño original
+        cliente: nombreComprador, // Registra al creador de la mesa
         telefono: telFinal,
         uid: uidFinal,
         alertaPrioridad: colorAlerta 
