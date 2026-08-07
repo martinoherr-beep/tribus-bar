@@ -99,6 +99,15 @@ function App() {
     nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", stockTerraza: "", 
     categoria: "Cerveza", subcategoria: "", imagen: ""
   });
+  // Coloca esto junto a tus declaraciones de estado (useState) principales:
+const [reloj, setReloj] = useState(Date.now());
+
+useEffect(() => {
+  const timer = setInterval(() => {
+    setReloj(Date.now());
+  }, 10000); // ⏱️ Se actualiza automáticamente cada 10 segundos
+  return () => clearInterval(timer);
+}, []);
 
  // 📱 ESCUCHADOR EN TIEMPO REAL PARA EL CLIENTE:
 useEffect(() => {
@@ -1792,11 +1801,8 @@ const guardarEvento = async (e) => {
   <p className="text-gray-500 text-center text-xs uppercase tracking-widest mt-20">No tienes pedidos activos</p>
 ) : (
   mispedidos.map((p) => {
-    // Forzamos string seguro para evitar fallos si la mesa viene vacía por alguna razón
     const mesaString = String(p.mesa || "").toUpperCase();
     const esPedidoExterno = mesaString.includes('TEL');
-    
-    // Sincronizamos con tu propiedad real de la base de datos que es "estado"
     const estadoReal = p.estado || "pendiente"; 
 
     return (
@@ -1805,7 +1811,6 @@ const guardarEvento = async (e) => {
           <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">
             {esPedidoExterno ? 'Para Llevar / Domicilio' : `Mesa ${p.mesa}`}
           </span>
-          {/* 🟢 SOLUCIONADO: Ahora lee "estado" y pinta tus colores correctos */}
           <span className={`text-[9px] font-bold px-3 py-1 rounded-full uppercase ${
             estadoReal === 'pendiente' ? 'bg-amber-500/10 text-amber-500' : 
             estadoReal === 'preparando' ? 'bg-sky-500/10 text-sky-500' : 
@@ -1817,13 +1822,12 @@ const guardarEvento = async (e) => {
         
         <p className="text-[11px] text-gray-400 whitespace-pre-line mb-3">{p.detalle}</p>
         
-   <div className="border-t border-gray-800 pt-3 flex flex-col gap-2">
+        <div className="border-t border-gray-800 pt-3 flex flex-col gap-2">
           <div className="flex justify-between items-center">
             <span className="text-xs font-bold text-gray-500 italic">Total</span>
             <span className="text-lg font-black text-white">${p.total}</span>
           </div>
 
-          {/* 💳 CASO 1: PEDIDOS EXTERNOS (YA LO TENÍAS) */}
           {esPedidoExterno && estadoReal !== 'entregado' && (
             <button 
               onClick={() => informarPago(p.id)} 
@@ -1838,7 +1842,6 @@ const guardarEvento = async (e) => {
             </button>
           )}
 
-          {/* 💵 CASO 2: CLIENTE EN EL BAR (NUEVO BOTÓN SOLICITAR CUENTA) */}
           {!esPedidoExterno && (
             <button
               type="button"
@@ -2063,48 +2066,79 @@ const guardarEvento = async (e) => {
           {tabBarra === 'comandas' && (
             <div className="no-print">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-    {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).filter(p => {
+   {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).filter(p => {
   if (areaStaff === 'TODOS') return true;
   return obtenerPlanta(p.mesa) === areaStaff; 
 }).map(p => {
   const esExterno = String(p.mesa).startsWith("TEL:") || p.mesa === "T" || p.mesa === "B";
   const numTel = p.telefono || (String(p.mesa).startsWith("TEL:") ? p.mesa.replace("TEL:", "") : "");
   
-  // ⏱️ CÁLCULO DE TIEMPO (Semáforo)
+  // ⏱️ Cálculo dinámico vinculado al temporizador automático (reloj)
   const fechaCreacionObj = p.fecha?.seconds ? new Date(p.fecha.seconds * 1000) : new Date();
-  const minutosTranscurridos = Math.floor((new Date() - fechaCreacionObj) / (1000 * 60));
+  const minutosTranscurridos = Math.floor((reloj - fechaCreacionObj.getTime()) / (1000 * 60));
 
-  let claseTiempoVisual = "border-slate-800"; 
-  let etiquetaTiempoColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+  // 📋 Verificamos si TODOS los productos ya tienen su check de servido
+  const lineasDetalle = p.detalle.split('\n');
+  const indicesProductos = lineasDetalle
+    .map((linea, idx) => (/^\d+x/.test(linea.trim()) ? idx : -1))
+    .filter(idx => idx !== -1);
 
-  if (minutosTranscurridos > 20) {
-    claseTiempoVisual = "alerta-roja-tiempo"; // Rojo destellante
-    etiquetaTiempoColor = "bg-red-500 text-white animate-pulse";
+  const itemsServidosMap = p.servidos || {};
+  const todoServido = indicesProductos.length > 0 && indicesProductos.every(idx => itemsServidosMap[idx]);
+
+  // 🎨 Clases de color basadas en si ya se terminó de servir o el tiempo transcurrido
+  let claseBordeTiempo = "border-slate-800";
+  if (todoServido) {
+    claseBordeTiempo = "border-emerald-500/60 bg-emerald-950/10 opacity-75";
+  } else if (minutosTranscurridos > 20) {
+    claseBordeTiempo = "alerta-roja-tiempo border-red-500";
   } else if (minutosTranscurridos > 10) {
-    claseTiempoVisual = "border-amber-500/80"; // Amarillo
-    etiquetaTiempoColor = "bg-amber-500/20 text-amber-400 border-amber-500/30";
+    claseBordeTiempo = "border-amber-500/80 shadow-amber-950/20";
   }
 
   return (
     <div 
       key={p.id} 
       className={`bg-[#0c111a] border p-3.5 rounded-xl relative shadow-lg flex flex-col justify-between group transition-all text-left ${
-        p.solicitaCuenta ? 'border-amber-500 shadow-amber-950/40' : claseTiempoVisual
+        p.solicitaCuenta ? 'border-amber-500 shadow-amber-950/40' : claseBordeTiempo
       }`}
     >
-      <div className={`absolute top-0 left-0 w-1.5 h-full ${minutosTranscurridos > 20 ? 'bg-red-500' : minutosTranscurridos > 10 ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
+      <div className={`absolute top-0 left-0 w-1.5 h-full ${todoServido ? 'bg-emerald-500' : minutosTranscurridos > 20 ? 'bg-red-500' : minutosTranscurridos > 10 ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
       
       <div>
+        {/* Cabecera con cliente VIP y el Indicador de tiempo o estado ATENDIDO */}
         <div className="flex justify-between items-center mb-2">
-          {p.alertaPrioridad && (
+          {p.alertaPrioridad ? (
             <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               👑 Cliente VIP
             </span>
+          ) : <span />}
+
+          {/* ⏱️ Si está todo servido muestra ATENDIDO verde, de lo contrario muestra el semáforo */}
+          {todoServido ? (
+            <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-md border bg-emerald-500 text-black border-emerald-400 tracking-wider shadow-md">
+              ✅ ATENDIDO
+            </span>
+          ) : (
+            (() => {
+              let etiquetaClase = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+              let textoAlerta = `⏱️ ${minutosTranscurridos} min`;
+
+              if (minutosTranscurridos > 5) {
+                etiquetaClase = "bg-red-600 text-white animate-pulse shadow-lg shadow-red-900/50 border-red-500";
+                textoAlerta = `🔥 URGENTE (${minutosTranscurridos} min)`;
+              } else if (minutosTranscurridos > 3) {
+                etiquetaClase = "bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse";
+                textoAlerta = `⚠️ ATENCIÓN (${minutosTranscurridos} min)`;
+              }
+
+              return (
+                <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md border ml-auto ${etiquetaClase}`}>
+  {textoAlerta}
+</span>
+              );
+            })()
           )}
-          {/* Indicador de minutos */}
-          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ml-auto ${etiquetaTiempoColor}`}>
-            ⏱️ {minutosTranscurridos} min
-          </span>
         </div>
 
         <div className="flex justify-between items-start">
@@ -2143,11 +2177,10 @@ const guardarEvento = async (e) => {
           </div>
         )}
 
-        {/* 📋 LISTA DE PRODUCTOS CON CHECKBOX INTERACTIVO */}
+        {/* 📋 LISTA DE PRODUCTOS CON CHECKBOX DE SERVIDO */}
         <div className="mt-3 space-y-1.5">
-          {p.detalle.split('\n').map((linea, idx) => {
-            const esProducto = /^\d+x/.test(linea.trim());
-            const itemsServidosMap = p.servidos || {};
+          {lineasDetalle.map((linea, idx) => {
+           const esProducto = linea.trim().length > 1 && !isNaN(linea.trim()[0]) && linea.trim().includes('x');
             const estaServido = !!itemsServidosMap[idx];
 
             return (
