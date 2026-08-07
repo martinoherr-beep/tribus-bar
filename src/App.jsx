@@ -2063,63 +2063,49 @@ const guardarEvento = async (e) => {
           {tabBarra === 'comandas' && (
             <div className="no-print">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).filter(p => {
+    {pedidosBarra.filter(p => String(p.mesa).toLowerCase().includes(filtroMesa.toLowerCase())).filter(p => {
   if (areaStaff === 'TODOS') return true;
   return obtenerPlanta(p.mesa) === areaStaff; 
 }).map(p => {
   const esExterno = String(p.mesa).startsWith("TEL:") || p.mesa === "T" || p.mesa === "B";
   const numTel = p.telefono || (String(p.mesa).startsWith("TEL:") ? p.mesa.replace("TEL:", "") : "");
-  const mensajeWA = `Hola! Te escribimos de Tribu's Bar. Tu pedido está listo.\n\n*Total a pagar: $${p.total}*\n\n*Detalle del pedido:*\n${p.detalle}\n\n${DATOS_PAGO}`;
   
-  // 🎨 NUEVO: Si solicita la cuenta, el cintillo cambia a ámbar automáticamente
-  const colorCintillo = 
-  p.solicitaCuenta ? 'bg-amber-500' :
-  p.alertaPrioridad === 'verde' ? 'bg-emerald-500' : 
-  p.alertaPrioridad === 'amarilla' ? 'bg-amber-500' : 
-  p.alertaPrioridad === 'morada' ? 'bg-purple-500' : 
-  (esExterno ? 'bg-blue-600' : 'bg-purple-500');
+  // ⏱️ CÁLCULO DE TIEMPO (Semáforo)
+  const fechaCreacionObj = p.fecha?.seconds ? new Date(p.fecha.seconds * 1000) : new Date();
+  const minutosTranscurridos = Math.floor((new Date() - fechaCreacionObj) / (1000 * 60));
+
+  let claseTiempoVisual = "border-slate-800"; 
+  let etiquetaTiempoColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+
+  if (minutosTranscurridos > 20) {
+    claseTiempoVisual = "alerta-roja-tiempo"; // Rojo destellante
+    etiquetaTiempoColor = "bg-red-500 text-white animate-pulse";
+  } else if (minutosTranscurridos > 10) {
+    claseTiempoVisual = "border-amber-500/80"; // Amarillo
+    etiquetaTiempoColor = "bg-amber-500/20 text-amber-400 border-amber-500/30";
+  }
 
   return (
     <div 
       key={p.id} 
       className={`bg-[#0c111a] border p-3.5 rounded-xl relative shadow-lg flex flex-col justify-between group transition-all text-left ${
-        p.solicitaCuenta ? 'border-amber-500 shadow-amber-950/40' : 'border-slate-800'
+        p.solicitaCuenta ? 'border-amber-500 shadow-amber-950/40' : claseTiempoVisual
       }`}
     >
-      <div className={`absolute top-0 left-0 w-1.5 h-full ${colorCintillo}`}></div>
+      <div className={`absolute top-0 left-0 w-1.5 h-full ${minutosTranscurridos > 20 ? 'bg-red-500' : minutosTranscurridos > 10 ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
       
-      {/* 💵 NUEVO: Alerta parpadeante de cuenta solicitada */}
-      {p.solicitaCuenta && (
-        <div className="bg-amber-500 text-black text-[10px] font-black p-2 rounded-lg mb-2.5 flex items-center justify-center gap-1.5 animate-pulse shadow-md border border-amber-400/20">
-          💵 SOLICITA CUENTA / PAGAR EN MESA
-        </div>
-      )}
-
-      {p.pagoInformado && (
-        <div className="bg-blue-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex items-center justify-center gap-1.5 animate-pulse shadow-md border border-blue-400/20">
-          <CheckCircle size={12} /> PAGO INFORMADO - VERIFICAR CAJA
-        </div>
-      )}
-      {p.pideTraslado && (
-        <div className="bg-red-600 text-white text-[9px] font-black p-2 rounded-lg mb-2.5 flex flex-col items-center justify-center gap-1 animate-pulse shadow-md border border-red-400/20 text-center uppercase">
-          <span>⚠️ CLIENTE SOLICITA TRASLADO</span>
-          <span className="text-xs font-black bg-black/40 px-2 py-0.5 rounded mt-0.5">MOVER A MESA {p.solicitudTraslado}</span>
-        </div>
-      )}
       <div>
-        {p.alertaPrioridad && (
-          <div className="mb-2">
-            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${
-              p.alertaPrioridad === 'verde' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-              p.alertaPrioridad === 'amarilla' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-              'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-            }`}>
-              {p.alertaPrioridad === 'verde' ? '👑 Cliente VIP' :
-               p.alertaPrioridad === 'amarilla' ? '🍺 Regular' :
-               '⚡ Esporádico'}
+        <div className="flex justify-between items-center mb-2">
+          {p.alertaPrioridad && (
+            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              👑 Cliente VIP
             </span>
-          </div>
-        )}
+          )}
+          {/* Indicador de minutos */}
+          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ml-auto ${etiquetaTiempoColor}`}>
+            ⏱️ {minutosTranscurridos} min
+          </span>
+        </div>
 
         <div className="flex justify-between items-start">
           <div className="flex flex-col leading-tight">
@@ -2132,9 +2118,7 @@ const guardarEvento = async (e) => {
               </span>
             )}
             <span className="text-[9px] font-black uppercase tracking-widest mt-0.5 text-slate-400">
-              ZONA: <span className={obtenerPlanta(p.mesa) === 'TERRAZA' ? 'text-sky-400' : 'text-orange-400'}>
-                {obtenerPlanta(p.mesa)}
-              </span>
+              ZONA: <span className="text-orange-400">{obtenerPlanta(p.mesa)}</span>
             </span>
           </div>
           
@@ -2143,17 +2127,8 @@ const guardarEvento = async (e) => {
               <ExternalLink size={15}/>
             </button>
             <button onClick={async () => { 
-              if(window.confirm("¿Cancelar pedido? El stock regresará.")) { 
-                const batch = writeBatch(db); 
-                p.detalle.split('\n').forEach(linea => { 
-                  const m = linea.match(/(\d+)x (.*) \(\$/); 
-                  if (m) { 
-                    const prodEnc = productosMenu.find(pr => pr.nombre.trim() === m[2].trim()); 
-                    if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(m[1])) }); 
-                  } 
-                }); 
-                batch.delete(doc(db, "pedidos", p.id)); 
-                await batch.commit(); 
+              if(window.confirm("¿Cancelar pedido?")) { 
+                await deleteDoc(doc(db, "pedidos", p.id)); 
               } 
             }} className="p-1 text-slate-700 hover:text-red-500 transition-colors">
               <Trash2 size={15}/>
@@ -2168,39 +2143,42 @@ const guardarEvento = async (e) => {
           </div>
         )}
 
-        <div className="mt-3 space-y-1 max-h-[150px] overflow-y-auto no-scrollbar">
+        {/* 📋 LISTA DE PRODUCTOS CON CHECKBOX INTERACTIVO */}
+        <div className="mt-3 space-y-1.5">
           {p.detalle.split('\n').map((linea, idx) => {
             const esProducto = /^\d+x/.test(linea.trim());
+            const itemsServidosMap = p.servidos || {};
+            const estaServido = !!itemsServidosMap[idx];
+
             return (
-              <div key={idx} className="group/item flex justify-between items-center bg-black/20 p-1.5 rounded-md border border-white/5">
-                <span className={`text-sm tracking-tight leading-none ${!esProducto ? 'text-orange-500 font-bold text-[10px]' : 'text-slate-300'}`}>
-                  {linea}
-                </span>
-                {esProducto && (
-                  <button onClick={() => eliminarArticuloComanda(p, idx)} className="opacity-0 group-hover/item:opacity-100 p-0.5 text-red-500/50 hover:text-red-500 transition-all">
-                    <X size={12}/>
-                  </button>
-                )}
+              <div key={idx} className={`flex items-center justify-between px-2.5 py-2 rounded-lg border transition-all ${estaServido ? 'bg-emerald-950/20 border-emerald-500/30 opacity-50' : 'bg-[#121824] border-white/5'}`}>
+                <label className="flex items-center gap-2.5 cursor-pointer flex-1 select-none">
+                  {esProducto && (
+                    <input 
+                      type="checkbox"
+                      checked={estaServido}
+                      onChange={async (e) => {
+                        const nuevoEstadoServidos = { ...itemsServidosMap, [idx]: e.target.checked };
+                        await updateDoc(doc(db, "pedidos", p.id), {
+                          servidos: nuevoEstadoServidos
+                        });
+                      }}
+                      className="w-4 h-4 accent-emerald-500 cursor-pointer rounded"
+                    />
+                  )}
+                  <span className={`text-xs tracking-tight leading-tight ${estaServido ? 'line-through text-slate-400' : 'text-slate-200'}`}>
+                    {linea}
+                  </span>
+                </label>
               </div>
             );
           })}
         </div>
-
-        {esExterno && (
-          <button onClick={() => window.open(`https://wa.me/${numTel}?text=${encodeURIComponent(mensajeWA)}`, '_blank')} className="flex items-center justify-center gap-1.5 bg-green-600/10 border border-green-600/20 text-green-500 w-full py-2 rounded-lg font-black uppercase text-[10px] mt-2.5 hover:bg-green-600 hover:text-white transition-all">
-            <Phone size={12}/> Enviar Datos Bancarios
-          </button>
-        )}
       </div>
       
-      {/* 💵 NUEVO: El botón de cobrar resalta en color ámbar/negro si están llamando para pagar */}
       <button 
         onClick={() => cobrarCuenta(p)} 
-        className={`w-full py-2.5 rounded-xl font-black text-sm mt-4 active:scale-95 uppercase tracking-tight shadow-md transition-all ${
-          p.solicitaCuenta 
-            ? 'bg-amber-500 text-black hover:bg-amber-400 shadow-amber-500/10' 
-            : 'bg-orange-600 text-white hover:bg-orange-500'
-        }`}
+        className="w-full py-2.5 rounded-xl font-black text-sm mt-4 active:scale-95 uppercase tracking-tight shadow-md transition-all bg-orange-600 text-white hover:bg-orange-500"
       >
         Cobrar ${p.total}
       </button>
