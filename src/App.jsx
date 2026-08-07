@@ -108,6 +108,7 @@ useEffect(() => {
   }, 10000); // ⏱️ Se actualiza automáticamente cada 10 segundos
   return () => clearInterval(timer);
 }, []);
+// ⏱️ Cálculo de tiempo transcurrido
 
  // 📱 ESCUCHADOR EN TIEMPO REAL PARA EL CLIENTE:
 useEffect(() => {
@@ -1245,10 +1246,9 @@ const procesarEnvio = async (idDestino) => {
     }
 
     // 🔎 Búsqueda de comanda activa para la mesa en Firestore
-  // 🔎 BÚSQUEDA BLINDADA DE COMANDA ACTIVA
     let existente = null;
     if (!esDeCasaTemp) {
-      // 1. Intentamos buscar primero por el ID guardado localmente (para asegurar que se unan a la misma)
+      // 1. Intentamos buscar primero por el ID guardado localmente
       const comandaIdLocal = localStorage.getItem("tribu_comanda_id");
       if (comandaIdLocal) {
         const docRefLocal = doc(db, "pedidos", comandaIdLocal);
@@ -1276,7 +1276,7 @@ const procesarEnvio = async (idDestino) => {
     let idComandaActual = ""; 
     
     if (existente) {
-      // 🟢 RUTA A: La mesa YA existe (Martín se une a Héctor de forma segura)
+      // 🟢 RUTA A: La mesa YA existe
       idComandaActual = existente.id; 
 
       batch.update(doc(db, "pedidos", existente.id), { 
@@ -1287,7 +1287,7 @@ const procesarEnvio = async (idDestino) => {
       });
 
     } else {
-      // 🔴 RUTA B: La mesa realmente está vacía (Nadie la ha abierto)
+      // 🔴 RUTA B: La mesa está vacía
       const nuevoPedidoRef = doc(collection(db, "pedidos"));
       idComandaActual = nuevoPedidoRef.id; 
       
@@ -1310,10 +1310,25 @@ const procesarEnvio = async (idDestino) => {
       batch.set(nuevoPedidoRef, datosNuevoPedido);
     }
 
+    // ---------------------------------------------------------------------------
+    // 📦 REINCORPORACIÓN DE DESCUENTO DE STOCK EN FIRESTORE
+    // ---------------------------------------------------------------------------
+    carrito.forEach((item) => {
+  if (!item.id) {
+    alert(`❌ ERROR DE ID: El producto ${item.nombre} no tiene ID de Firestore.`);
+    return;
+  }
+  const prodRef = doc(db, "productos", item.id);
+  const cantidadARestar = Number(item.cantidad || 1);
+  batch.update(prodRef, {
+    stock: increment(-cantidadARestar)
+  });
+});
+
     // 💾 Guardamos obligatoriamente el ID actual en el teléfono de Martín
     localStorage.setItem("tribu_comanda_id", idComandaActual);
 
-    // 🚀 Ejecutamos los cambios en Firestore
+    // 🚀 Ejecutamos TODOS los cambios en Firestore (Pedido + Descuentos)
     await batch.commit();
 
     // 🔄 Limpieza de interfaz tras enviar
@@ -2083,27 +2098,30 @@ const guardarEvento = async (e) => {
     .map((linea, idx) => (/^\d+x/.test(linea.trim()) ? idx : -1))
     .filter(idx => idx !== -1);
 
-  const itemsServidosMap = p.servidos || {};
+const itemsServidosMap = p.servidos || {};
   const todoServido = indicesProductos.length > 0 && indicesProductos.every(idx => itemsServidosMap[idx]);
 
-  // 🎨 Clases de color basadas en si ya se terminó de servir o el tiempo transcurrido
-  let claseBordeTiempo = "border-slate-800";
+  // 🎨 Clases de color de TODA la tarjeta (borde, fondo y animaciones)
+  let claseBordeTiempo = "border-slate-800 bg-[#0c111a]"; // Estado normal (0 a 3 min)
+
   if (todoServido) {
-    claseBordeTiempo = "border-emerald-500/60 bg-emerald-950/10 opacity-75";
-  } else if (minutosTranscurridos > 20) {
-    claseBordeTiempo = "alerta-roja-tiempo border-red-500";
-  } else if (minutosTranscurridos > 10) {
-    claseBordeTiempo = "border-amber-500/80 shadow-amber-950/20";
+    claseBordeTiempo = "border-emerald-500/60 bg-emerald-950/20 opacity-75";
+  } else if (minutosTranscurridos > 5) {
+    // 🔥 URGENTE (> 5 min): Fondo rojo intenso con pulso de alerta
+    claseBordeTiempo = "border-red-500 bg-red-950/60 shadow-xl shadow-red-950/50 animate-pulse";
+  } else if (minutosTranscurridos > 3) {
+    // ⚠️ ATENCIÓN (3 a 5 min): Fondo ámbar/amarillo
+    claseBordeTiempo = "border-amber-500/80 bg-amber-950/40 shadow-lg shadow-amber-950/30";
   }
 
   return (
     <div 
       key={p.id} 
-      className={`bg-[#0c111a] border p-3.5 rounded-xl relative shadow-lg flex flex-col justify-between group transition-all text-left ${
-        p.solicitaCuenta ? 'border-amber-500 shadow-amber-950/40' : claseBordeTiempo
+      className={`border p-3.5 rounded-xl relative shadow-lg flex flex-col justify-between group transition-all text-left ${
+        p.solicitaCuenta ? 'border-amber-500 bg-amber-950/50 shadow-amber-950/40' : claseBordeTiempo
       }`}
     >
-      <div className={`absolute top-0 left-0 w-1.5 h-full ${todoServido ? 'bg-emerald-500' : minutosTranscurridos > 20 ? 'bg-red-500' : minutosTranscurridos > 10 ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
+      <div className={`absolute top-0 left-0 w-1.5 h-full ${todoServido ? 'bg-emerald-500' : minutosTranscurridos > 5 ? 'bg-red-500' : minutosTranscurridos > 3 ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
       
       <div>
         {/* Cabecera con cliente VIP y el Indicador de tiempo o estado ATENDIDO */}
