@@ -79,11 +79,11 @@ function App() {
   const [carrito, setCarrito] = useState([]);
   const [consumoAcumulado, setConsumoAcumulado] = useState([]); 
   const [mesa, setMesa] = useState(null);
-  
+  const [verModalPin, setVerModalPin] = useState(false);
   // 1. Declaramos primero los estados de historial y auth
   const [historialCerrado, setHistorialCerrado] = useState([]); 
   const [usuarioLogueado, setUsuarioLogueado] = useState(null);
-
+  
   // 2. Ahora sí podemos declarar listaTickets sin que falle
   const listaTickets = historialCerrado || [];
 
@@ -1134,11 +1134,20 @@ if (comandaIdGuardada) {
       // ─── TU PROCESADOR DE TEXTO ORIGINAL (MANTENIDO SEGURO) ───
   // 🔍 BUSCA ESTA SECCIÓN EN TU useEffect Y DÉJALA ASÍ:
 if (pedidoMesa && pedidoMesa.pinMesa) {
-    // Solo forzamos la validación en false si el PIN cambió o es una mesa distinta
+    const pinGuardado = localStorage.getItem(`mesa_validada_${pedidoMesa.mesa}`);
+    
+    // Solo forzamos la validación en false si el PIN cambió Y este cliente no lo tiene validado localmente
     if (pinCorrectoMesa !== pedidoMesa.pinMesa) {
         setPinCorrectoMesa(pedidoMesa.pinMesa);
-        setMesaValidada(false); 
-        setPinMesaInput(""); // Limpiamos el input anterior por seguridad
+        
+        if (pinGuardado === pedidoMesa.pinMesa) {
+            // Si el cliente ya tenía guardado este mismo PIN en su celular, sigue validado
+            setMesaValidada(true);
+        } else {
+            // Si es un PIN distinto al que tenía guardado o no ha ingresado el PIN en este celular
+            setMesaValidada(false); 
+            setPinMesaInput(""); // Limpiamos el input anterior por seguridad
+        }
     }
     
     const items = pedidoMesa.detalle.split('\n').map(linea => {
@@ -1157,6 +1166,7 @@ if (pedidoMesa && pedidoMesa.pinMesa) {
     setConsumoAcumulado(items);
     setPinCorrectoMesa(null);
 } else {
+    // Si la mesa no tiene pedidos activos (mesa limpia/nueva)
     setMesaValidada(true); 
     setConsumoAcumulado([]); 
     setPinCorrectoMesa(null);
@@ -1174,13 +1184,13 @@ const manejarPinMesa = (num) => {
     setPinMesaInput(nuevoPin);
 
     if (nuevoPin === String(pinCorrectoMesa)) {
+      // 💾 Guardar validación en el dispositivo local del cliente
+      localStorage.setItem(`mesa_validada_${mesa}`, nuevoPin);
       setMesaValidada(true);
       setPinMesaInput("");
       
-      // 🎯 UNA VEZ VALIDADO EL PIN, PROCESAMOS EL PEDIDO DE MARTÍN
-      // Al llamar procesarEnvio aquí, mesaValidada ya es true y Martín enviará su pedido correctamente unido a Héctor
       setTimeout(() => {
-        procesarEnvio(mesaSeleccionada);
+        procesarEnvio(mesa);
       }, 100);
 
     } else if (nuevoPin.length === 4) {
@@ -1263,14 +1273,12 @@ const obtenerAlertaCliente = async (telefonoCliente, uidCliente) => {
 };
 
 const procesarEnvio = async (idDestino) => {
-  // ---------------------------------------------------------------------------
-  // 🚨 FRENO DE SEGURIDAD: Validar PIN antes de continuar
-  // ---------------------------------------------------------------------------
   const mesaLimpiaTemp = idDestino ? String(idDestino).toUpperCase().trim() : "";
   const esDeCasaTemp = !mesaLimpiaTemp || mesaLimpiaTemp === "T" || mesaLimpiaTemp === "B";
 
+  // 🚨 FRENO DE SEGURIDAD: Solo frena si la mesa requiere validación (acompañante)
   if (!esDeCasaTemp && !mesaValidada) {
-    setVerModalPin(true);
+    alert("🔒 Esta mesa tiene una cuenta activa. Por favor ingresa el PIN de seguridad asignado.");
     return; // ⛔ Frena el envío
   }
 
@@ -1287,7 +1295,6 @@ const procesarEnvio = async (idDestino) => {
   const telFinal = telActual || "S/N";
   const idFinal = esDeCasaTemp ? `TEL:${telFinal}` : String(idDestino);
   
-  // 👤 Obtenemos el nombre exacto de la persona que presiona el botón EN ESTE MOMENTO
   const nombreComprador = 
     nombreUsuarioLogueado || 
     (typeof nombreRegistro !== "undefined" ? nombreRegistro : null) ||
@@ -1295,7 +1302,6 @@ const procesarEnvio = async (idDestino) => {
     (usuarioLogueado?.email ? usuarioLogueado.email.split('@')[0] : null) || 
     "Invitado";
 
-  // 📝 Formateamos el detalle de lo que se va a enviar en este carrito
   const detalleNuevo = carrito.map(i => {
     return `${i.cantidad}x ${i.nombre} ($${i.precio * i.cantidad}) - [${nombreComprador}]`;
   }).join('\n');
@@ -1309,10 +1315,8 @@ const procesarEnvio = async (idDestino) => {
        colorAlerta = await obtenerAlertaCliente(telFinal, uidFinal);
     }
 
-    // 🔎 Búsqueda de comanda activa para la mesa en Firestore
     let existente = null;
     if (!esDeCasaTemp) {
-      // 1. Intentamos buscar primero por el ID guardado localmente
       const comandaIdLocal = localStorage.getItem("tribu_comanda_id");
       if (comandaIdLocal) {
         const docRefLocal = doc(db, "pedidos", comandaIdLocal);
@@ -1322,7 +1326,6 @@ const procesarEnvio = async (idDestino) => {
         }
       }
 
-      // 2. Si no hay ID local, buscamos por el número de mesa en Firestore
       if (!existente) {
         const q = query(
           collection(db, "pedidos"), 
@@ -1351,10 +1354,12 @@ const procesarEnvio = async (idDestino) => {
       });
 
     } else {
-      // 🔴 RUTA B: La mesa está vacía
+      // 🔴 RUTA B: Primera compra (Dueño de la mesa)
       const nuevoPedidoRef = doc(collection(db, "pedidos"));
       idComandaActual = nuevoPedidoRef.id; 
       
+      const pinNuevo = Math.floor(1000 + Math.random() * 9000);
+
       const datosNuevoPedido = { 
         mesa: String(idFinal), 
         detalle: detalleNuevo, 
@@ -1369,33 +1374,29 @@ const procesarEnvio = async (idDestino) => {
       };
 
       if (!esDeCasaTemp && !isNaN(idFinal)) {
-         datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
+         datosNuevoPedido.pinMesa = pinNuevo;
+         // 🔑 Auto-validamos al dueño en su propio dispositivo
+         localStorage.setItem(`mesa_validada_${idFinal}`, String(pinNuevo));
+         setPinCorrectoMesa(pinNuevo);
+         setMesaValidada(true);
       }
       batch.set(nuevoPedidoRef, datosNuevoPedido);
     }
 
-    // ---------------------------------------------------------------------------
-    // 📦 REINCORPORACIÓN DE DESCUENTO DE STOCK EN FIRESTORE
-    // ---------------------------------------------------------------------------
+    // Descuento de stock
     carrito.forEach((item) => {
-  if (!item.id) {
-    alert(`❌ ERROR DE ID: El producto ${item.nombre} no tiene ID de Firestore.`);
-    return;
-  }
-  const prodRef = doc(db, "productos", item.id);
-  const cantidadARestar = Number(item.cantidad || 1);
-  batch.update(prodRef, {
-    stock: increment(-cantidadARestar)
-  });
-});
+      if (!item.id) return;
+      const prodRef = doc(db, "productos", item.id);
+      const cantidadARestar = Number(item.cantidad || 1);
+      batch.update(prodRef, {
+        stock: increment(-cantidadARestar)
+      });
+    });
 
-    // 💾 Guardamos obligatoriamente el ID actual en el teléfono de Martín
     localStorage.setItem("tribu_comanda_id", idComandaActual);
 
-    // 🚀 Ejecutamos TODOS los cambios en Firestore (Pedido + Descuentos)
     await batch.commit();
 
-    // 🔄 Limpieza de interfaz tras enviar
     if (typeof esComandaManual !== "undefined" && esComandaManual) {
        setView('barra');
        setTabBarra('comandas');
@@ -2214,14 +2215,39 @@ const itemsServidosMap = p.servidos || {};
       <div className={`absolute top-0 left-0 w-1.5 h-full ${todoServido ? 'bg-emerald-500' : minutosTranscurridos > 5 ? 'bg-red-500' : minutosTranscurridos > 3 ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
       
       <div>
+      {/* 💳 AGREGAR AQUÍ: ALERTA DE PAGO INFORMADO POR EL CLIENTE DESDE CASA */}
+      {p.pagoInformado && (
+        <div className="bg-blue-600/20 border border-blue-500 text-blue-400 p-2 rounded-xl mb-2 flex items-center justify-between animate-pulse">
+          <span className="text-[10px] font-black uppercase tracking-wider">
+            💳 ¡PAGO INFORMADO!
+          </span>
+          <span className="text-[8px] font-black bg-blue-500 text-black px-1.5 py-0.5 rounded uppercase">
+            Verificar Banco
+          </span>
+        </div>
+      )}
+      {/* 🔔 ALERTA 2: MESA FÍSICA PIDE LA CUENTA */}
+      {p.solicitaCuenta && (
+        <div className="bg-amber-500/20 border border-amber-500 text-amber-400 p-2.5 rounded-xl mb-2 flex items-center justify-between animate-pulse shadow-lg shadow-amber-950/40">
+          <span className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+            🔔 ¡MESA {p.mesa} SOLICITA CUENTA!
+          </span>
+          <span className="text-[8px] font-black bg-amber-500 text-black px-2 py-0.5 rounded uppercase">
+            Llevar Ticket
+          </span>
+        </div>
+      )}
         {/* Cabecera con cliente VIP y el Indicador de tiempo o estado ATENDIDO */}
         <div className="flex justify-between items-center mb-2">
-          {p.alertaPrioridad ? (
-            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              👑 Cliente VIP
-            </span>
-          ) : <span />}
-
+        {p.alertaPrioridad === "verde" ? (
+  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+    👑 Cliente VIP
+  </span>
+) : p.alertaPrioridad === "amarilla" ? (
+  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
+    ⭐ Cliente Frecuente
+  </span>
+) : <span />}
           {/* ⏱️ Si está todo servido muestra ATENDIDO verde, de lo contrario muestra el semáforo */}
           {todoServido ? (
             <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-md border bg-emerald-500 text-black border-emerald-400 tracking-wider shadow-md">
