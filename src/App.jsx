@@ -520,6 +520,21 @@ useEffect(() => {
     );
   }
 }, []);
+// --- ESCUCHADOR EN TIEMPO REAL PARA EL MENÚ Y STOCK ---
+useEffect(() => {
+  const unsubscribe = onSnapshot(collection(db, "productos"), (snapshot) => {
+    const listaProds = snapshot.docs.map((doc) => ({
+      id: doc.id, // 👈 Asigna el ID único del documento de Firestore a cada producto
+      ...doc.data()
+    }));
+    setProductosMenu(listaProds);
+  }, (error) => {
+    console.error("Error cargando productos:", error);
+  });
+
+  // Limpia el listener cuando el componente se desmonta
+  return () => unsubscribe();
+}, []);
 
 useEffect(() => {
   const q = query(
@@ -1141,14 +1156,30 @@ const manejarPinMesa = (num) => {
   }
 };
 
- const agregarAlCarrito = (item) => {
-   const p = obtenerPrecioItem(item);
-   const itemStock = productosMenu.find(x => x.id === item.id);
-   const ex = carrito.find(x => x.id === item.id);
-   if (itemStock && itemStock.stock <= (ex ? ex.cantidad : 0)) return alert("Sin stock.");
-   if (ex) setCarrito(carrito.map(x => x.id === item.id ? { ...ex, cantidad: ex.cantidad + 1 } : x)); 
-   else setCarrito([...carrito, { ...item, precio: p, carrot: 1, cantidad: 1 }]);
- };
+const agregarAlCarrito = (item) => {
+  // Aseguramos obtener el ID (ya sea que venga como item.id o item._id)
+  const idProducto = item.id || item._id;
+
+  if (!idProducto) {
+    console.error("⚠️ El producto seleccionado no tiene ID válido:", item);
+    return alert("Error al seleccionar el producto (sin ID).");
+  }
+
+  const p = obtenerPrecioItem(item);
+  const itemStock = productosMenu.find(x => x.id === idProducto);
+  const ex = carrito.find(x => x.id === idProducto);
+
+  if (itemStock && itemStock.stock <= (ex ? ex.cantidad : 0)) {
+    return alert("Sin stock.");
+  }
+
+  if (ex) {
+    setCarrito(carrito.map(x => x.id === idProducto ? { ...ex, cantidad: ex.cantidad + 1 } : x));
+  } else {
+    // 👈 GARANTIZAMOS QUE EL ID VA EN EL ELEMENTO DEL CARRITO
+    setCarrito([...carrito, { ...item, id: idProducto, precio: p, carrot: 1, cantidad: 1 }]);
+  }
+};
 
  const restarDelCarrito = (id) => {
    const ex = carrito.find(x => x.id === id);
