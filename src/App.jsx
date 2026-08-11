@@ -169,7 +169,40 @@ useEffect(() => {
   const [confirmacionResultado, setConfirmacionResult] = useState(null);
   const [password, setPassword] = useState('');
   const [areaStaff, setAreaStaff] = useState('TODOS');
+  const cancelarPedidoYRegresarStock = async (p) => {
+  if (!window.confirm(`¿Cancelar pedido de Mesa ${p.mesa} y reponer stock?`)) return;
 
+  try {
+    const batch = writeBatch(db);
+    const lineas = p.detalle.split('\n');
+
+    lineas.forEach(linea => {
+      // Extrae la cantidad y el nombre del producto
+      const match = linea.match(/^(\d+)x\s+(.*?)\s+\(\$(\d+)\)/);
+      if (match) {
+        const cantidad = parseInt(match[1], 10);
+        const nombreLimpio = match[2].trim().toUpperCase();
+        
+        // Busca el producto en el inventario
+        const prodEnc = productosMenu.find(pr => pr.nombre.trim().toUpperCase() === nombreLimpio);
+        if (prodEnc) {
+          // Devuelve las unidades al stock
+          batch.update(doc(db, "productos", prodEnc.id), {
+            stock: increment(cantidad)
+          });
+        }
+      }
+    });
+
+    // Elimina la comanda
+    batch.delete(doc(db, "pedidos", p.id));
+    
+    // Ejecuta todos los cambios en Firestore de un solo golpe
+    await batch.commit();
+  } catch (error) {
+    console.error("Error al cancelar pedido y reponer stock:", error);
+  }
+};
   const obtenerFechaHoyInput = () => {
     const hoy = new Date();
     const year = hoy.getFullYear();
@@ -1477,18 +1510,44 @@ useEffect(() => {
 const ingresosDelDia = historialHoy.reduce((acc, t) => acc + (Number(t.total) || 0), 0);
 
 const eliminarArticuloComanda = async (p, idx) => {
-   const lineas = p.detalle.split('\n');
-   const match = lineas[idx].match(/(\d+)x (.*?) \(\$(\d+)\)/);
-   if (match) {
-      const batch = writeBatch(db);
-      const nombreLimpio = match[2].trim();
-      const prodEnc = productosMenu.find(pr => pr.nombre.trim() === nombreLimpio);
-      if (prodEnc) batch.update(doc(db, "productos", prodEnc.id), { stock: increment(parseInt(match[1])) });
-      const nuevasLineas = lineas.filter((_, i) => i !== idx);
-      if (nuevasLineas.length === 0) batch.delete(doc(db, "pedidos", p.id));
-      else batch.update(doc(db, "pedidos", p.id), { detalle: nuevasLineas.join('\n'), total: Math.max(0, Number(p.total) - Number(match[3]))});
-      await batch.commit();
-   }
+  const lineas = p.detalle.split('\n');
+  if (!lineas[idx]) return;
+
+  // Regex mejorado para capturar la cantidad y el nombre exacto ignorando el tag - [Nombre]
+  const match = lineas[idx].match(/^(\d+)x\s+(.*?)\s+\(\$(\d+)\)/);
+  
+  if (match) {
+    const cantidad = parseInt(match[1], 10);
+    const nombreLimpio = match[2].trim().toUpperCase();
+    const precioResta = Number(match[3]);
+
+    const batch = writeBatch(db);
+
+    // Búsqueda flexible sin importar Mayúsculas/Minúsculas
+    const prodEnc = productosMenu.find(pr => pr.nombre.trim().toUpperCase() === nombreLimpio);
+
+    if (prodEnc) {
+      // 🟢 Regresa el stock a la base de datos
+      batch.update(doc(db, "productos", prodEnc.id), { 
+        stock: increment(cantidad) 
+      });
+    } else {
+      console.warn(`⚠️ No se encontró el producto "${nombreLimpio}" en la base de datos para regresar stock.`);
+    }
+
+    const nuevasLineas = lineas.filter((_, i) => i !== idx);
+
+    if (nuevasLineas.length === 0) {
+      batch.delete(doc(db, "pedidos", p.id));
+    } else {
+      batch.update(doc(db, "pedidos", p.id), { 
+        detalle: nuevasLineas.join('\n'), 
+        total: Math.max(0, Number(p.total) - precioResta)
+      });
+    }
+
+    await batch.commit();
+  }
 };
 
 const realizarCierreTurno = async () => {
@@ -2209,13 +2268,12 @@ const itemsServidosMap = p.servidos || {};
             <button onClick={() => moverMesa(p)} className="p-1 text-slate-500 hover:text-sky-400 transition-colors" title="Mover Mesa">
               <ExternalLink size={15}/>
             </button>
-            <button onClick={async () => { 
-              if(window.confirm("¿Cancelar pedido?")) { 
-                await deleteDoc(doc(db, "pedidos", p.id)); 
-              } 
-            }} className="p-1 text-slate-700 hover:text-red-500 transition-colors">
-              <Trash2 size={15}/>
-            </button>
+           <button 
+  onClick={() => cancelarPedidoYRegresarStock(p)} 
+  className="p-1 text-slate-700 hover:text-red-500 transition-colors"
+>
+  <Trash2 size={15}/>
+</button>
           </div>
         </div>
 
