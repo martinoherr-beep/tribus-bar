@@ -2242,6 +2242,7 @@ const itemsServidosMap = p.servidos || {};
   }
 
   return (
+    
     <div 
       key={p.id} 
       className={`border p-3.5 rounded-xl relative shadow-lg flex flex-col justify-between group transition-all text-left ${
@@ -2251,6 +2252,28 @@ const itemsServidosMap = p.servidos || {};
       <div className={`absolute top-0 left-0 w-1.5 h-full ${todoServido ? 'bg-emerald-500' : minutosTranscurridos > 5 ? 'bg-red-500' : minutosTranscurridos > 3 ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
       
       <div>
+      {/* 🚨 ALERTA DE TRASLADO DESDE QR (CLIENTE) */}
+      {(p.pideTraslado || p.solicitudTraslado) && (
+        <div 
+          onClick={() => moverMesa(p)}
+          className="bg-sky-500/20 border-2 border-sky-400 text-sky-200 p-2.5 rounded-xl mb-3 flex items-center justify-between animate-pulse shadow-lg shadow-sky-950/50 cursor-pointer hover:bg-sky-500/30 transition-all"
+        >
+          <div className="flex flex-col text-left">
+            <span className="text-[10px] font-black uppercase tracking-wider text-sky-400 flex items-center gap-1">
+              🚨 SOLICITUD DE TRASLADO
+            </span>
+            <span className="text-[11px] font-black text-white">
+              Mesa {p.mesa} ➔ Mesa {p.solicitudTraslado}
+            </span>
+          </div>
+          <button 
+            type="button"
+            className="text-[9px] font-black bg-sky-500 text-black px-2.5 py-1.5 rounded-lg uppercase shadow-md hover:bg-sky-400"
+          >
+            Aceptar
+          </button>
+        </div>
+      )}
       {/* 💳 AGREGAR AQUÍ: ALERTA DE PAGO INFORMADO POR EL CLIENTE DESDE CASA */}
       {p.pagoInformado && (
         <div className="bg-blue-600/20 border border-blue-500 text-blue-400 p-2 rounded-xl mb-2 flex items-center justify-between animate-pulse">

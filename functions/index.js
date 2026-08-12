@@ -108,6 +108,39 @@ function App() {
               {pedidosBarra.map(p => (
                 <div key={p.id} className="bg-[#0c111a] border border-slate-800 p-4 rounded-2xl relative shadow-xl flex flex-col justify-between">
                   <div className="absolute top-0 left-0 w-1 h-full bg-orange-600"></div>
+                  {/* ⚠️ ALERTA DE SOLICITUD DE TRASLADO DE MESA */}
+{pedido.pideTraslado && (
+  <div className="bg-amber-500/20 border-2 border-amber-500 text-amber-200 p-3 rounded-xl my-2 flex flex-col gap-2 animate-pulse">
+    <div className="flex items-center justify-between">
+      <span className="font-bold text-sm flex items-center gap-1">
+        ⚠️ SOLICITUD DE CAMBIO DE MESA
+      </span>
+      <span className="text-xs bg-amber-500 text-black px-2 py-0.5 rounded font-black uppercase">
+        Pendiente
+      </span>
+    </div>
+    
+    <p className="text-xs text-amber-100">
+      El cliente escaneó desde la <strong className="text-white underline">Mesa {pedido.solicitudTraslado}</strong>. 
+      ¿Mover comanda de Mesa {pedido.mesa} ➔ Mesa {pedido.solicitudTraslado}?
+    </p>
+
+    <button
+      onClick={async () => {
+        // Al dar clic en la barra, aplicamos el cambio de mesa definitivo y limpiamos la solicitud
+        await updateDoc(doc(db, "pedidos", pedido.id), {
+          mesa: pedido.solicitudTraslado,
+          pideTraslado: false,
+          solicitudTraslado: deleteField() // O ponlo en null si no usas deleteField
+        });
+      }}
+      className="bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold py-1.5 px-3 rounded-lg transition-colors shadow"
+    >
+      Aceptar y Mover a Mesa {pedido.solicitudTraslado}
+    </button>
+  </div>
+)}
+                  
                   <div>
                     <h3 className="text-xl font-black italic uppercase text-white">MESA {p.mesa}</h3>
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">{obtenerPlanta(p.mesa)}</p>
