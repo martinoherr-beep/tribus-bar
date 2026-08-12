@@ -2028,23 +2028,36 @@ const guardarEvento = async (e) => {
    </div>
 )}
 {mesa && !mesaValidada && pinCorrectoMesa && !esComandaManual && (
-   <div className="fixed inset-0 z-[300] bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
-     <Lock size={48} className="text-orange-600 mb-6 animate-pulse" />
-     <h2 className="text-2xl font-black italic uppercase text-center tracking-tighter">Mesa con Cuenta Abierta</h2>
-     <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-8">Ingresa el PIN de seguridad</p>
-     <div className="flex gap-4 mb-12">
-       {[1, 2, 3, 4].map((dot) => (
-         <div key={dot} className={`w-4 h-4 rounded-full border-2 border-orange-600 transition-all ${pinMesaInput.length >= dot ? 'bg-orange-600 shadow-lg shadow-orange-600/40' : 'bg-transparent'}`} />
-       ))}
-     </div>
-     <div className="grid grid-cols-3 gap-4 max-w-[280px]">
-       {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-         <button key={n} onClick={() => manejarPinMesa(n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90 transition-all">{n}</button>
-       ))}
-       <div />
-       <button onClick={() => manejarPinMesa(0)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">0</button>
-     </div>
-   </div>
+  <div className="fixed inset-0 z-[300] bg-slate-950 text-white flex flex-col items-center justify-center p-8 font-sans">
+    <Lock size={48} className="text-orange-600 mb-4 animate-pulse" />
+    <h2 className="text-2xl font-black italic uppercase text-center tracking-tighter">Mesa con Cuenta Abierta</h2>
+    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-6">Ingresa el PIN de seguridad proporcionado por quien abrió la mesa</p>
+    
+    <div className="flex gap-4 mb-8">
+      {[1, 2, 3, 4].map((dot) => (
+        <div key={dot} className={`w-4 h-4 rounded-full border-2 border-orange-600 transition-all ${pinMesaInput.length >= dot ? 'bg-orange-600 shadow-lg shadow-orange-600/40' : 'bg-transparent'}`} />
+      ))}
+    </div>
+    
+    <div className="grid grid-cols-3 gap-4 max-w-[280px] mb-6">
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+        <button key={n} onClick={() => manejarPinMesa(n)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90 transition-all">{n}</button>
+      ))}
+      <button onClick={() => setPinMesaInput("")} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-xs font-bold text-red-500 active:scale-90">Borrar</button>
+      <button onClick={() => manejarPinMesa(0)} className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-2xl font-black active:scale-90">0</button>
+    </div>
+
+    <button 
+      onClick={() => {
+        localStorage.removeItem("tribu_mesa");
+        setMesa(null);
+        setView('welcome');
+      }}
+      className="text-slate-500 text-xs font-bold uppercase tracking-widest underline hover:text-slate-300"
+    >
+      Atrás / Cambiar de Mesa
+    </button>
+  </div>
 )}
 
 {view === 'barra' && (
