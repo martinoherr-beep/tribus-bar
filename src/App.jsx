@@ -1135,23 +1135,21 @@ if (comandaIdGuardada) {
       // ─── TU PROCESADOR DE TEXTO ORIGINAL (MANTENIDO SEGURO) ───
   // 🔍 BUSCA ESTA SECCIÓN EN TU useEffect Y DÉJALA ASÍ:
 if (pedidoMesa && pedidoMesa.pinMesa) {
-    setPinCorrectoMesa(pedidoMesa.pinMesa);
-    
-    // Verificamos si este dispositivo ya validó este PIN previamente
-    const pinGuardadoLocal = localStorage.getItem(`mesa_validada_${pedidoMesa.mesa}`);
-    if (String(pinGuardadoLocal) === String(pedidoMesa.pinMesa)) {
-        setMesaValidada(true); // Dueño de la mesa reconocido
-    } else if (pinCorrectoMesa !== pedidoMesa.pinMesa) {
-        setMesaValidada(false); // Acompañante requiere ingresar PIN
-        setPinMesaInput(""); 
-    }
-    
-    const items = pedidoMesa.detalle.split('\n').map(linea => {
-        const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
-        if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
-        return null;
-    }).filter(i => i !== null);
-    setConsumoAcumulado(items);
+  setPinCorrectoMesa(pedidoMesa.pinMesa);
+  
+  const pinGuardadoLocal = localStorage.getItem(`mesa_validada_${pedidoMesa.mesa}`);
+  if (String(pinGuardadoLocal) === String(pedidoMesa.pinMesa)) {
+    setMesaValidada(true);
+  } else {
+    setMesaValidada(false);
+  }
+
+  const items = pedidoMesa.detalle.split('\n').map(linea => {
+    const parts = linea.match(/(\d+)x (.*) \(\$(\d+)\)/);
+    if (parts) return { cantidad: parseInt(parts[1]), nombre: parts[2].trim(), precio: parseInt(parts[3]) / parseInt(parts[1]) };
+    return null;
+  }).filter(i => i !== null);
+  setConsumoAcumulado(items);
 } else if (pedidoMesa) { 
     setMesaValidada(true); 
     const items = pedidoMesa.detalle.split('\n').map(linea => {
@@ -1179,17 +1177,11 @@ const manejarPinMesa = (num) => {
     setPinMesaInput(nuevoPin);
 
     if (nuevoPin === String(pinCorrectoMesa)) {
-      // 💾 Guardamos que este dispositivo ya validó la mesa
       if (mesa) {
         localStorage.setItem(`mesa_validada_${mesa}`, nuevoPin);
       }
       setMesaValidada(true);
       setPinMesaInput("");
-
-      setTimeout(() => {
-        procesarEnvio(mesa);
-      }, 100);
-
     } else if (nuevoPin.length === 4) {
       setTimeout(() => setPinMesaInput(""), 500);
     }
@@ -1359,27 +1351,35 @@ const procesarEnvio = async (idDestino) => {
       });
 
     } else {
-      // 🔴 RUTA B: La mesa está vacía
-      const nuevoPedidoRef = doc(collection(db, "pedidos"));
-      idComandaActual = nuevoPedidoRef.id; 
-      
-      const datosNuevoPedido = { 
-        mesa: String(idFinal), 
-        detalle: detalleNuevo, 
-        total: Number(totalCarrito), 
-        estado: "pendiente", 
-        fecha: serverTimestamp(), 
-        archivado: false,
-        cliente: nombreComprador, 
-        telefono: telFinal,
-        uid: uidFinal,
-        alertaPrioridad: colorAlerta 
-      };
+  // 🔴 RUTA B: La mesa está vacía
+const nuevoPedidoRef = doc(collection(db, "pedidos"));
+idComandaActual = nuevoPedidoRef.id;
 
-      if (!esDeCasaTemp && !isNaN(idFinal)) {
-         datosNuevoPedido.pinMesa = Math.floor(1000 + Math.random() * 9000);
-      }
-      batch.set(nuevoPedidoRef, datosNuevoPedido);
+const pinGenerado = !esDeCasaTemp && !isNaN(idFinal) 
+  ? Math.floor(1000 + Math.random() * 9000) 
+  : null;
+
+const datosNuevoPedido = { 
+  mesa: String(idFinal), 
+  detalle: detalleNuevo, 
+  total: Number(totalCarrito), 
+  estado: "pendiente", 
+  fecha: serverTimestamp(), 
+  archivado: false,
+  cliente: nombreComprador, 
+  telefono: telFinal,
+  uid: uidFinal,
+  alertaPrioridad: colorAlerta 
+};
+
+if (pinGenerado) {
+  datosNuevoPedido.pinMesa = pinGenerado;
+  // 💾 Clave para evitar el auto-bloqueo del creador:
+  localStorage.setItem(`mesa_validada_${idFinal}`, String(pinGenerado));
+  setMesaValidada(true);
+}
+
+batch.set(nuevoPedidoRef, datosNuevoPedido);
     }
 
     // ---------------------------------------------------------------------------
