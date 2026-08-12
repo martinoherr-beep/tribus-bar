@@ -1045,15 +1045,31 @@ const obtenerPrecioItem = (item) => {
       return mapaMesas[limpio] ? mapaMesas[limpio] : limpio;
     };
 
-    if (mesaId) {
-      mesaId = traducirTextoQR(mesaId);
-      localStorage.setItem("tribu_mesa", mesaId);
-      localStorage.removeItem("tribu_comanda_id"); 
-      
-      if (window.history.replaceState) {
-        window.history.replaceState(null, '', window.location.pathname);
-      }
-    } else {
+   if (mesaId) {
+  mesaId = traducirTextoQR(mesaId);
+  const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
+  const mesaAnterior = localStorage.getItem("tribu_mesa");
+
+  // 🚚 SI EL CLIENTE YA TIENE UNA COMANDA ACTIVA Y ESCANEA OTRA MESA DIFERENTE:
+  if (comandaIdGuardada && mesaAnterior && String(mesaAnterior) !== String(mesaId)) {
+    // Inyectamos la solicitud de traslado a la comanda existente en Firestore
+    updateDoc(doc(db, "pedidos", comandaIdGuardada), {
+      solicitudTraslado: String(mesaId),
+      pideTraslado: true
+    }).then(() => {
+      alert(`⏳ Solicitud de traslado enviada. La barra moverá tu cuenta de la Mesa ${mesaAnterior} a la Mesa ${mesaId}.`);
+    }).catch((err) => {
+      console.error("Error al solicitar traslado mediante QR:", err);
+    });
+  } else if (!comandaIdGuardada) {
+    // Si la mesa está limpia y no tiene comanda, procedemos a cambiar de mesa normalmente
+    localStorage.setItem("tribu_mesa", mesaId);
+  }
+  
+  if (window.history.replaceState) {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+} else {
       const guardada = localStorage.getItem("tribu_mesa");
       mesaId = traducirTextoQR(guardada);
       if (mesaId !== guardada && mesaId) {
