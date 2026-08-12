@@ -189,7 +189,7 @@ useEffect(() => {
         if (prodEnc) {
           // Devuelve las unidades al stock
           batch.update(doc(db, "productos", prodEnc.id), {
-            stock: increment(cantidad)
+            stock: increment(cantidad)                                                
           });
         }
       }
@@ -1135,11 +1135,15 @@ if (comandaIdGuardada) {
       // ─── TU PROCESADOR DE TEXTO ORIGINAL (MANTENIDO SEGURO) ───
   // 🔍 BUSCA ESTA SECCIÓN EN TU useEffect Y DÉJALA ASÍ:
 if (pedidoMesa && pedidoMesa.pinMesa) {
-    // Solo forzamos la validación en false si el PIN cambió o es una mesa distinta
-    if (pinCorrectoMesa !== pedidoMesa.pinMesa) {
-        setPinCorrectoMesa(pedidoMesa.pinMesa);
-        setMesaValidada(false); 
-        setPinMesaInput(""); // Limpiamos el input anterior por seguridad
+    setPinCorrectoMesa(pedidoMesa.pinMesa);
+    
+    // Verificamos si este dispositivo ya validó este PIN previamente
+    const pinGuardadoLocal = localStorage.getItem(`mesa_validada_${pedidoMesa.mesa}`);
+    if (String(pinGuardadoLocal) === String(pedidoMesa.pinMesa)) {
+        setMesaValidada(true); // Dueño de la mesa reconocido
+    } else if (pinCorrectoMesa !== pedidoMesa.pinMesa) {
+        setMesaValidada(false); // Acompañante requiere ingresar PIN
+        setPinMesaInput(""); 
     }
     
     const items = pedidoMesa.detalle.split('\n').map(linea => {
@@ -1175,13 +1179,15 @@ const manejarPinMesa = (num) => {
     setPinMesaInput(nuevoPin);
 
     if (nuevoPin === String(pinCorrectoMesa)) {
+      // 💾 Guardamos que este dispositivo ya validó la mesa
+      if (mesa) {
+        localStorage.setItem(`mesa_validada_${mesa}`, nuevoPin);
+      }
       setMesaValidada(true);
       setPinMesaInput("");
-      
-      // 🎯 UNA VEZ VALIDADO EL PIN, PROCESAMOS EL PEDIDO DE MARTÍN
-      // Al llamar procesarEnvio aquí, mesaValidada ya es true y Martín enviará su pedido correctamente unido a Héctor
+
       setTimeout(() => {
-        procesarEnvio(mesaSeleccionada);
+        procesarEnvio(mesa);
       }, 100);
 
     } else if (nuevoPin.length === 4) {
@@ -1270,9 +1276,10 @@ const procesarEnvio = async (idDestino) => {
   const mesaLimpiaTemp = idDestino ? String(idDestino).toUpperCase().trim() : "";
   const esDeCasaTemp = !mesaLimpiaTemp || mesaLimpiaTemp === "T" || mesaLimpiaTemp === "B";
 
-  if (!esDeCasaTemp && !mesaValidada) {
-    setVerModalPin(true);
-    return; // ⛔ Frena el envío
+ // 🚨 FRENO DE SEGURIDAD CORREGIDO: Solo frena si REALMENTE existe un PIN en BD y la mesa no se ha validado
+  if (!esDeCasaTemp && pinCorrectoMesa && !mesaValidada) {
+    alert("🔒 Esta mesa tiene una cuenta activa. Por favor ingresa el PIN de seguridad asignado.");
+    return; // ⛔ Frena el envío solo a acompañantes
   }
 
   // ---------------------------------------------------------------------------
