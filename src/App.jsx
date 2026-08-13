@@ -1600,13 +1600,20 @@ const eliminarArticuloComanda = async (pedido, indexAEliminar) => {
 
     if (!lineaAEliminar) return;
 
-    // Reponer stock si la línea contiene el patrón de cantidad y nombre
+    let montoARestar = 0;
+
+    // Extraer cantidad, nombre y precio unitario: ej. "2x CERVEZA ($45)"
     const match = lineaAEliminar.match(/^(\d+)x\s+(.*?)\s+\(\$(\d+)\)/);
     if (match) {
       const cantidad = parseInt(match[1], 10);
       const nombreLimpio = match[2].trim().toUpperCase();
-      const prodEnc = productosMenu.find(pr => pr.nombre.trim().toUpperCase() === nombreLimpio);
+      const precioUnitario = parseInt(match[3], 10);
 
+      // Calculamos el total de ese renglón para restarlo a la cuenta
+      montoARestar = cantidad * precioUnitario;
+
+      // 1. Devolver el stock al inventario
+      const prodEnc = productosMenu.find(pr => pr.nombre.trim().toUpperCase() === nombreLimpio);
       if (prodEnc) {
         await updateDoc(doc(db, "productos", prodEnc.id), {
           stock: increment(cantidad)
@@ -1614,25 +1621,26 @@ const eliminarArticuloComanda = async (pedido, indexAEliminar) => {
       }
     }
 
-    // Filtrar el arreglo quitando la línea seleccionada y actualizar el documento
+    // 2. Filtrar las líneas quitando el renglón borrado
     const nuevasLineas = lineas.filter((_, idx) => idx !== indexAEliminar);
     
     if (nuevasLineas.length === 0) {
-      // Si no quedan productos, eliminamos la comanda
+      // Si ya no quedan productos en la comanda, eliminamos el pedido completo
       await deleteDoc(doc(db, "pedidos", pedido.id));
     } else {
-      // Actualizar el detalle con el nuevo texto y recalcular el estado servido
       const nuevoDetalle = nuevasLineas.join('\n');
-      
+      const nuevoTotal = Math.max(0, (pedido.total || 0) - montoARestar);
+
+      // 3. Actualizar detalle, restar al total y limpiar estados de servido
       await updateDoc(doc(db, "pedidos", pedido.id), {
         detalle: nuevoDetalle,
-        // Limpiamos los estados servidos
-        servidos: {} 
+        total: nuevoTotal,
+        servidos: {} // Reinicia los checks para evitar desfases de índices
       });
     }
   } catch (error) {
-    console.error("Error al eliminar el artículo de la comanda:", error);
-    alert("No se pudo eliminar el artículo.");
+    console.error("Error al eliminar el artículo y actualizar total:", error);
+    alert("Hubo un error al actualizar el total de la comanda.");
   }
 };
 
@@ -2291,17 +2299,19 @@ const itemsServidosMap = p.servidos || {};
   const todoServido = indicesProductos.length > 0 && indicesProductos.every(idx => itemsServidosMap[idx]);
 
   // 🎨 Clases de color de TODA la tarjeta (borde, fondo y animaciones)
-  let claseBordeTiempo = "border-slate-800 bg-[#0c111a]"; // Estado normal (0 a 3 min)
+// 🟢 Estado inicial (0 a 3 min): Verde intenso, con brillo y parpadeo de alerta
+let claseBordeTiempo = "border-emerald-500 bg-emerald-950/60 shadow-lg shadow-emerald-500/20 animate-pulse"; 
 
-  if (todoServido) {
-    claseBordeTiempo = "border-emerald-500/60 bg-emerald-950/20 opacity-75";
-  } else if (minutosTranscurridos > 5) {
-    // 🔥 URGENTE (> 5 min): Fondo rojo intenso con pulso de alerta
-    claseBordeTiempo = "border-red-500 bg-red-950/60 shadow-xl shadow-red-950/50 animate-pulse";
-  } else if (minutosTranscurridos > 3) {
-    // ⚠️ ATENCIÓN (3 a 5 min): Fondo ámbar/amarillo
-    claseBordeTiempo = "border-amber-500/80 bg-amber-950/40 shadow-lg shadow-amber-950/30";
-  }
+if (todoServido) {
+  // 🏁 Si todo está servido: Verde atenua/tranquilo y sin parpadear
+  claseBordeTiempo = "border-emerald-500/40 bg-emerald-950/20 opacity-75";
+} else if (minutosTranscurridos > 5) {
+  // 🔥 URGENTE (> 5 min): Fondo rojo intenso con pulso de alerta
+  claseBordeTiempo = "border-red-500 bg-red-950/60 shadow-xl shadow-red-950/50 animate-pulse";
+} else if (minutosTranscurridos > 3) {
+  // ⚠️ ATENCIÓN (3 a 5 min): Fondo ámbar/amarillo con pulso de alerta
+  claseBordeTiempo = "border-amber-500/80 bg-amber-950/40 shadow-lg shadow-amber-950/30 animate-pulse";
+}
 
   return (
     
@@ -2358,43 +2368,49 @@ const itemsServidosMap = p.servidos || {};
           </span>
         </div>
       )}
-        {/* Cabecera con cliente VIP y el Indicador de tiempo o estado ATENDIDO */}
-        <div className="flex justify-between items-center mb-2">
-        {p.alertaPrioridad === "verde" ? (
-  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-    👑 Cliente VIP
-  </span>
-) : p.alertaPrioridad === "amarilla" ? (
-  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
-    ⭐ Cliente Frecuente
-  </span>
-) : <span />}
-          {/* ⏱️ Si está todo servido muestra ATENDIDO verde, de lo contrario muestra el semáforo */}
-          {todoServido ? (
-            <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-md border bg-emerald-500 text-black border-emerald-400 tracking-wider shadow-md">
-              ✅ ATENDIDO
-            </span>
-          ) : (
-            (() => {
-              let etiquetaClase = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-              let textoAlerta = `⏱️ ${minutosTranscurridos} min`;
+   {/* Cabecera con cliente VIP / Frecuente / Esporádico y el Indicador de tiempo o estado ATENDIDO */}
+<div className="flex justify-between items-center mb-2">
+  {p.alertaPrioridad === "verde" ? (
+    <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+      👑 Cliente VIP
+    </span>
+  ) : p.alertaPrioridad === "amarilla" ? (
+    <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
+      ⭐ Cliente Frecuente
+    </span>
+  ) : (
+    /* 🟢 CASO ESPORÁDICO / POR DEFECTO */
+    <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300 border border-purple-500/20">
+      🌱 Cliente Esporádico
+    </span>
+  )}
 
-              if (minutosTranscurridos > 5) {
-                etiquetaClase = "bg-red-600 text-white animate-pulse shadow-lg shadow-red-900/50 border-red-500";
-                textoAlerta = `🔥 URGENTE (${minutosTranscurridos} min)`;
-              } else if (minutosTranscurridos > 3) {
-                etiquetaClase = "bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse";
-                textoAlerta = `⚠️ ATENCIÓN (${minutosTranscurridos} min)`;
-              }
+  {/* ⏱️ Si está todo servido muestra ATENDIDO verde, de lo contrario muestra el semáforo */}
+  {todoServido ? (
+    <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-md border bg-emerald-500 text-black border-emerald-400 tracking-wider shadow-md">
+      ✅ ATENDIDO
+    </span>
+  ) : (
+    (() => {
+      let etiquetaClase = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+      let textoAlerta = `⏱️ ${minutosTranscurridos} min`;
 
-              return (
-                <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md border ml-auto ${etiquetaClase}`}>
-  {textoAlerta}
-</span>
-              );
-            })()
-          )}
-        </div>
+      if (minutosTranscurridos > 5) {
+        etiquetaClase = "bg-red-600 text-white animate-pulse shadow-lg shadow-red-900/50 border-red-500";
+        textoAlerta = `🔥 URGENTE (${minutosTranscurridos} min)`;
+      } else if (minutosTranscurridos > 3) {
+        etiquetaClase = "bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse";
+        textoAlerta = `⚠️ ATENCIÓN (${minutosTranscurridos} min)`;
+      }
+
+      return (
+        <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md border ml-auto ${etiquetaClase}`}>
+          {textoAlerta}
+        </span>
+      );
+    })()
+  )}
+</div>
 
         <div className="flex justify-between items-start">
           <div className="flex flex-col leading-tight">
