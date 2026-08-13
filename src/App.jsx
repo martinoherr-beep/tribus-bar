@@ -1591,44 +1591,48 @@ useEffect(() => {
 
 const ingresosDelDia = historialHoy.reduce((acc, t) => acc + (Number(t.total) || 0), 0);
 
-const eliminarArticuloComanda = async (p, idx) => {
-  const lineas = p.detalle.split('\n');
-  if (!lineas[idx]) return;
+const eliminarArticuloComanda = async (pedido, indexAEliminar) => {
+  if (!window.confirm("¿Deseas eliminar este producto de la comanda?")) return;
 
-  // Regex mejorado para capturar la cantidad y el nombre exacto ignorando el tag - [Nombre]
-  const match = lineas[idx].match(/^(\d+)x\s+(.*?)\s+\(\$(\d+)\)/);
-  
-  if (match) {
-    const cantidad = parseInt(match[1], 10);
-    const nombreLimpio = match[2].trim().toUpperCase();
-    const precioResta = Number(match[3]);
+  try {
+    const lineas = pedido.detalle.split('\n');
+    const lineaAEliminar = lineas[indexAEliminar];
 
-    const batch = writeBatch(db);
+    if (!lineaAEliminar) return;
 
-    // Búsqueda flexible sin importar Mayúsculas/Minúsculas
-    const prodEnc = productosMenu.find(pr => pr.nombre.trim().toUpperCase() === nombreLimpio);
+    // Reponer stock si la línea contiene el patrón de cantidad y nombre
+    const match = lineaAEliminar.match(/^(\d+)x\s+(.*?)\s+\(\$(\d+)\)/);
+    if (match) {
+      const cantidad = parseInt(match[1], 10);
+      const nombreLimpio = match[2].trim().toUpperCase();
+      const prodEnc = productosMenu.find(pr => pr.nombre.trim().toUpperCase() === nombreLimpio);
 
-    if (prodEnc) {
-      // 🟢 Regresa el stock a la base de datos
-      batch.update(doc(db, "productos", prodEnc.id), { 
-        stock: increment(cantidad) 
-      });
-    } else {
-      console.warn(`⚠️ No se encontró el producto "${nombreLimpio}" en la base de datos para regresar stock.`);
+      if (prodEnc) {
+        await updateDoc(doc(db, "productos", prodEnc.id), {
+          stock: increment(cantidad)
+        });
+      }
     }
 
-    const nuevasLineas = lineas.filter((_, i) => i !== idx);
-
+    // Filtrar el arreglo quitando la línea seleccionada y actualizar el documento
+    const nuevasLineas = lineas.filter((_, idx) => idx !== indexAEliminar);
+    
     if (nuevasLineas.length === 0) {
-      batch.delete(doc(db, "pedidos", p.id));
+      // Si no quedan productos, eliminamos la comanda
+      await deleteDoc(doc(db, "pedidos", pedido.id));
     } else {
-      batch.update(doc(db, "pedidos", p.id), { 
-        detalle: nuevasLineas.join('\n'), 
-        total: Math.max(0, Number(p.total) - precioResta)
+      // Actualizar el detalle con el nuevo texto y recalcular el estado servido
+      const nuevoDetalle = nuevasLineas.join('\n');
+      
+      await updateDoc(doc(db, "pedidos", pedido.id), {
+        detalle: nuevoDetalle,
+        // Limpiamos los estados servidos
+        servidos: {} 
       });
     }
-
-    await batch.commit();
+  } catch (error) {
+    console.error("Error al eliminar el artículo de la comanda:", error);
+    alert("No se pudo eliminar el artículo.");
   }
 };
 
@@ -2454,35 +2458,57 @@ const itemsServidosMap = p.servidos || {};
         )}
 
         {/* 📋 LISTA DE PRODUCTOS CON CHECKBOX DE SERVIDO */}
-        <div className="mt-3 space-y-1.5">
-          {lineasDetalle.map((linea, idx) => {
-           const esProducto = linea.trim().length > 1 && !isNaN(linea.trim()[0]) && linea.trim().includes('x');
-            const estaServido = !!itemsServidosMap[idx];
+      {/* 📋 LISTA DE PRODUCTOS DE LA COMANDA CON BOTÓN DE ELIMINACIÓN INDIVIDUAL */}
+<div className="mt-3 space-y-1.5">
+  {lineasDetalle.map((linea, idx) => {
+    // Si la línea no está vacía y no es un encabezado estático, la tratamos como ítem borrable
+    const esLineaValida = linea.trim().length > 0 && !linea.includes("---");
+    const estaServido = !!itemsServidosMap[idx];
 
-            return (
-              <div key={idx} className={`flex items-center justify-between px-2.5 py-2 rounded-lg border transition-all ${estaServido ? 'bg-emerald-950/20 border-emerald-500/30 opacity-50' : 'bg-[#121824] border-white/5'}`}>
-                <label className="flex items-center gap-2.5 cursor-pointer flex-1 select-none">
-                  {esProducto && (
-                    <input 
-                      type="checkbox"
-                      checked={estaServido}
-                      onChange={async (e) => {
-                        const nuevoEstadoServidos = { ...itemsServidosMap, [idx]: e.target.checked };
-                        await updateDoc(doc(db, "pedidos", p.id), {
-                          servidos: nuevoEstadoServidos
-                        });
-                      }}
-                      className="w-4 h-4 accent-emerald-500 cursor-pointer rounded"
-                    />
-                  )}
-                  <span className={`text-xs tracking-tight leading-tight ${estaServido ? 'line-through text-slate-400' : 'text-slate-200'}`}>
-                    {linea}
-                  </span>
-                </label>
-              </div>
-            );
-          })}
-        </div>
+    if (!esLineaValida) return null;
+
+    return (
+      <div 
+        key={idx} 
+        className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-all ${
+          estaServido 
+            ? 'bg-emerald-950/20 border-emerald-500/30 opacity-60' 
+            : 'bg-[#121824] border-white/10'
+        }`}
+      >
+        <label className="flex items-center gap-2.5 cursor-pointer flex-1 select-none">
+          <input 
+            type="checkbox"
+            checked={estaServido}
+            onChange={async (e) => {
+              const nuevoEstadoServidos = { ...itemsServidosMap, [idx]: e.target.checked };
+              await updateDoc(doc(db, "pedidos", p.id), {
+                servidos: nuevoEstadoServidos
+              });
+            }}
+            className="w-4 h-4 accent-emerald-500 cursor-pointer rounded"
+          />
+          <span className={`text-xs font-medium tracking-tight ${estaServido ? 'line-through text-slate-400' : 'text-slate-100'}`}>
+            {linea}
+          </span>
+        </label>
+
+        {/* 🔴 BOTÓN ELIMINAR INDIVIDUAL (SIEMPRE VISIBLE POR PRODUCTO) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            eliminarArticuloComanda(p, idx);
+          }}
+          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1.5 rounded-md transition-colors ml-2 flex-shrink-0"
+          title="Eliminar este producto y devolver al inventario"
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+    );
+  })}
+</div>
       </div>
       
       <button 
@@ -3466,6 +3492,29 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
   </p>
 </div>
        </div>
+      
+      {/* 🟢 BANNER DE MESA ACTIVA: Si el cliente ya tiene mesa asignada */}
+{mesa && (
+  <div className="w-full max-w-md mx-auto mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between backdrop-blur-md shadow-lg animate-fade-in">
+    <div className="flex items-center gap-3">
+      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-lg">
+        {mesa}
+      </div>
+      <div>
+        <p className="text-xs text-emerald-400 font-semibold uppercase tracking-wider">Mesa Asignada</p>
+        <p className="text-sm font-medium text-white">Tienes una sesión activa</p>
+      </div>
+    </div>
+
+    <button
+      onClick={() => setView('menu')}
+      className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95"
+    >
+      <UtensilsCrossed size={15} />
+      Ir al Menú
+    </button>
+  </div>
+)}
 
        <div className="grid gap-4">
         {/* 📷 BOTÓN DE ESCANEAR MESA EN BIENVENIDA CORREGIDO */}
