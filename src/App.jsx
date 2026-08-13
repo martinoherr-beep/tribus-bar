@@ -2421,8 +2421,9 @@ const itemsServidosMap = p.servidos || {};
         </div>
 
        {/* Dentro de la tarjeta de la comanda */}
+{/* 🟢 CÓDIGO CORREGIDO */}
 <div className="space-y-1 my-2">
-  {pedido.items && pedido.items.map((item, idx) => (
+  {p.items && p.items.map((item, idx) => (
     <div key={idx} className="flex items-center justify-between text-sm py-1 border-b border-gray-700/50">
       <div>
         <span className="font-bold text-amber-400">{item.cantidad || 1}x </span>
@@ -2434,7 +2435,7 @@ const itemsServidosMap = p.servidos || {};
         
         {/* 🗑️ Botón para eliminar este producto individual */}
         <button
-          onClick={() => eliminarProductoDeComanda(pedido, idx)}
+          onClick={() => eliminarProductoDeComanda(p, idx)}
           className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10 transition-colors"
           title="Eliminar producto y reponer a stock"
         >
