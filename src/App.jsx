@@ -21,8 +21,7 @@ import {
  Tag, ExternalLink, Lock, Calendar, History,
  LogOut 
 } from 'lucide-react';
-import { doc, writeBatch, increment } from "firebase/firestore";
-import { db } from "./firebase";
+
 
 const DATOS_PAGO = "💳 *DATOS DE PAGO*:\nBanco: Bancoppel\nCuenta: 4169 1614 6993 9648\nCLABE: 137162104580151937\nA nombre de: Tribus Bar";
 const PIN_ADMIN = "2370";
@@ -235,82 +234,7 @@ const [reporteFiltrado, setReporteFiltrado] = useState(null);
     horario: "06:00 PM - 02:00 AM",
     mesasTotales: Array.from({ length: 25 }, (_, i) => i + 26) // Mesas de la 26 a la 50
   };
-  // Función para eliminar un ítem de la comanda y devolverlo al stock
-{/* Dentro de la tarjeta de la comanda */}
-<div className="space-y-1 my-2">
-  {pedido.items && pedido.items.map((item, idx) => (
-    <div key={idx} className="flex items-center justify-between text-sm py-1 border-b border-gray-700/50">
-      <div>
-        <span className="font-bold text-amber-400">{item.cantidad || 1}x </span>
-        <span>{item.nombre}</span>
-      </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-gray-400 font-mono">${(item.precio * (item.cantidad || 1)).toFixed(2)}</span>
-        
-        {/* 🗑️ Botón para eliminar este producto individual */}
-        <button
-          onClick={() => eliminarProductoDeComanda(pedido, idx)}
-          className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10 transition-colors"
-          title="Eliminar producto y reponer a stock"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  ))}
-</div>
-  const eliminarProductoDeComanda = async (pedido, indexAEliminar) => {
-  const itemAEliminar = pedido.items[indexAEliminar];
-
-  if (!itemAEliminar) return;
-
-  const confirmar = window.confirm(
-    `¿Seguro que deseas eliminar "${itemAEliminar.nombre}" de la Mesa ${pedido.mesa} y reponer el stock?`
-  );
-  if (!confirmar) return;
-
-  try {
-    const batch = writeBatch(db);
-
-    // 1. Clonamos el arreglo de ítems y removemos el elemento seleccionado por su índice
-    const nuevosItems = [...pedido.items];
-    nuevosItems.splice(indexAEliminar, 1);
-
-    // Referencia al pedido
-    const pedidoRef = doc(db, "pedidos", pedido.id);
-
-    // Calcular el nuevo total restando el precio del producto eliminado
-    const nuevoTotal = nuevosItems.reduce(
-      (acc, item) => acc + Number(item.precio || 0) * Number(item.cantidad || 1),
-      0
-    );
-
-    // Actualizamos el pedido con la nueva lista de ítems y el nuevo total
-    batch.update(pedidoRef, {
-      items: nuevosItems,
-      total: nuevoTotal
-    });
-
-    // 2. Si el producto tiene un ID guardado, incrementamos su stock en la colección 'productos'
-    if (itemAEliminar.id) {
-      const productoRef = doc(db, "productos", itemAEliminar.id);
-      const cantidadAReponer = Number(itemAEliminar.cantidad || 1);
-
-      batch.update(productoRef, {
-        stock: increment(cantidadAReponer)
-      });
-    }
-
-    // Ejecutamos ambas operaciones de forma atómica
-    await batch.commit();
-
-    alert(`✅ "${itemAEliminar.nombre}" eliminado de la comanda. Stock devuelto (+${itemAEliminar.cantidad || 1}).`);
-  } catch (error) {
-    console.error("Error al eliminar producto y devolver stock:", error);
-    alert("No se pudo eliminar el producto de la comanda.");
-  }
-};
   // Estados para el formulario de la pantalla de reserva
   const [fechaSeleccionada, setFechaSeleccionada] = useState("");
   const [mesaSeleccionadaReserva, setMesaSeleccionadaReserva] = useState(null);
