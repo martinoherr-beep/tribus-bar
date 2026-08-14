@@ -83,7 +83,7 @@ function App() {
   // 1. Declaramos primero los estados de historial y auth
   const [historialCerrado, setHistorialCerrado] = useState([]); 
   const [usuarioLogueado, setUsuarioLogueado] = useState(null);
-  
+  const [menuCuentaAbierto, setMenuCuentaAbierto] = useState(false);
 
   // 2. Ahora sí podemos declarar listaTickets sin que falle
   const listaTickets = historialCerrado || [];
@@ -2288,7 +2288,7 @@ const guardarEvento = async (e) => {
   // ⏱️ Cálculo dinámico vinculado al temporizador automático (reloj)
   const fechaCreacionObj = p.fecha?.seconds ? new Date(p.fecha.seconds * 1000) : new Date();
   const minutosTranscurridos = Math.floor((reloj - fechaCreacionObj.getTime()) / (1000 * 60));
-
+  
   // 📋 Verificamos si TODOS los productos ya tienen su check de servido
   const lineasDetalle = p.detalle.split('\n');
   const indicesProductos = lineasDetalle
@@ -3832,46 +3832,71 @@ const coincideCategoria = catSeleccionada === "Todos"
     )}
   </div>
 
-<div className="flex items-center gap-2">
-  <select 
-  onChange={(e) => {
-    if (e.target.value === 'ir_a_login') setView('registro');
-    if (e.target.value === 'mis_pedidos') setView('mis_pedidos');
-    if (e.target.value === 'cerrar_sesion') cerrarSesion();
-    e.target.value = 'default'; 
-  }}
-  className="bg-slate-900 border border-slate-800 text-[10px] font-black uppercase rounded-xl px-2.5 py-2 text-slate-300 outline-none cursor-pointer max-w-[130px]"
-  value="default"
->
-  <option value="default" disabled>
-    {usuarioLogueado ? `👤 ${nombreUsuarioLogueado ? nombreUsuarioLogueado.split(" ")[0] : "CUENTA"}` : "👤 INVITADO"}
-  </option>
-  
-  {/* Opción directa y simplificada para evitar fallos en el renderizado móvil */}
-  {!auth.currentUser ? (
-    <option value="ir_a_login">INICIAR SESION</option>
-  ) : (
-    <>
-      <option value="mis_pedidos">VER MIS ORDENES</option>
-      <option value="cerrar_sesion">CERRAR SESION</option>
-    </>
-  )}
-</select>
-    
-    <button 
-      onClick={() => {
-        if (esComandaManual) {
-          setView('barra');
-          setTabBarra('mesas_fisicas');
-        } else {
-          setView('welcome');
-        }
-      }} 
-      className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-black uppercase px-3 py-2 rounded-xl transition-all shadow-md active:scale-95"
+{/* --- MENÚ DESPLEGABLE PERSONALIZADO CON ALERTA/PUNTITO ROJO --- */}
+<div className="relative inline-block text-left">
+  {/* Botón Principal del Usuario */}
+  <button
+    type="button"
+    onClick={() => setMenuCuentaAbierto(!menuCuentaAbierto)}
+    className="bg-slate-900 border border-slate-800 text-[10px] font-black uppercase rounded-xl px-2.5 py-2 text-slate-300 outline-none cursor-pointer flex items-center gap-1.5 relative shadow-md active:scale-95 transition-transform"
+  >
+    <span>{usuarioLogueado ? `👤 ${nombreUsuarioLogueado ? nombreUsuarioLogueado.split(" ")[0] : "CUENTA"}` : "👤 INVITADO"}</span>
+    <span className="text-[8px] text-slate-500">▼</span>
+
+    {/* 🔴 PUNTITO ROJO/VERDE PARPADEANTE SI HAY COMANDA/PEDIDO ACTIVO */}
+    {mispedidos.length > 0 && (
+      <span className="absolute -top-1 -right-1 flex h-3 w-3">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+      </span>
+    )}
+  </button>
+
+  {/* Menú Flotante Desplegable */}
+  {menuCuentaAbierto && (
+    <div 
+      className="absolute right-0 mt-2 w-48 bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl z-[100] py-2 animate-fade-in"
+      onClick={() => setMenuCuentaAbierto(false)}
     >
-      Atrás
-    </button>
-  </div>
+      {!usuarioLogueado ? (
+        <button
+          onClick={() => setView('registro')}
+          className="w-full text-left px-4 py-2.5 text-[10px] font-black uppercase text-slate-300 hover:bg-slate-900 hover:text-orange-500 transition-colors"
+        >
+          🔑 Iniciar Sesión / Registro
+        </button>
+      ) : (
+        <>
+          <button
+            onClick={() => setView('mis_pedidos')}
+            className="w-full text-left px-4 py-2.5 text-[10px] font-black uppercase text-slate-200 hover:bg-slate-900 hover:text-orange-500 transition-colors flex items-center justify-between"
+          >
+            <span className="flex items-center gap-2">
+              📋 Ver mis órdenes
+            </span>
+            
+            {/* 🔴 ALERTA/PUNTITO ROJO DENTRO DE LA OPCIÓN */}
+            {mispedidos.length > 0 && (
+              <span className="flex items-center gap-1 bg-red-500/20 border border-red-500/40 text-red-400 text-[8px] font-black px-2 py-0.5 rounded-full animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                {mispedidos.length} Activo{mispedidos.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </button>
+
+          <div className="border-t border-slate-900 my-1"></div>
+
+          <button
+            onClick={cerrarSesion}
+            className="w-full text-left px-4 py-2.5 text-[10px] font-black uppercase text-red-400 hover:bg-red-500/10 transition-colors"
+          >
+            🚪 Cerrar Sesión
+          </button>
+        </>
+      )}
+    </div>
+  )}
+</div>
 </div>
 
               </div>
