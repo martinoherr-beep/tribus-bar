@@ -87,6 +87,7 @@ function App() {
 
   // 2. Ahora sí podemos declarar listaTickets sin que falle
   const listaTickets = historialCerrado || [];
+  // 🔴 Evalúa si en tus órdenes hay productos que AÚN NO tienen check
 
   const [verCarrito, setVerCarrito] = useState(false);
   const [verModalTelefono, setVerModalTelefono] = useState(false);
@@ -147,7 +148,26 @@ useEffect(() => {
   }, (error) => {
     console.error("Error escuchando la comanda en tiempo real:", error);
   });
+const tienePendientesBarra = mispedidos.some(p => {
+  if (p.estado === 'entregado' || p.estado === 'cancelado') return false;
 
+  const detalle = p.detalle || "";
+  const lineas = detalle.split('\n');
+  
+  // Extrae los índices de las líneas que son productos (ej. "1x Hamburguesa")
+  const indicesProductos = lineas
+    .map((linea, idx) => (/^\d+x/.test(linea.trim()) ? idx : -1))
+    .filter(idx => idx !== -1);
+
+  const servidosMap = p.servidos || {};
+
+  // Si tiene productos, devuelve TRUE si al menos UNO NO tiene check
+  if (indicesProductos.length > 0) {
+    return indicesProductos.some(idx => !servidosMap[idx]);
+  }
+
+  return true;
+});
   return () => unsubscribe();
 }, [usuarioLogueado, view]); // 👈 Añadimos 'view' o dejamos las dependencias seguras
 
@@ -2018,6 +2038,44 @@ const guardarEvento = async (e) => {
             {estadoReal}
           </span>
         </div>
+        {/* 🟢 BANNER DINÁMICO DE ESTADO DE LA COMANDA */}
+      {estadoReal === 'en_camino' || p.enCamino ? (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-2xl mb-3 flex items-center gap-3 animate-pulse">
+          <span className="text-2xl">{esPedidoExterno ? '🛵' : '🏃‍♂️'}</span>
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-wider">
+              {esPedidoExterno ? '¡Tu pedido va en camino!' : '¡El mozo va a tu mesa!'}
+            </p>
+            <p className="text-[9px] text-emerald-300/80">
+              {esPedidoExterno ? 'El repartidor se dirige a tu dirección.' : 'Tu orden va saliendo hacia tu mesa.'}
+            </p>
+          </div>
+        </div>
+      ) : estadoReal === 'preparando' ? (
+        <div className="bg-sky-500/10 border border-sky-500/30 text-sky-400 p-3 rounded-2xl mb-3 flex items-center gap-3">
+          <span className="text-2xl">🍹</span>
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-wider">En Preparación / Barra</p>
+            <p className="text-[9px] text-sky-300/80">Preparando tus tragos y platillos.</p>
+          </div>
+        </div>
+      ) : estadoReal === 'listo' ? (
+        <div className="bg-blue-500/10 border border-blue-500/30 text-blue-400 p-3 rounded-2xl mb-3 flex items-center gap-3">
+          <span className="text-2xl">🔔</span>
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-wider">¡Listo para entregar!</p>
+            <p className="text-[9px] text-blue-300/80">Tu orden está lista en la barra.</p>
+          </div>
+        </div>
+      ) : estadoReal === 'pendiente' ? (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-400 p-3 rounded-2xl mb-3 flex items-center gap-3">
+          <span className="text-2xl">⏳</span>
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-wider">Comanda Recibida</p>
+            <p className="text-[9px] text-amber-300/80">En espera de ser tomada por cocina/barra.</p>
+          </div>
+        </div>
+      ) : null}
         
         <p className="text-[11px] text-gray-400 whitespace-pre-line mb-3">{p.detalle}</p>
         
@@ -3844,12 +3902,13 @@ const coincideCategoria = catSeleccionada === "Todos"
     <span className="text-[8px] text-slate-500">▼</span>
 
     {/* 🔴 PUNTITO ROJO/VERDE PARPADEANTE SI HAY COMANDA/PEDIDO ACTIVO */}
-    {mispedidos.length > 0 && (
-      <span className="absolute -top-1 -right-1 flex h-3 w-3">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-      </span>
-    )}
+  {/* En el botón principal del menú y en la opción "Ver mis órdenes" */}
+{tienePendientesBarra && (
+  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+  </span>
+)}
   </button>
 
   {/* Menú Flotante Desplegable */}
