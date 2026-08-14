@@ -2010,129 +2010,155 @@ const guardarEvento = async (e) => {
 })()}
 
 {view === 'mis_pedidos' && (
-   <div className="min-h-screen bg-black p-6 font-sans text-white">
-     <div className="flex justify-between items-center mb-8">
-       <h2 className="text-2xl font-black italic uppercase tracking-tighter">Mis Órdenes</h2>
-       <button onClick={() => setView('menu')} className="bg-slate-800 p-2 rounded-full"><X size={20}/></button>
-     </div>
-     <div className="space-y-4">
-      
-{mispedidos.length === 0 ? (
-  <p className="text-gray-500 text-center text-xs uppercase tracking-widest mt-20">No tienes pedidos activos</p>
-) : (
-  mispedidos.map((p) => {
-    const mesaString = String(p.mesa || "").toUpperCase();
-    const esPedidoExterno = mesaString.includes('TEL');
-    const estadoReal = p.estado || "pendiente"; 
+  <div className="min-h-screen bg-black p-6 font-sans text-white">
+    <div className="flex justify-between items-center mb-8">
+      <h2 className="text-2xl font-black italic uppercase tracking-tighter">Mis Órdenes</h2>
+      <button onClick={() => setView('menu')} className="bg-slate-800 p-2 rounded-full">
+        <X size={20}/>
+      </button>
+    </div>
+    
+    <div className="space-y-4">
+      {mispedidos.length === 0 ? (
+        <p className="text-gray-500 text-center text-xs uppercase tracking-widest mt-20">
+          No tienes pedidos activos
+        </p>
+      ) : (
+        mispedidos.map((p) => {
+          const mesaString = String(p.mesa || "").toUpperCase();
+          const esPedidoExterno = mesaString.includes('TEL');
+          const estadoReal = p.estado || "pendiente"; 
 
-    return (
-      <div key={p.id} className="bg-[#0f172a] border border-gray-800 p-5 rounded-[30px] text-left">
-        <div className="flex justify-between items-start mb-3">
-          <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">
-            {esPedidoExterno ? 'Para Llevar / Domicilio' : `Mesa ${p.mesa}`}
-          </span>
-          <span className={`text-[9px] font-bold px-3 py-1 rounded-full uppercase ${
-            estadoReal === 'pendiente' ? 'bg-amber-500/10 text-amber-500' : 
-            estadoReal === 'preparando' ? 'bg-sky-500/10 text-sky-500' : 
-            'bg-green-500/10 text-green-500'
-          }`}>
-            {estadoReal}
-          </span>
-        </div>
-        {/* 🟢 BANNER DINÁMICO DE ESTADO DE LA COMANDA */}
-      {estadoReal === 'en_camino' || p.enCamino ? (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-2xl mb-3 flex items-center gap-3 animate-pulse">
-          <span className="text-2xl">{esPedidoExterno ? '🛵' : '🏃‍♂️'}</span>
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-wider">
-              {esPedidoExterno ? '¡Tu pedido va en camino!' : '¡El mozo va a tu mesa!'}
-            </p>
-            <p className="text-[9px] text-emerald-300/80">
-              {esPedidoExterno ? 'El repartidor se dirige a tu dirección.' : 'Tu orden va saliendo hacia tu mesa.'}
-            </p>
-          </div>
-        </div>
-      ) : estadoReal === 'preparando' ? (
-        <div className="bg-sky-500/10 border border-sky-500/30 text-sky-400 p-3 rounded-2xl mb-3 flex items-center gap-3">
-          <span className="text-2xl">🍹</span>
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-wider">En Preparación / Barra</p>
-            <p className="text-[9px] text-sky-300/80">Preparando tus tragos y platillos.</p>
-          </div>
-        </div>
-      ) : estadoReal === 'listo' ? (
-        <div className="bg-blue-500/10 border border-blue-500/30 text-blue-400 p-3 rounded-2xl mb-3 flex items-center gap-3">
-          <span className="text-2xl">🔔</span>
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-wider">¡Listo para entregar!</p>
-            <p className="text-[9px] text-blue-300/80">Tu orden está lista en la barra.</p>
-          </div>
-        </div>
-      ) : estadoReal === 'pendiente' ? (
-        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-400 p-3 rounded-2xl mb-3 flex items-center gap-3">
-          <span className="text-2xl">⏳</span>
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-wider">Comanda Recibida</p>
-            <p className="text-[9px] text-amber-300/80">En espera de ser tomada por cocina/barra.</p>
-          </div>
-        </div>
-      ) : null}
-        
-        <p className="text-[11px] text-gray-400 whitespace-pre-line mb-3">{p.detalle}</p>
-        
-        <div className="border-t border-gray-800 pt-3 flex flex-col gap-2">
-          <div className="flex justify-between items-center">
-            <span className="text-xs font-bold text-gray-500 italic">Total</span>
-            <span className="text-lg font-black text-white">${p.total}</span>
-          </div>
+          // 🟢 1. CÁLCULO DINÁMICO DE CHECKS (SERVIDOS)
+          const detalle = p.detalle || "";
+          const lineas = detalle.split('\n');
+          const indicesProductos = lineas
+            .map((linea, idx) => (/^\d+x/.test(linea.trim()) ? idx : -1))
+            .filter(idx => idx !== -1);
+          const servidosMap = p.servidos || {};
 
-          {esPedidoExterno && estadoReal !== 'entregado' && (
-            <button 
-              onClick={() => informarPago(p.id)} 
-              className={`w-full mt-2 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
-                p.pagoInformado 
-                  ? 'bg-green-500/20 text-green-500 border border-green-500/50 cursor-not-allowed' 
-                  : 'bg-blue-600 text-white animate-pulse'
-              }`} 
-              disabled={p.pagoInformado}
-            >
-              {p.pagoInformado ? '✔ Pago en Verificación' : 'Ya deposité / Informar Pago'}
-            </button>
-          )}
+          // Verdadero si todos los ítems de la orden tienen check en Firestore
+          const todosServidos = indicesProductos.length > 0 && 
+            indicesProductos.every(idx => servidosMap[idx]);
 
-          {!esPedidoExterno && (
-            <button
-              type="button"
-              disabled={p.solicitaCuenta}
-              onClick={async () => {
-                try {
-                  const pedidoRef = doc(db, "pedidos", p.id);
-                  await updateDoc(pedidoRef, {
-                    solicitaCuenta: true,
-                    horaSolicitudCuenta: serverTimestamp()
-                  });
-                  alert("🔔 ¡Solicitud enviada! Un mesero se dirige a tu mesa con la cuenta.");
-                } catch (error) {
-                  console.error("Error al pedir cuenta:", error);
-                  alert("Hubo un error al llamar al mesero. Por favor inténtalo de nuevo.");
-                }
-              }}
-              className={`w-full mt-2 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all duration-300 active:scale-[0.98] ${
-                p.solicitaCuenta 
-                  ? 'bg-amber-500/10 text-amber-500 border border-amber-500/40 animate-pulse cursor-not-allowed' 
-                  : 'bg-orange-600 text-white shadow-lg shadow-orange-950/20 hover:bg-orange-500'
-              }`}
-            >
-              {p.solicitaCuenta ? '⏳ Llamando Mesero con la Cuenta...' : '💵 Pagar en Mesa / Traer Cuenta'}
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  })
-)}
-     </div>
-   </div>
+          return (
+            <div key={p.id} className="bg-[#0f172a] border border-gray-800 p-5 rounded-[30px] text-left">
+              <div className="flex justify-between items-start mb-3">
+                <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">
+                  {esPedidoExterno ? 'Para Llevar / Domicilio' : `Mesa ${p.mesa}`}
+                </span>
+                <span className={`text-[9px] font-bold px-3 py-1 rounded-full uppercase ${
+                  todosServidos || estadoReal === 'entregado' ? 'bg-green-500/10 text-green-500' : 
+                  estadoReal === 'en_camino' ? 'bg-emerald-500/10 text-emerald-500' :
+                  estadoReal === 'preparando' ? 'bg-sky-500/10 text-sky-500' : 
+                  'bg-amber-500/10 text-amber-500'
+                }`}>
+                  {todosServidos ? 'Servido / Entregado' : estadoReal}
+                </span>
+              </div>
+
+              {/* 🟢 BANNER DINÁMICO DE ESTADO DE LA COMANDA */}
+              {todosServidos || estadoReal === 'entregado' ? (
+                <div className="bg-green-500/10 border border-green-500/30 text-green-400 p-3 rounded-2xl mb-3 flex items-center gap-3">
+                  <span className="text-2xl">✅</span>
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-wider">¡Pedido Completado!</p>
+                    <p className="text-[9px] text-green-300/80">Todos los productos han sido entregados en tu mesa.</p>
+                  </div>
+                </div>
+              ) : estadoReal === 'en_camino' || p.enCamino ? (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-2xl mb-3 flex items-center gap-3 animate-pulse">
+                  <span className="text-2xl">{esPedidoExterno ? '🛵' : '🏃‍♂️'}</span>
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-wider">
+                      {esPedidoExterno ? '¡Tu pedido va en camino!' : '¡El mozo va a tu mesa!'}
+                    </p>
+                    <p className="text-[9px] text-emerald-300/80">
+                      {esPedidoExterno ? 'El repartidor se dirige a tu dirección.' : 'Tu orden va saliendo hacia tu mesa.'}
+                    </p>
+                  </div>
+                </div>
+              ) : estadoReal === 'preparando' ? (
+                <div className="bg-sky-500/10 border border-sky-500/30 text-sky-400 p-3 rounded-2xl mb-3 flex items-center gap-3">
+                  <span className="text-2xl">🍹</span>
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-wider">En Preparación / Barra</p>
+                    <p className="text-[9px] text-sky-300/80">Preparando tus tragos y platillos.</p>
+                  </div>
+                </div>
+              ) : estadoReal === 'listo' ? (
+                <div className="bg-blue-500/10 border border-blue-500/30 text-blue-400 p-3 rounded-2xl mb-3 flex items-center gap-3">
+                  <span className="text-2xl">🔔</span>
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-wider">¡Listo para entregar!</p>
+                    <p className="text-[9px] text-blue-300/80">Tu orden está lista en la barra.</p>
+                  </div>
+                </div>
+              ) : estadoReal === 'pendiente' ? (
+                <div className="bg-amber-500/10 border border-amber-500/30 text-amber-400 p-3 rounded-2xl mb-3 flex items-center gap-3">
+                  <span className="text-2xl">⏳</span>
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-wider">Comanda Recibida</p>
+                    <p className="text-[9px] text-amber-300/80">En espera de ser tomada por cocina/barra.</p>
+                  </div>
+                </div>
+              ) : null}
+                
+              <p className="text-[11px] text-gray-400 whitespace-pre-line mb-3">{p.detalle}</p>
+              
+              <div className="border-t border-gray-800 pt-3 flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-gray-500 italic">Total</span>
+                  <span className="text-lg font-black text-white">${p.total}</span>
+                </div>
+
+                {esPedidoExterno && estadoReal !== 'entregado' && (
+                  <button 
+                    onClick={() => informarPago(p.id)} 
+                    className={`w-full mt-2 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                      p.pagoInformado 
+                        ? 'bg-green-500/20 text-green-500 border border-green-500/50 cursor-not-allowed' 
+                        : 'bg-blue-600 text-white animate-pulse'
+                    }`} 
+                    disabled={p.pagoInformado}
+                  >
+                    {p.pagoInformado ? '✔ Pago en Verificación' : 'Ya deposité / Informar Pago'}
+                  </button>
+                )}
+
+                {!esPedidoExterno && (
+                  <button
+                    type="button"
+                    disabled={p.solicitaCuenta}
+                    onClick={async () => {
+                      try {
+                        const pedidoRef = doc(db, "pedidos", p.id);
+                        await updateDoc(pedidoRef, {
+                          solicitaCuenta: true,
+                          horaSolicitudCuenta: serverTimestamp()
+                        });
+                        alert("🔔 ¡Solicitud enviada! Un mesero se dirige a tu mesa con la cuenta.");
+                      } catch (error) {
+                        console.error("Error al pedir cuenta:", error);
+                        alert("Hubo un error al llamar al mesero. Por favor inténtalo de nuevo.");
+                      }
+                    }}
+                    className={`w-full mt-2 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all duration-300 active:scale-[0.98] ${
+                      p.solicitaCuenta 
+                        ? 'bg-amber-500/10 text-amber-500 border border-amber-500/40 animate-pulse cursor-not-allowed' 
+                        : 'bg-orange-600 text-white shadow-lg shadow-orange-950/20 hover:bg-orange-500'
+                    }`}
+                  >
+                    {p.solicitaCuenta ? '⏳ Llamando Mesero con la Cuenta...' : '💵 Pagar en Mesa / Traer Cuenta'}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  </div>
 )}
 
 {view === 'login_staff' && (
