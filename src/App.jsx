@@ -148,26 +148,7 @@ useEffect(() => {
   }, (error) => {
     console.error("Error escuchando la comanda en tiempo real:", error);
   });
-const tienePendientesBarra = mispedidos.some(p => {
-  if (p.estado === 'entregado' || p.estado === 'cancelado') return false;
 
-  const detalle = p.detalle || "";
-  const lineas = detalle.split('\n');
-  
-  // Extrae los índices de las líneas que son productos (ej. "1x Hamburguesa")
-  const indicesProductos = lineas
-    .map((linea, idx) => (/^\d+x/.test(linea.trim()) ? idx : -1))
-    .filter(idx => idx !== -1);
-
-  const servidosMap = p.servidos || {};
-
-  // Si tiene productos, devuelve TRUE si al menos UNO NO tiene check
-  if (indicesProductos.length > 0) {
-    return indicesProductos.some(idx => !servidosMap[idx]);
-  }
-
-  return true;
-});
   return () => unsubscribe();
 }, [usuarioLogueado, view]); // 👈 Añadimos 'view' o dejamos las dependencias seguras
 
@@ -1930,6 +1911,26 @@ const guardarEvento = async (e) => {
       </div>
     );
   }
+  const tienePendientesBarra = mispedidos.some(p => {
+  if (p.estado === 'entregado' || p.estado === 'cancelado') return false;
+
+  const detalle = p.detalle || "";
+  const lineas = detalle.split('\n');
+  
+  // Extrae los índices de las líneas que son productos (ej. "1x Hamburguesa")
+  const indicesProductos = lineas
+    .map((linea, idx) => (/^\d+x/.test(linea.trim()) ? idx : -1))
+    .filter(idx => idx !== -1);
+
+  const servidosMap = p.servidos || {};
+
+  // Si tiene productos, devuelve TRUE si al menos UNO NO tiene check
+  if (indicesProductos.length > 0) {
+    return indicesProductos.some(idx => !servidosMap[idx]);
+  }
+
+  return true;
+});
   return (
     <>
       {/* --- PWA: OBLIGAR A AGREGAR A INICIO --- */}
