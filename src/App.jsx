@@ -1490,28 +1490,40 @@ if (pinGenerado) {
 batch.set(nuevoPedidoRef, datosNuevoPedido);
     }
 
-    // ---------------------------------------------------------------------------
-    // 📦 REINCORPORACIÓN DE DESCUENTO DE STOCK EN FIRESTORE
-    // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 📦 DESCUENTO DE STOCK Y BÁSCULA EN FIRESTORE
+// ---------------------------------------------------------------------------
 carrito.forEach((item) => {
   if (!item.id) {
     alert(`❌ ERROR DE ID: El producto ${item.nombre} no tiene ID de Firestore.`);
     return;
   }
+
   const prodRef = doc(db, "productos", item.id);
   const cantidadARestar = Number(item.cantidad || 1);
 
-  // 🍹 Si es una bebida preparada por peso
-  if (item.esInsumoPeso && item.gramosPorVaso) {
-    // Determina los gramos a restar según el formato (Vaso/Litro o por defecto gramosPorVaso)
-    const gramosUnidad = item.subcategoria === "LITRO" ? item.gramosPorLitro : item.gramosPorVaso;
-    const totalGramosARestar = gramosUnidad * cantidadARestar;
+  // 1. Buscamos la información completa del producto en el menú cargado
+  const prodInfo = productosMenu.find((p) => p.id === item.id);
 
+  // 2. Evaluamos si es un insumo por peso usando la información de productosMenu
+  if (prodInfo && prodInfo.esInsumoPeso) {
+    // Detectamos si es Litro o Vaso revisando la subcategoría o si el nombre contiene "(LITRO)"
+    const esLitro = 
+      item.subcategoria === "LITRO" || 
+      (item.nombre && item.nombre.toUpperCase().includes("LITRO"));
+
+    const gramosPorUnidad = esLitro 
+      ? Number(prodInfo.gramosPorLitro || 0) 
+      : Number(prodInfo.gramosPorVaso || 0);
+
+    const totalGramosARestar = gramosPorUnidad * cantidadARestar;
+
+    // Actualizamos el peso actual en gramos
     batch.update(prodRef, {
       pesoActualGramos: increment(-totalGramosARestar)
     });
   } else {
-    // 🍺 Productos por unidades tradicionales (Cervezas, Snacks, etc.)
+    // 🍺 Descuento tradicional por unidades (Cervezas, Snacks, etc.)
     batch.update(prodRef, {
       stock: increment(-cantidadARestar)
     });
