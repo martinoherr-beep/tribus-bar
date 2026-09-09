@@ -239,14 +239,22 @@ const eliminarProductoDeComanda = async (pedido, indexAEliminar) => {
     });
 
     // 2. Si el producto tiene un ID guardado, incrementamos su stock en la colección 'productos'
-    if (itemAEliminar.id) {
-      const productoRef = doc(db, "productos", itemAEliminar.id);
-      const cantidadAReponer = Number(itemAEliminar.cantidad || 1);
+ // 2. Si el producto tiene un ID guardado, incrementamos su stock en la colección 'productos'
+if (itemAEliminar.id) {
+  const productoRef = doc(db, "productos", itemAEliminar.id);
+  const cantidadAReponer = Number(itemAEliminar.cantidad || 1);
 
-      batch.update(productoRef, {
-        stock: increment(cantidadAReponer)
-      });
-    }
+  if (itemAEliminar.esInsumoPeso) {
+    const gramosUnidad = itemAEliminar.subcategoria === "LITRO" ? itemAEliminar.gramosPorLitro : itemAEliminar.gramosPorVaso;
+    batch.update(productoRef, {
+      pesoActualGramos: increment(gramosUnidad * cantidadAReponer)
+    });
+  } else {
+    batch.update(productoRef, {
+      stock: increment(cantidadAReponer)
+    });
+  }
+}
 
     // Ejecutamos ambas operaciones de forma atómica
     await batch.commit();
@@ -1485,16 +1493,29 @@ batch.set(nuevoPedidoRef, datosNuevoPedido);
     // ---------------------------------------------------------------------------
     // 📦 REINCORPORACIÓN DE DESCUENTO DE STOCK EN FIRESTORE
     // ---------------------------------------------------------------------------
-    carrito.forEach((item) => {
+carrito.forEach((item) => {
   if (!item.id) {
     alert(`❌ ERROR DE ID: El producto ${item.nombre} no tiene ID de Firestore.`);
     return;
   }
   const prodRef = doc(db, "productos", item.id);
   const cantidadARestar = Number(item.cantidad || 1);
-  batch.update(prodRef, {
-    stock: increment(-cantidadARestar)
-  });
+
+  // 🍹 Si es una bebida preparada por peso
+  if (item.esInsumoPeso && item.gramosPorVaso) {
+    // Determina los gramos a restar según el formato (Vaso/Litro o por defecto gramosPorVaso)
+    const gramosUnidad = item.subcategoria === "LITRO" ? item.gramosPorLitro : item.gramosPorVaso;
+    const totalGramosARestar = gramosUnidad * cantidadARestar;
+
+    batch.update(prodRef, {
+      pesoActualGramos: increment(-totalGramosARestar)
+    });
+  } else {
+    // 🍺 Productos por unidades tradicionales (Cervezas, Snacks, etc.)
+    batch.update(prodRef, {
+      stock: increment(-cantidadARestar)
+    });
+  }
 });
 
     // 💾 Guardamos obligatoriamente el ID actual en el teléfono de Martín
@@ -1640,11 +1661,21 @@ const eliminarArticuloComanda = async (pedido, indexAEliminar) => {
 
       // 1. Devolver el stock al inventario
       const prodEnc = productosMenu.find(pr => pr.nombre.trim().toUpperCase() === nombreLimpio);
-      if (prodEnc) {
-        await updateDoc(doc(db, "productos", prodEnc.id), {
-          stock: increment(cantidad)
-        });
-      }
+if (prodEnc) {
+  if (prodEnc.esInsumoPeso) {
+    // Evalúa si la línea contiene (LITRO) o (VASO) para calcular los gramos
+    const esLitro = lineaAEliminar.toUpperCase().includes("LITRO");
+    const gramosUnidad = esLitro ? prodEnc.gramosPorLitro : prodEnc.gramosPorVaso;
+    
+    await updateDoc(doc(db, "productos", prodEnc.id), {
+      pesoActualGramos: increment(gramosUnidad * cantidad)
+    });
+  } else {
+    await updateDoc(doc(db, "productos", prodEnc.id), {
+      stock: increment(cantidad)
+    });
+  }
+}
     }
 
     // 2. Filtrar las líneas quitando el renglón borrado
