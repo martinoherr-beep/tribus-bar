@@ -4480,8 +4480,51 @@ const coincideCategoria = catSeleccionada === "Todos"
        )}
 
       <div id="recaptcha-container"></div>
-   </>
- );
+{/* 🧾 MODAL FLOTANTE DEL TICKET EXCLUSIVO PARA EL CLIENTE */}
+      {ticketParaReimprimir && view === 'historial_cliente' && (
+        <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center p-4">
+          
+          {/* Botón superior para cerrar */}
+          <button 
+            onClick={() => setTicketParaReimprimir(null)}
+            className="mb-4 bg-slate-800 border border-slate-700 text-white px-6 py-2 rounded-full font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 shadow-lg"
+          >
+            Cerrar Ticket ✕
+          </button>
+          
+          {/* Diseño estilo ticket térmico */}
+          <div className="bg-white text-black p-6 rounded-lg w-full max-w-sm font-mono text-xs shadow-2xl overflow-y-auto max-h-[75vh]">
+            <div className="text-center border-b-2 border-dashed border-gray-400 pb-4 mb-4">
+              <h2 className="text-xl font-black uppercase tracking-tighter">Tribu's Bar</h2>
+              <p className="text-[10px] font-bold text-gray-500 mt-1">COMPROBANTE DE COMPRA</p>
+              <p className="text-[10px] text-gray-600 mt-1">
+                {ticketParaReimprimir.fecha?.seconds 
+                  ? new Date(ticketParaReimprimir.fecha.seconds * 1000).toLocaleString('es-MX') 
+                  : 'Fecha reciente'}
+              </p>
+            </div>
+            
+            <div className="mb-4">
+              <p className="font-bold text-[11px] mb-2 uppercase">
+                {ticketParaReimprimir.mesa?.includes("TEL") ? "📦 A Domicilio" : `📍 Mesa: ${ticketParaReimprimir.mesa}`}
+              </p>
+              <div className="border-t-2 border-b-2 border-dashed border-gray-400 py-4 whitespace-pre-line text-[11px] leading-relaxed font-semibold">
+                {ticketParaReimprimir.detalle}
+              </div>
+            </div>
+            
+            <div className="flex justify-between items-center text-lg font-black pt-2">
+              <span>TOTAL:</span>
+              <span>${ticketParaReimprimir.total}</span>
+            </div>
+            
+            <div className="text-center mt-8 text-[10px] text-gray-400 font-bold uppercase">
+              *** Gracias por tu preferencia ***
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
-
 export default App;
