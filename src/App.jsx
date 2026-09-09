@@ -1992,7 +1992,7 @@ const guardarEvento = async (e) => {
             onClick={() => setView('mis_pedidos')} 
             className="text-orange-500 font-bold border-b border-orange-500 uppercase tracking-widest text-sm cursor-pointer"
           >
-            Realizar pago
+            Ya realice mi transferencia,informar del pago
           </button>
         </>
       ) : (
@@ -2063,7 +2063,7 @@ const guardarEvento = async (e) => {
                   <span className="text-2xl">✅</span>
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-wider">¡Pedido Completado!</p>
-                    <p className="text-[9px] text-green-300/80">Todos los productos han sido entregados en tu mesa.</p>
+                    <p className="text-[9px] text-green-300/80">Tribu´s Bar agradece tu preferencia.</p>
                   </div>
                 </div>
               ) : estadoReal === 'en_camino' || p.enCamino ? (
