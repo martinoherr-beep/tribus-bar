@@ -219,59 +219,65 @@ const eliminarProductoDeComanda = async (pedido, indexAEliminar) => {
   try {
     const batch = writeBatch(db);
 
-    // 1. Clonamos el arreglo de ítems y removemos el elemento seleccionado por su índice
+    // 1. Clonamos el arreglo de ítems y removemos el elemento seleccionado
     const nuevosItems = [...pedido.items];
     nuevosItems.splice(indexAEliminar, 1);
 
-    // Referencia al pedido
     const pedidoRef = doc(db, "pedidos", pedido.id);
 
-    // Calcular el nuevo total restando el precio del producto eliminado
+    // Recalcular total de la comanda
     const nuevoTotal = nuevosItems.reduce(
       (acc, item) => acc + Number(item.precio || 0) * Number(item.cantidad || 1),
       0
     );
 
-    // Actualizamos el pedido con la nueva lista de ítems y el nuevo total
     batch.update(pedidoRef, {
       items: nuevosItems,
       total: nuevoTotal
     });
 
-    // 2. Si el producto tiene un ID guardado, incrementamos su stock en la colección 'productos'
- // 2. Si el producto tiene un ID guardado, incrementamos su stock en la colección 'productos'
-if (itemAEliminar.id) {
-  const productoRef = doc(db, "productos", itemAEliminar.id);
-  const cantidadAReponer = Number(itemAEliminar.cantidad || 1);
+    // 2. Reposición de stock y métricas de vasos/litros
+    if (itemAEliminar.id) {
+      const productoRef = doc(db, "productos", itemAEliminar.id);
+      const cantidadAReponer = Number(itemAEliminar.cantidad || 1);
 
-if (itemAEliminar.esInsumoPeso) {
-  const esLitro = 
-    itemAEliminar.subcategoria === "LITRO" || 
-    (itemAEliminar.nombre && itemAEliminar.nombre.toUpperCase().includes("LITRO"));
+      // Buscamos las propiedades reales del producto desde productosMenu por si el ítem de la comanda viene incompleto
+      const prodInfo = productosMenu.find((p) => p.id === itemAEliminar.id) || itemAEliminar;
 
-  const gramosUnidad = esLitro 
-    ? Number(itemAEliminar.gramosPorLitro || 0) 
-    : Number(itemAEliminar.gramosPorVaso || 0);
+      const subCat = (itemAEliminar.subcategoria || prodInfo.subcategoria || "").toUpperCase();
+      const nombreLimpio = (itemAEliminar.nombre || prodInfo.nombre || "").toUpperCase();
+      const esLitro = subCat.includes("LITRO") || nombreLimpio.includes("LITRO");
 
-  batch.update(productoRef, {
-    pesoActualGramos: increment(gramosUnidad * cantidadAReponer),
-    // Resta de los contadores de vendidos al cancelar el producto
-    ...(esLitro 
-      ? { litrosVendidos: increment(-cantidadAReponer) } 
-      : { vasosVendidos: increment(-cantidadAReponer) }
-    )
-  });
-} else {
-  batch.update(productoRef, {
-    stock: increment(cantidadAReponer)
-  });
-}
-}
+      if (prodInfo.esInsumoPeso) {
+        const gramosUnidad = esLitro 
+          ? Number(prodInfo.gramosPorLitro || itemAEliminar.gramosPorLitro || 0) 
+          : Number(prodInfo.gramosPorVaso || itemAEliminar.gramosPorVaso || 0);
 
-    // Ejecutamos ambas operaciones de forma atómica
+        const totalGramosAReponer = gramosUnidad * cantidadAReponer;
+
+        batch.update(productoRef, {
+          pesoActualGramos: increment(totalGramosAReponer),
+          // CORREGIDO: Se usan 'totalLitrosVendidos' y 'totalVasosVendidos' para coincidir con la venta
+          ...(esLitro 
+            ? { totalLitrosVendidos: increment(-cantidadAReponer) } 
+            : { totalVasosVendidos: increment(-cantidadAReponer) }
+          )
+        });
+      } else {
+        // Si no es por peso, repone stock físico y resta la métrica vendida correspondiente
+        batch.update(productoRef, {
+          stock: increment(cantidadAReponer),
+          ...(esLitro 
+            ? { totalLitrosVendidos: increment(-cantidadAReponer) } 
+            : { totalVasosVendidos: increment(-cantidadAReponer) }
+          )
+        });
+      }
+    }
+
     await batch.commit();
 
-    alert(`✅ "${itemAEliminar.nombre}" eliminado de la comanda. Stock devuelto (+${itemAEliminar.cantidad || 1}).`);
+    alert(`✅ "${itemAEliminar.nombre}" eliminado. Se restó de la métrica y se devolvió al stock/peso.`);
   } catch (error) {
     console.error("Error al eliminar producto y devolver stock:", error);
     alert("No se pudo eliminar el producto de la comanda.");
@@ -1309,27 +1315,31 @@ const manejarPinMesa = (num) => {
 };
 
 const agregarAlCarrito = (item) => {
-  // Aseguramos obtener el ID (ya sea que venga como item.id o item._id)
   const idProducto = item.id || item._id;
-
-  if (!idProducto) {
-    console.error("⚠️ El producto seleccionado no tiene ID válido:", item);
-    return alert("Error al seleccionar el producto (sin ID).");
-  }
+  if (!idProducto) return alert("Error al seleccionar el producto (sin ID).");
 
   const p = obtenerPrecioItem(item);
   const itemStock = productosMenu.find(x => x.id === idProducto);
   const ex = carrito.find(x => x.id === idProducto);
 
-  if (itemStock && itemStock.stock <= (ex ? ex.cantidad : 0)) {
+  if (itemStock && itemStock.stock <= (ex ? ex.cantidad : 0) && !itemStock.esInsumoPeso) {
     return alert("Sin stock.");
   }
 
   if (ex) {
     setCarrito(carrito.map(x => x.id === idProducto ? { ...ex, cantidad: ex.cantidad + 1 } : x));
   } else {
-    // 👈 GARANTIZAMOS QUE EL ID VA EN EL ELEMENTO DEL CARRITO
-    setCarrito([...carrito, { ...item, id: idProducto, precio: p, carrot: 1, cantidad: 1 }]);
+    setCarrito([
+      ...carrito, 
+      { 
+        ...item, 
+        id: idProducto, 
+        precio: p, 
+        cantidad: 1,
+        subcategoria: item.subcategoria || itemStock?.subcategoria || "",
+        esInsumoPeso: itemStock?.esInsumoPeso || false
+      }
+    ]);
   }
 };
 
@@ -1505,48 +1515,54 @@ batch.set(nuevoPedidoRef, datosNuevoPedido);
 // ---------------------------------------------------------------------------
 // 📦 DESCUENTO DE STOCK Y BÁSCULA EN FIRESTORE
 // ---------------------------------------------------------------------------
-carrito.forEach((item) => {
-  if (!item.id) {
-    alert(`❌ ERROR DE ID: El producto ${item.nombre} no tiene ID de Firestore.`);
+// Map para consolidar ítems duplicados en el carrito antes de procesar batch
+const carritoConsolidado = carrito.reduce((acc, item) => {
+  if (!item.id) return acc;
+  const existente = acc.find(i => i.id === item.id);
+  if (existente) {
+    existente.cantidad = Number(existente.cantidad || 1) + Number(item.cantidad || 1);
+  } else {
+    acc.push({ ...item, cantidad: Number(item.cantidad || 1) });
+  }
+  return acc;
+}, []);
+
+carritoConsolidado.forEach((item) => {
+  const prodRef = doc(db, "productos", item.id);
+  const cantidadARestar = Number(item.cantidad);
+  const prodInfo = productosMenu.find((p) => p.id === item.id);
+
+  if (!prodInfo) {
+    console.error(`❌ No se encontró la información del producto: ${item.nombre}`);
     return;
   }
 
-  const prodRef = doc(db, "productos", item.id);
-  const cantidadARestar = Number(item.cantidad || 1);
+  const subCat = (item.subcategoria || prodInfo.subcategoria || "").toUpperCase();
+  const nombreLimpio = (item.nombre || "").toUpperCase();
+  const esLitro = subCat.includes("LITRO") || nombreLimpio.includes("LITRO");
 
-  // 1. Buscamos la información completa del producto en el menú cargado
-  const prodInfo = productosMenu.find((p) => p.id === item.id);
-
-  // 2. Evaluamos si es un insumo por peso usando la información de productosMenu
-  if (prodInfo && prodInfo.esInsumoPeso) {
-    // Detectamos si es Litro o Vaso revisando la subcategoría o si el nombre contiene "(LITRO)"
-    const esLitro = 
-      item.subcategoria === "LITRO" || 
-      (item.nombre && item.nombre.toUpperCase().includes("LITRO"));
-
+  if (prodInfo.esInsumoPeso) {
     const gramosPorUnidad = esLitro 
       ? Number(prodInfo.gramosPorLitro || 0) 
       : Number(prodInfo.gramosPorVaso || 0);
 
     const totalGramosARestar = gramosPorUnidad * cantidadARestar;
 
-    // Actualizamos peso y contadores de unidades vendidas
-  batch.update(prodRef, {
-    pesoActualGramos: increment(-totalGramosARestar),
-    ...(esLitro 
-      ? { litrosVendidos: increment(cantidadARestar) } 
-      : { vasosVendidos: increment(cantidadARestar) }
-    )
-  });
-
-    // Actualizamos el peso actual en gramos
     batch.update(prodRef, {
-      pesoActualGramos: increment(-totalGramosARestar)
+      pesoActualGramos: increment(-totalGramosARestar),
+      ...(esLitro 
+        ? { totalLitrosVendidos: increment(cantidadARestar) } 
+        : { totalVasosVendidos: increment(cantidadARestar) }
+      )
     });
   } else {
-    // 🍺 Descuento tradicional por unidades (Cervezas, Snacks, etc.)
+    // Si NO es insumo por peso pero es vaso/litro, también actualiza la métrica
     batch.update(prodRef, {
-      stock: increment(-cantidadARestar)
+      stock: increment(-cantidadARestar),
+      ...(esLitro 
+        ? { totalLitrosVendidos: increment(cantidadARestar) } 
+        : { totalVasosVendidos: increment(cantidadARestar) }
+      )
     });
   }
 });
