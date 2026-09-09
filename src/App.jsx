@@ -535,6 +535,7 @@ const generarReporteVentas = () => {
 
 const [mispedidos, setMisPedidos] = useState([]);
 const [telefonoUsuarioLogueado, setTelefonoUsuarioLogueado] = useState("");
+const [historialComprasCliente, setHistorialComprasCliente] = useState([]); // 🌟 NUEVO: Historial permanente
 
 useEffect(() => {
   const comandaIdGuardada = localStorage.getItem("tribu_comanda_id");
@@ -579,6 +580,30 @@ useEffect(() => {
 
   return () => unsub();
 }, [usuarioLogueado, localStorage.getItem("tribu_comanda_id")]); // 👈 Dependencia clave añadida
+
+// 🧾 HISTORIAL PERMANENTE DE COMPRAS COBRADAS (Colección: historial_tickets)
+useEffect(() => {
+  if (!usuarioLogueado?.uid) {
+    setHistorialComprasCliente([]);
+    return;
+  }
+
+  const qHistorial = query(
+    collection(db, "historial_tickets"),
+    where("uid", "==", usuarioLogueado.uid)
+  );
+
+  const unsubHistorial = onSnapshot(qHistorial, (snapshot) => {
+    const tickets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Ordenar del ticket más reciente al más antiguo
+    tickets.sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0));
+    setHistorialComprasCliente(tickets);
+  }, (error) => {
+    console.error("Error al escuchar historial de tickets:", error);
+  });
+
+  return () => unsubHistorial();
+}, [usuarioLogueado]);
 
 // 2. Agrega este useEffect para consultar el GPS al iniciar la app
 useEffect(() => {
@@ -3659,6 +3684,21 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
             <p className="text-[11px] text-slate-400 font-medium mt-1">Descubre lo que ganas al unirte a la Tribu</p>
           </div>
         </button>
+        {/* 🧾 BOTÓN DE HISTORIAL DE COMPRAS (Solo visible para usuarios registrados) */}
+{usuarioLogueado && (
+  <button 
+    onClick={() => setView('historial_cliente')} 
+    className="flex items-center gap-5 bg-slate-800/40 p-5 rounded-3xl border border-white/5 backdrop-blur-sm shadow-xl active:scale-95 hover:bg-slate-700/60 transition-all duration-300 group w-full text-left"
+  >
+    <div className="w-10 h-10 rounded-2xl bg-orange-600/20 border border-orange-500/30 flex items-center justify-center text-orange-500 group-hover:bg-orange-600 group-hover:text-white transition-colors flex-shrink-0">
+      <History size={22} />
+    </div>
+    <div className="flex-1">
+      <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">🧾 Comprobantes de Pago</p>
+      <p className="text-sm text-white font-bold italic">Historial de Compras</p>
+    </div>
+  </button>
+)}
        
 {/* 🏠 SOLO APARECE SI NO ESTÁ EN EL BAR */}
 {!estaEnElBar && (
@@ -3811,6 +3851,62 @@ setNuevoProd({ nombre: "", precioMesa: "", precioDomicilio: "", stockBaja: "", s
      </div>
    </div>
 )}
+
+{/* 🌟 VISTA: HISTORIAL PERMANENTE DE COMPRAS */}
+{view === 'historial_cliente' && (
+  <div className="min-h-screen bg-black p-6 font-sans text-white pb-20">
+    <div className="flex justify-between items-center mb-8 max-w-md mx-auto">
+      <div>
+        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-orange-500">Historial de Compras</h2>
+        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Notas de consumo registradas</p>
+      </div>
+      <button onClick={() => setView('welcome')} className="bg-slate-800 p-2.5 rounded-full hover:bg-slate-700 transition-colors">
+        <X size={20}/>
+      </button>
+    </div>
+
+    <div className="max-w-md mx-auto space-y-4">
+      {historialComprasCliente.length === 0 ? (
+        <div className="bg-[#0c111a] border border-slate-800 rounded-3xl p-8 text-center space-y-2">
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Sin compras registradas aún</p>
+          <p className="text-[10px] text-slate-600 leading-relaxed">
+            Cada vez que consumas en el bar o pidas a domicilio y la barra cobre tu nota, tu comprobante aparecerá guardado aquí de forma permanente.
+          </p>
+        </div>
+      ) : (
+        historialComprasCliente.map((ticket) => (
+          <div key={ticket.id} className="bg-[#0c111a] border border-slate-800 p-5 rounded-[24px] shadow-lg space-y-3 text-left">
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest block">
+                  {ticket.mesa?.includes("TEL") ? "📦 Compra a Domicilio" : `🍻 Consumo en Mesa ${ticket.mesa}`}
+                </span>
+                <span className="text-[9px] font-bold text-slate-500 uppercase">
+                  {ticket.fecha?.seconds 
+                    ? new Date(ticket.fecha.seconds * 1000).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) 
+                    : 'Fecha Reciente'}
+                </span>
+              </div>
+              <span className="text-xl font-black text-green-400 tracking-tight">${ticket.total}</span>
+            </div>
+
+            <div className="bg-black/40 p-3 rounded-xl border border-white/5 text-[11px] text-slate-300 font-mono whitespace-pre-line leading-relaxed">
+              {ticket.detalle}
+            </div>
+
+            <button 
+              onClick={() => setTicketParaReimprimir(ticket)}
+              className="w-full bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95"
+            >
+              <Printer size={14} className="text-orange-500"/> Ver Ticket de Comprobante
+            </button>
+          </div>
+        ))
+      )}
+    </div>
+  </div>
+)}
+
 
 {view === 'menu' && (() => {
    // 🌟 LOGICA MEJORADA: Entiende "B", "T", números de mesa o externos reales
