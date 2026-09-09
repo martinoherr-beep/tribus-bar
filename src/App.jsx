@@ -111,7 +111,16 @@ useEffect(() => {
   return () => clearInterval(timer);
 }, []);
 // ⏱️ Cálculo de tiempo transcurrido
+// Agrega este hook dentro de tu componente App donde declaras const [view, setView] = useState(...)
 
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  
+  // Si la URL tiene '?login=staff' o '?login=barra', entra directamente
+  if (params.get('login') === 'staff' || params.get('login') === 'barra') {
+    setView('login_staff');
+  }
+}, []);
  // 📱 ESCUCHADOR EN TIEMPO REAL PARA EL CLIENTE:
 useEffect(() => {
   // 1. Si hay un usuario de staff/admin logueado, no sacamos la pantalla a welcome
