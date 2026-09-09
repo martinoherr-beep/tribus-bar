@@ -2099,7 +2099,7 @@ const guardarEvento = async (e) => {
                   <span className="text-2xl">⏳</span>
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-wider">Comanda Recibida</p>
-                    <p className="text-[9px] text-amber-300/80">En espera de ser tomada por cocina/barra.</p>
+                    <p className="text-[9px] text-amber-300/80">En espera de ser tomada por la barra.</p>
                   </div>
                 </div>
               ) : null}
