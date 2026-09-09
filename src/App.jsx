@@ -244,16 +244,28 @@ if (itemAEliminar.id) {
   const productoRef = doc(db, "productos", itemAEliminar.id);
   const cantidadAReponer = Number(itemAEliminar.cantidad || 1);
 
-  if (itemAEliminar.esInsumoPeso) {
-    const gramosUnidad = itemAEliminar.subcategoria === "LITRO" ? itemAEliminar.gramosPorLitro : itemAEliminar.gramosPorVaso;
-    batch.update(productoRef, {
-      pesoActualGramos: increment(gramosUnidad * cantidadAReponer)
-    });
-  } else {
-    batch.update(productoRef, {
-      stock: increment(cantidadAReponer)
-    });
-  }
+if (itemAEliminar.esInsumoPeso) {
+  const esLitro = 
+    itemAEliminar.subcategoria === "LITRO" || 
+    (itemAEliminar.nombre && itemAEliminar.nombre.toUpperCase().includes("LITRO"));
+
+  const gramosUnidad = esLitro 
+    ? Number(itemAEliminar.gramosPorLitro || 0) 
+    : Number(itemAEliminar.gramosPorVaso || 0);
+
+  batch.update(productoRef, {
+    pesoActualGramos: increment(gramosUnidad * cantidadAReponer),
+    // Resta de los contadores de vendidos al cancelar el producto
+    ...(esLitro 
+      ? { litrosVendidos: increment(-cantidadAReponer) } 
+      : { vasosVendidos: increment(-cantidadAReponer) }
+    )
+  });
+} else {
+  batch.update(productoRef, {
+    stock: increment(cantidadAReponer)
+  });
+}
 }
 
     // Ejecutamos ambas operaciones de forma atómica
@@ -1517,6 +1529,15 @@ carrito.forEach((item) => {
       : Number(prodInfo.gramosPorVaso || 0);
 
     const totalGramosARestar = gramosPorUnidad * cantidadARestar;
+
+    // Actualizamos peso y contadores de unidades vendidas
+  batch.update(prodRef, {
+    pesoActualGramos: increment(-totalGramosARestar),
+    ...(esLitro 
+      ? { litrosVendidos: increment(cantidadARestar) } 
+      : { vasosVendidos: increment(cantidadARestar) }
+    )
+  });
 
     // Actualizamos el peso actual en gramos
     batch.update(prodRef, {
